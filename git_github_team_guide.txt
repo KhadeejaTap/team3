@@ -1,4 +1,4 @@
-GIT + GITHUB TEAM GUIDE
+GIT + GITHUB GUIDE
 
 1. Clone the repo
 
@@ -65,15 +65,13 @@ your-name = your personal workspace
 Pull Request = how your changes get added to main
 
 
-AVOIDING MERGE CONFLICTS
+AVOIDING MERGE CONFLICTS 
 
 Merge conflicts happen when multiple people change the same part of the same file and Git cannot automatically combine the changes.
 
 To reduce conflicts:
 
 Pull the latest main before starting work.
-
-Keep your changes focused and avoid changing files other teammates are actively working on when possible.
 
 Commit and push your work regularly.
 
@@ -82,25 +80,27 @@ If you get a merge conflict, Git will mark the conflicting section in the file. 
 
 ENV FILES
 
-Use a .env file for local environment variables and secrets such as API keys, database credentials, or other values that should not be committed to GitHub.
+Use a .env file to store local environment variables and secrets, such as API keys and database credentials. These values should not be committed to GitHub.
 
 Example .env:
 
-API_KEY=your_key_here
-DATABASE_URL=your_database_url
+DB_HOST=localhost
+DB_PORT=3306
+DB_NAME=myapp
+DB_USER=root
+DB_PASSWORD=mypassword
 
-Do NOT commit your actual .env file.
+Do NOT commit your actual .env file to GitHub. Add .env to your .gitignore`file.
 
-Instead, create a .env.example file containing the variable names but not the real secrets:
+Instead, create a .env.example file that shows teammates which variables they need without including any actual secrets:
 
-API_KEY=
-DATABASE_URL=
+DB_HOST=localhost
+DB_PORT=3306
+DB_NAME=myapp
+DB_USER=root
+DB_PASSWORD=
 
-This lets teammates know which environment variables they need to create locally.
-
-Each team member should have their own local .env file.
-
-If the project uses a different environment file format, follow the project's setup instructions.
+Each team member should create their own .env file locally and fill in their own values. The .env.example file is safe to commit because it does not contain actual passwords, API keys, or other secrets.
 
 
 GITIGNORE
@@ -114,15 +114,7 @@ For example:
 .env
 .env.*
 !.env.example
-__pycache__/
-*.pyc
-.venv/
-venv/
-node_modules/
-
-Do not add files to .gitignore blindly. Check what your project actually uses.
-
-If a secret was accidentally committed and pushed to GitHub, removing it from the file is NOT enough. The secret should be considered exposed and replaced/revoked.
+node_modules/ 
 
 
 DO NOT
@@ -168,9 +160,9 @@ git merge main
 
 After making changes:
 
-git status
-git add .
-git commit -m "Describe what you changed"
+git status # if u wanna check the branch
+git add . # adds all files not in gitignore
+git commit -m "Describe what you changed" 
 git push
 
 Then open a Pull Request on GitHub.
