@@ -1,0 +1,176 @@
+GIT + GITHUB TEAM GUIDE
+
+1. Clone the repo
+
+git clone <repo-url>
+cd <repo-name>
+
+2. Make sure you're on the latest main
+
+git switch main
+git pull origin main
+
+3. Create your personal branch
+
+git switch -c <your-name>
+
+Example:
+git switch -c khadeeja
+
+4. Push your branch to GitHub
+
+git push -u origin <your-name>
+
+You only need the -u the first time. After that, git push is enough.
+
+5. Before you start working each time, update your branch
+
+git switch main
+git pull origin main
+git switch <your-name>
+git merge main
+
+This makes sure you're working with the newest version of everyone's changes.
+
+6. Work and commit your changes
+
+git add .
+git commit -m "Describe what you changed"
+git push
+
+7. Open a Pull Request
+
+When you're ready, open a Pull Request on GitHub from:
+
+your-name -> main
+
+Someone on the team reviews it, and then it gets merged.
+
+8. After your PR gets merged
+
+Before starting your next piece of work, update your local main:
+
+git switch main
+git pull origin main
+git switch <your-name>
+git merge main
+
+
+BRANCHES
+
+main = shared, stable version
+
+your-name = your personal workspace
+
+Pull Request = how your changes get added to main
+
+
+AVOIDING MERGE CONFLICTS
+
+Merge conflicts happen when multiple people change the same part of the same file and Git cannot automatically combine the changes.
+
+To reduce conflicts:
+
+Pull the latest main before starting work.
+
+Keep your changes focused and avoid changing files other teammates are actively working on when possible.
+
+Commit and push your work regularly.
+
+If you get a merge conflict, Git will mark the conflicting section in the file. Decide which code should stay, remove the conflict markers, test the project, then commit the resolved changes.
+
+
+ENV FILES
+
+Use a .env file for local environment variables and secrets such as API keys, database credentials, or other values that should not be committed to GitHub.
+
+Example .env:
+
+API_KEY=your_key_here
+DATABASE_URL=your_database_url
+
+Do NOT commit your actual .env file.
+
+Instead, create a .env.example file containing the variable names but not the real secrets:
+
+API_KEY=
+DATABASE_URL=
+
+This lets teammates know which environment variables they need to create locally.
+
+Each team member should have their own local .env file.
+
+If the project uses a different environment file format, follow the project's setup instructions.
+
+
+GITIGNORE
+
+The .gitignore file tells Git which files and folders it should not track.
+
+Make sure sensitive and unnecessary local files are included in .gitignore.
+
+For example:
+
+.env
+.env.*
+!.env.example
+__pycache__/
+*.pyc
+.venv/
+venv/
+node_modules/
+
+Do not add files to .gitignore blindly. Check what your project actually uses.
+
+If a secret was accidentally committed and pushed to GitHub, removing it from the file is NOT enough. The secret should be considered exposed and replaced/revoked.
+
+
+DO NOT
+
+Do not directly push to main.
+
+Do not force push to main.
+
+Do not start working from an outdated main.
+
+Do not commit .env files or API keys.
+
+Do not commit passwords, database credentials, or other secrets.
+
+Do not use git add . without checking what you're about to commit.
+
+Before committing, you can check:
+
+git status
+
+and review your changes with:
+
+git diff
+
+
+QUICK WORKFLOW
+
+First time:
+
+git clone <repo-url>
+cd <repo-name>
+git switch main
+git pull origin main
+git switch -c <your-name>
+git push -u origin <your-name>
+
+Every time you start working:
+
+git switch main
+git pull origin main
+git switch <your-name>
+git merge main
+
+After making changes:
+
+git status
+git add .
+git commit -m "Describe what you changed"
+git push
+
+Then open a Pull Request on GitHub.
