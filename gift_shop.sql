@@ -1,0 +1,8 @@
+CREATE TABLE GIFT_SHOP (
+  shop_ID INT PRIMARY KEY,
+  name VARCHAR(100),
+  location VARCHAR(100),
+  department_ID INT NOT NULL,
+
+  FOREIGN KEY (department_ID) REFERENCES DEPARTMENT(department_ID)
+);
