@@ -1,0 +1,9 @@
+CREATE TABLE MENU_ITEM (
+  item_ID INT PRIMARY KEY,
+  name VARCHAR(100),
+  price DECIMAL(8, 2),
+  category VARCHAR(50),
+  stall_ID INT NOT NULL,
+
+  FOREIGN KEY (stall_ID) REFERENCES FOOD_STALL(stall_ID)
+);
