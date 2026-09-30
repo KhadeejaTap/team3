@@ -1,0 +1,9 @@
+CREATE TABLE PARKING_SESSION (
+  session_ID INT PRIMARY KEY,
+  lot_ID INT NOT NULL,
+  license_plate VARCHAR(20),
+  entry_time DATETIME,
+  exit_time DATETIME,
+
+  FOREIGN KEY (lot_ID) REFERENCES PARKING_LOT(lot_ID)
+);
