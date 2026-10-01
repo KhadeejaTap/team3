@@ -6,7 +6,7 @@ CREATE TABLE PRODUCT (
   quantity_in_stock INT,
   color VARCHAR(50),
   design VARCHAR(100),
-  shop_ID INT NOT NULL,
+  shop_ID INT NOT NULL
 
-  --FOREIGN KEY (shop_ID) REFERENCES GIFT_SHOP(shop_ID)
+  -- FOREIGN KEY (shop_ID) REFERENCES GIFT_SHOP(shop_ID)
 );
