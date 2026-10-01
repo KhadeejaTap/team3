@@ -9,7 +9,7 @@ CREATE TABLE ANIMAL (
   arrival_date DATE,
   breeding_status VARCHAR(50)
 
-  -- FOREIGN KEY (species_ID) REFERENCES SPECIES(species_ID),
-  -- FOREIGN KEY (enclosure_ID) REFERENCES ENCLOSURE(enclosure_ID)
+  FOREIGN KEY (species_ID) REFERENCES SPECIES(species_ID),
+  FOREIGN KEY (enclosure_ID) REFERENCES ENCLOSURE(enclosure_ID)
 
 );
