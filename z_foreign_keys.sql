@@ -1,9 +1,15 @@
 -- i noted the files i copied from
 -- commenting out unmade tables
+
 -- from animal.sql
 ALTER TABLE ANIMAL
 	ADD FOREIGN KEY (species_ID) REFERENCES SPECIES(species_ID),
 	ADD FOREIGN KEY (enclosure_ID) REFERENCES ENCLOSURE(enclosure_ID);
+
+-- animal_care.sql
+ALTER TABLE ANIMAL_CARE
+	ADD FOREIGN KEY (animal_ID) REFERENCES ANIMAL(animal_ID),
+	ADD FOREIGN KEY (employee_ID) REFERENCES EMPLOYEE(employee_ID);
 
 -- from attraction.sql
 ALTER TABLE ATTR_ANIMAL
