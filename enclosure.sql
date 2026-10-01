@@ -4,6 +4,6 @@ CREATE TABLE ENCLOSURE (
   location VARCHAR(100),
   capacity INT,
   indoor_outdoor VARCHAR(20),
-  size INT
-
+  size INT,
+  department_ID INT NOT NULL -- fk to managing dept in dept table
 );

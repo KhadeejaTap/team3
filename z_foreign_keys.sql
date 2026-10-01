@@ -1,9 +1,9 @@
 -- i noted the files i copied from
 -- commenting out unmade tables
 -- from animal.sql
--- ALTER TABLE ANIMAL
-	-- ADD FOREIGN KEY (species_ID) REFERENCES SPECIES(species_ID),
-	-- ADD FOREIGN KEY (enclosure_ID) REFERENCES ENCLOSURE(enclosure_ID);
+ALTER TABLE ANIMAL
+	ADD FOREIGN KEY (species_ID) REFERENCES SPECIES(species_ID),
+	ADD FOREIGN KEY (enclosure_ID) REFERENCES ENCLOSURE(enclosure_ID);
 
 -- from attraction.sql
 ALTER TABLE ATTR_ANIMAL
@@ -51,3 +51,10 @@ ALTER TABLE CUST_TRANSACTION ADD FOREIGN KEY (visitor_ID) REFERENCES VISITOR(vis
 -- TRANSACTION_ITEM.SQL
 ALTER TABLE TRANSACTION_ITEM ADD FOREIGN KEY (transaction_ID) REFERENCES CUST_TRANSACTION(transaction_ID);
 
+-- enclosure.SQL managed by what dept relation
+ALTER TABLE ENCLOSURE ADD FOREIGN KEY (department_ID) REFERENCES DEPARTMENT(department_ID)
+
+-- under what dept relation
+ALTER TABLE EMPLOYEE
+	ADD FOREIGN KEY (department_ID) REFERENCES DEPARTMENT(department_ID)
+	ADD FOREIGN KEY (manager_ID) REFERENCES EMPLOYEE(employee_ID)
