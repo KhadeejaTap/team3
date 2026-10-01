@@ -4,5 +4,5 @@ CREATE TABLE GIFT_SHOP (
   location VARCHAR(100),
   department_ID INT NOT NULL,
 
-  FOREIGN KEY (department_ID) REFERENCES DEPARTMENT(department_ID)
+  --FOREIGN KEY (department_ID) REFERENCES DEPARTMENT(department_ID)
 );
