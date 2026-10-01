@@ -4,7 +4,7 @@ CREATE TABLE FOOD_STALL (
   location VARCHAR(100),
   opening_time TIME,
   closing_time TIME,
-  department_ID INT NOT NULL,
+  department_ID INT NOT NULL
 
-  --FOREIGN KEY (department_ID) REFERENCES DEPARTMENT(department_ID)
+  -- FOREIGN KEY (department_ID) REFERENCES DEPARTMENT(department_ID)
 );

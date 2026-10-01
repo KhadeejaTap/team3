@@ -1,4 +1,4 @@
-CREATE TABLE employee(
+CREATE TABLE EMPLOYEE(
 	employee_ID INT PRIMARY KEY,
 	name varchar(30),
 	street_address varchar(50),
@@ -8,7 +8,7 @@ CREATE TABLE employee(
 	country varchar(50),
 	email varchar(50),
 	phone_number varchar(20),
-	department_name varchar(30), -- fk to department
+	department_ID INT, -- fk to department
 	role varchar(50), -- vet, general manager, trainer, ect
 	salary INT,
 	hire_date DATE -- YYYY-MM-DD

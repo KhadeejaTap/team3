@@ -3,5 +3,5 @@ CREATE TABLE TICKET(
     type VARCHAR(30),
     price INT,
     purchase_date DATE
-    --removed extra comma
+    -- removed extra comma
 );

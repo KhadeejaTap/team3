@@ -5,8 +5,8 @@ CREATE TABLE VISITOR(
     age INT,
     email  VARCHAR(100),
     phone  VARCHAR(20),
-    membership BOOLEAN DEFAULT FALSE,
+    membership BOOLEAN DEFAULT FALSE
 
 
-    --FOREIGN KEY(ticket_ID) REFERENCES TICKET(ticket_ID)
+    -- FOREIGN KEY(ticket_ID) REFERENCES TICKET(ticket_ID)
 );

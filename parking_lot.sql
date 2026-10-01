@@ -4,7 +4,7 @@ CREATE TABLE PARKING_LOT (
   location VARCHAR(100),
   capacity INT,
   parking_rate DECIMAL(8, 2),
-  department_ID INT NOT NULL,
+  department_ID INT NOT NULL
 
-  --FOREIGN KEY (department_ID) REFERENCES DEPARTMENT(department_ID)
+  -- FOREIGN KEY (department_ID) REFERENCES DEPARTMENT(department_ID)
 );
