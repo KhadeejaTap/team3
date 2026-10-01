@@ -13,5 +13,6 @@ CREATE TABLE EMPLOYEE(
 	role varchar(50), -- vet, general manager, trainer, ect
 	salary INT,
 	hire_date DATE, -- YYYY-MM-DD
-	current BOOL
+	current BOOL,
+	hours INT
 );
