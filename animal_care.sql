@@ -1,0 +1,9 @@
+-- ANIMAL RELATIONSHIP TABLE
+CREATE TABLE ANIMAL_CARE (
+  animal_ID INT,
+  employee_ID INT,
+  PRIMARY KEY (animal_ID, employee_ID),
+
+  FOREIGN KEY (animal_ID) REFERENCES ANIMAL(animal_ID),
+  FOREIGN KEY (employee_ID) REFERENCES EMPLOYEE(employee_ID)
+  );
