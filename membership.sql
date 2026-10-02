@@ -4,6 +4,6 @@ CREATE TABLE MEMBERSHIP(
 	membership_type varchar(30),
 	start_date DATETIME NOT NULL,
 	expiration_date DATETIME NOT NULL,
-	CHECK (expiration_date > start_date),
+	CHECK (expiration_date > start_date)
 	-- no membership_status. we can compute frm the dates
 );

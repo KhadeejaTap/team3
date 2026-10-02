@@ -42,9 +42,6 @@ ALTER TABLE PARKING_SESSION ADD FOREIGN KEY (lot_ID) REFERENCES PARKING_LOT(lot_
 -- PRODUCT.SQL
 ALTER TABLE PRODUCT ADD FOREIGN KEY (shop_ID) REFERENCES GIFT_SHOP(shop_ID);
 
--- VISITOR.SQL
-ALTER TABLE VISITOR ADD FOREIGN KEY(ticket_ID) REFERENCES TICKET(ticket_ID);
-
 -- enclosure.SQL managed by what dept relation
 ALTER TABLE ENCLOSURE ADD FOREIGN KEY (department_ID) REFERENCES DEPARTMENT(department_ID);
 
@@ -69,9 +66,9 @@ ALTER TABLE DONATION
 	ADD FOREIGN KEY (donor_ID) REFERENCES donor(donor_ID) ON DELETE RESTRICT;
 
 -- frm membership.SQL
-ALTER TABLE VISITOR(
-	ADD FOREIGN KEY (visitor_id) REFERENCES MEMBERSHIP(visitor_ID) ON DELETE CASCADE;
-);
--- using an fk so we dont enforce vistors to only have one ticket
+ALTER TABLE MEMBERSHIP
+	ADD FOREIGN KEY (visitor_ID) REFERENCES VISITOR(visitor_ID) ON DELETE CASCADE;
+
+-- using an fk so we dont enforce vistors to only have one id
 ALTER TABLE TICKET
 	ADD FOREIGN KEY (visitor_ID) REFERENCES VISITOR(visitor_ID);
