@@ -72,6 +72,6 @@ ALTER TABLE DONATION
 ALTER TABLE VISITOR(
 	ADD FOREIGN KEY (visitor_id) REFERENCES MEMBERSHIP(visitor_ID) ON DELETE CASCADE;
 );
--- using an fk so we dont enforce vistors to only have one id
+-- using an fk so we dont enforce vistors to only have one ticket
 ALTER TABLE TICKET
 	ADD FOREIGN KEY (visitor_ID) REFERENCES VISITOR(visitor_ID);
