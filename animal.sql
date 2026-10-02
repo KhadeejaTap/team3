@@ -7,6 +7,6 @@ CREATE TABLE ANIMAL (
   gender VARCHAR(20),
   weight DECIMAL (6, 2),
   arrival_date DATE,
-  breeding_status VARCHAR(50),
+  breeding_status VARCHAR(50)
 
 );
