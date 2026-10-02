@@ -1,6 +1,5 @@
 CREATE TABLE VISITOR(
     visitor_ID INT AUTO_INCREMENT PRIMARY KEY, -- does this imply each visitor has only purchased one ticket? what abt repeat visitors
-    ticket_ID INT NOT NULL,
     name VARCHAR(100),
     age INT,
     date_of_birth date,
