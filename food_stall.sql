@@ -1,5 +1,5 @@
 CREATE TABLE FOOD_STALL (
-  stall_ID INT PRIMARY KEY,
+stall_ID INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(100),
   location VARCHAR(100),
   opening_time TIME,
