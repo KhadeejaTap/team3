@@ -1,5 +1,5 @@
 CREATE TABLE PRODUCT (
-  product_ID INT PRIMARY KEY,
+product_ID INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(100),
   category VARCHAR(50),
   price DECIMAL(8, 2),
