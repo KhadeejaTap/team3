@@ -3,9 +3,9 @@ CREATE TABLE FEEDING (
   amount INT,
   animal_ID INT,
   feeding_time TIME,
-  food_ID INT
+  food_ID INT,
 
-  FOREIGN KEY (animal_ID) REFERENCES ANIMAL(animal_ID)
+  FOREIGN KEY (animal_ID) REFERENCES ANIMAL(animal_ID),
   FOREIGN KEY (food_ID) REFERENCES FEED_ITEM(food_ID)
 
 );
