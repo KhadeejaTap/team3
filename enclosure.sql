@@ -5,7 +5,7 @@ CREATE TABLE ENCLOSURE (
   capacity INT,
   indoor_outdoor VARCHAR(20),
   size INT,
-  department_ID INT NOT NULL -- fk to managing dept in dept table
+  department_ID INT NOT NULL, -- fk to managing dept in dept table
 
   FOREIGN KEY (department_ID) REFERENCES DEPARTMENT(department_ID)
 );
