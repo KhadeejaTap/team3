@@ -1,5 +1,5 @@
 CREATE TABLE MEDICAL_RECORD (
-  record_ID INT PRIMARY KEY,
+  record_ID INT AUTO_INCREMENT PRIMARY KEY,
   animal_ID INT,
   date DATE,
   diagnosis VARCHAR(255),
