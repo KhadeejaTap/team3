@@ -4,6 +4,6 @@ CREATE TABLE FEEDING (
   animal_ID INT,
   feeding_time TIME,
   food_ID INT,
-  employee_ID INT,
+  employee_ID INT
 
 );

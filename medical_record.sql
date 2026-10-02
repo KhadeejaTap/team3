@@ -6,6 +6,6 @@ CREATE TABLE MEDICAL_RECORD (
   treatment VARCHAR(255),
   notes VARCHAR(255),
   vet_ID INT,
-  follow_up DATE,
+  follow_up DATE
 
 );
