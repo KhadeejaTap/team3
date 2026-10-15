@@ -72,3 +72,7 @@ ALTER TABLE MEMBERSHIP
 -- using an fk so we dont enforce vistors to only have one id
 ALTER TABLE TICKET
 	ADD FOREIGN KEY (visitor_ID) REFERENCES VISITOR(visitor_ID);
+
+ALTER TABLE DEPARTMENT
+	ADD COLUMN head_employee_ID INT NULL,
+	ADD FOREIGN KEY (head_employee_ID) REFERENCES EMPLOYEE(employee_ID);
