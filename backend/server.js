@@ -1,6 +1,7 @@
 require('dotenv').config();
 const http = require('http');
 const pool = require('./db');
+const handleFood = require('./food');
 const PORT = process.env.PORT || 5000;
 
 function send(res, status, data) {
@@ -43,6 +44,10 @@ const server = http.createServer(async (req, res) => {
   }
 
   try {
+    if (await handleFood(req, res, pool, send, readBody)) {
+      return;
+    }
+
     const getQueries = {
       '/api/products': `
         SELECT p.*, s.name AS shop_name
