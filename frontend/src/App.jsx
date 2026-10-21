@@ -1,15 +1,11 @@
-import { useState } from 'react'
 import './App.css'
 import EmpView from './khadeeja/employee_directory';
 import LoginPage from './khadeeja/login';
 import Home from './Home';
 
-import React from "react";
 import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
 
 function App() {
-	const [count, setCount] = useState(0)
-
 	return (
 		<Router>
 			<nav className="navbar">
