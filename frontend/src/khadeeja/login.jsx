@@ -21,7 +21,7 @@ function LoginPage() {
 				setError(data.error || 'Login Failed')
 			}
 		}
-		catch (err) {
+		catch {
 			setError('Cannot connect to server');
 		}
 	}
