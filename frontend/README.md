@@ -1,16 +1,33 @@
-# React + Vite
+# Zoo frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## Run locally
 
-Currently, two official plugins are available:
+1. Make sure MySQL is running and the backend is configured in `backend/.env`.
+2. In one terminal, start the backend:
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+   ```bash
+   cd backend
+   npm install
+   npm start
+   ```
 
-## React Compiler
+   The frontend currently requests the API at `http://localhost:5000`.
+3. In another terminal, install and start the frontend:
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+   ```bash
+   cd frontend
+   npm install
+   npm run dev
+   ```
 
-## Expanding the ESLint configuration
+4. Open the local URL printed by Vite, usually `http://localhost:5173`.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+If port 5000 is occupied, set `PORT=5001` in `backend/.env` and update the API URL in the frontend to use port 5001.
+
+## Other commands
+
+```bash
+npm run build
+npm run lint
+npm run preview
+```
