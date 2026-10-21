@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import './App.css'
 import EmpView from './khadeeja/employee_directory';
+import LoginPage from './khadeeja/login';
 import Home from './Home';
 
 import React from "react";
@@ -16,6 +17,9 @@ function App() {
 					<li className="nav-item">
 						<Link to="/employees">Employee Dir</Link>
 					</li>
+					<li className="nav-item">
+						<Link to="/login"> Login or Sign Up </Link>
+					</li>
 				</ul>
 			</nav>
 
@@ -23,6 +27,7 @@ function App() {
 				<Routes>
 					<Route path="/" element={<Home />} />
 					<Route path="/employees" element={<EmpView />} />
+					<Route path="/login" element={< LoginPage />} />
 				</Routes>
 			</div>
 		</Router>

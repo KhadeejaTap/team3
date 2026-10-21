@@ -44,6 +44,33 @@ const server = http.createServer(async (req, res) => {
 			res.end(JSON.stringify({ error: err.message }));
 		}
 	}
+	else if (req.url === '/api/login' && req.method === 'POST') {
+		let body = '';
+		req.on('data', (chunk) => {
+			body += chunk;
+		});
+		req.on('end', async () => {
+			try {
+				const { email, password } = JSON.parse(body);
+				const [rows] = await pool.query( //.query is a built in method of pool . pool is a bunch of conections always open that i made
+					'SELECT userID, role FROM users WHERE email = ? AND password = ?',
+					[email, password]
+				);
+				if (rows.length > 0) {
+					res.statusCode = 200;
+					res.end(JSON.stringify(rows[0]));
+				} else {
+					res.statusCode = 401;
+					res.end(JSON.stringify({ error: 'Invalid email or password or user does not exist' }));
+				}
+			}
+			catch (err) {
+				console.log(err);
+				res.statusCode = 500;
+				res.end(JSON.stringify({ error: 'Server error' }));
+			}
+		});
+	}
 	else {
 		res.statusCode = 404;
 		res.end((JSON.stringify({ message: 'Not Found' })));

@@ -24,11 +24,11 @@ INSERT INTO EMPLOYEE
 (11, 'Ryan',   NULL, 'Sandler',   '151 Ash Blvd',  'Houston', 'TX', '77010', 'USA', 'ryan.sandler@zoo.com',   '713-555-0115', 4, 'Technician',      42000, '2023-04-05', 1, 40),
 (12, 'Chuck',  NULL, 'Statham',   '28 Poplar St',  'Houston', 'TX', '77011', 'USA', 'chuck.statham@zoo.com',  '713-555-0116', 5, 'Security Guard',  39000, '2022-07-18', 0, 30);
 
-INSERT INTO users (username, email, password, role) VALUES
-('admin_user',    'admin@zoo.com',        'admin123',    'admin'),
-('manager_user',  'dwayne.efron@zoo.com', 'manager123',  'manager'),
-('employee_user', 'katy.hart@zoo.com',    'employee123', 'employee'),
-('visitor_user',  'visitor@zoo.com',      'visitor123',  'visitor');
+INSERT INTO users (email, password, role) VALUES
+('admin@zoo.com',        'admin123',    'admin'),
+('dwayne.efron@zoo.com', 'manager123',  'manager'),
+('katy.hart@zoo.com',    'employee123', 'employee'),
+('visitor@zoo.com',      'visitor123',  'visitor');
 
 CREATE VIEW guest_view AS
 SELECT department_name, department_description
