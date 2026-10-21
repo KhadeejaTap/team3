@@ -14,8 +14,21 @@ const server = http.createServer(async (req, res) => {
 		res.end();
 		return;
 	}
-	if (req.url === '/api/employees' && req.method === 'GET') {
-		try {
+if (req.url === '/api/products' && req.method === 'GET') {
+    try {
+        const [rows] = await pool.query(`
+            SELECT p.*, s.name AS shop_name
+            FROM PRODUCT AS p
+            JOIN GIFT_SHOP AS s ON p.shop_ID = s.shop_ID
+            ORDER BY p.product_ID
+        `);
+        res.end(JSON.stringify(rows));
+    } catch (err) {
+        res.statusCode = 500;
+        res.end(JSON.stringify({ error: err.message }));
+    }
+}
+else if (req.url === '/api/employees' && req.method === 'GET') {		try {
 			const [rows] = await pool.query('SELECT * FROM employee_directory');
 			res.end(JSON.stringify(rows));
 		}
