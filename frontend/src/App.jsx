@@ -3,6 +3,7 @@ import EmpView from './khadeeja/employee_directory';
 import LoginPage from './khadeeja/login';
 import Home from './Home';
 import GiftShop from './GiftShop';
+import Food from './Food';
 
 import {
   BrowserRouter as Router,
@@ -25,6 +26,9 @@ function App() {
           <li className="nav-item">
             <Link to="/gift-shop">Gift Shop</Link>
           </li>
+          <li className="nav-item">
+            <Link to="/food">Food</Link>
+          </li>
         </ul>
       </nav>
 
@@ -34,6 +38,7 @@ function App() {
           <Route path="/employees" element={<EmpView />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/gift-shop" element={<GiftShop />} />
+          <Route path="/food" element={<Food />} />
         </Routes>
       </div>
     </Router>
