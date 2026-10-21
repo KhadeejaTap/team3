@@ -24,6 +24,26 @@ const server = http.createServer(async (req, res) => {
 			res.end(JSON.stringify({ error: err.message }));
 		}
 	}
+	else if (req.url === '/api/manager' && req.method === 'GET') {
+		try {
+			const [rows] = await pool.query('SELECT * FROM manager_view');
+			res.end(JSON.stringify(rows));
+		}
+		catch (err) {
+			res.statusCode = 500;
+			res.end(JSON.stringify({ error: err.message }));
+		}
+	}
+	else if (req.url === '/api/hr' && req.method === 'GET') {
+		try {
+			const [rows] = await pool.query('SELECT * FROM hr_view');
+			res.end(JSON.stringify(rows));
+		}
+		catch (err) {
+			res.statusCode = 500;
+			res.end(JSON.stringify({ error: err.message }));
+		}
+	}
 	else {
 		res.statusCode = 404;
 		res.end((JSON.stringify({ message: 'Not Found' })));
