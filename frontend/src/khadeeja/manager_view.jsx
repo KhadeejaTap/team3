@@ -1,10 +1,10 @@
 import '.././App.css'
 import { useState, useEffect } from 'react';
-function EmpView() {
+function MgrView() {
 	const [employees, setEmployees] = useState([])
 
 	useEffect(() => {
-		fetch('http://localhost:5000/api/employees').then((res) => res.json()).then((data) => setEmployees(data)).catch((err) => console.error('Error fetching employees:', err));
+		fetch('http://localhost:5000/api/manager').then((res) => res.json()).then((data) => setEmployees(data)).catch((err) => console.error('Error fetching employees:', err));
 	}, []);
 
 	return (
@@ -14,21 +14,31 @@ function EmpView() {
 				<table border="1" cellPadding="8">
 					<thead>
 						<tr>
-							<th>Name</th>
+							<th>Dept Head</th>
 							<th>Department</th>
-							<th>Role</th>
+							<th>Employee Name</th>
+							<th>Billing Address</th>
 							<th>Email</th>
 							<th>Phone</th>
+							<th>Role</th>
+							<th>Salary</th>
+							<th>Hire Date</th>
+							<th>Weekly Hours</th>
 						</tr>
 					</thead>
 					<tbody>
-						{employees.map((emp, index) => (
+						{employees.map((item, index) => (
 							<tr key={index}>
-								<td>{emp.name}</td>
-								<td>{emp.department_name}</td>
-								<td>{emp.role}</td>
-								<td>{emp.email}</td>
-								<td>{emp.phone_number}</td>
+								<td>{item.head_of_dept}</td>
+								<td>{item.department_name}</td>
+								<td>{item.name}</td>
+								<td>{item.address}</td>
+								<td>{item.email}</td>
+								<td>{item.phone_number}</td>
+								<td>{item.role}</td>
+								<td>{item.salary}</td>
+								<td>{item.hire_date}</td>
+								<td>{item.hours}</td>
 							</tr>
 						))}
 					</tbody>
@@ -37,4 +47,4 @@ function EmpView() {
 		</>
 	);
 }
-export default EmpView;
+export default MgrView;

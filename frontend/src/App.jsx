@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import './App.css'
-import EmpView from './khadeeja/EmpView';
+import EmpView from './khadeeja/employee_directory';
 import Home from './Home';
 
 import React from "react";
