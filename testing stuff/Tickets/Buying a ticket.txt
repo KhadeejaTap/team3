@@ -1,0 +1,17 @@
+Buying a ticket
+
+VIP check: [] Are you a VIP?
+    // this would redirect you to the log in screen if 
+    you aren't logged in yet
+
+    //I think the discount should probably be reflected
+    in the total amount rather than altering the values
+    shown when purchasing a ticket
+
+
+
+Options: Adult = $25
+         Kid = $15
+        //
+
+Personal Information: 

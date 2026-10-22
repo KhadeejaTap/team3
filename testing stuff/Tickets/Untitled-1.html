@@ -1,0 +1,14 @@
+<form action="/checkout" method="POST">
+  <label>Ticket type
+    <select name="ticket_type" required>
+      <option value="general">General Admission - $25</option>
+      <option value="vip">VIP - $60</option>
+    </select>
+  </label>
+  <label>Quantity
+    <input type="number" name="quantity" min="1" max="10" value="1" required>
+  </label>
+  <label>Name <input type="text" name="name" required></label>
+  <label>Email <input type="email" name="email" required></label>
+  <button type="submit">Continue to payment</button>
+</form>

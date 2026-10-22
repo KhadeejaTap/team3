@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Buy Tickets</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 480px; margin: 40px auto; padding: 0 16px; }
+  label { display: block; margin-top: 14px; font-weight: 600; }
+  input, select { width: 100%; padding: 10px; margin-top: 4px; font-size: 1rem; box-sizing: border-box; }
+  button { margin-top: 20px; width: 100%; padding: 12px; font-size: 1rem; cursor: pointer; }
+  #total { font-size: 1.2rem; font-weight: 700; margin-top: 16px; }
+  #error { color: #b00020; margin-top: 10px; }
+</style>
+</head>
+<body>
+
+<h1>EVENT NAME</h1>
+<p>Date, time, and location here.</p>
+
+<form id="ticket-form" novalidate>
+  <label for="type">Ticket type</label>
+  <select id="type">
+    <!-- CHANGE: your ticket types and prices -->
+    <option value="25">Adult – $25</option>
+    <option value="15">Kid – $15</option>
+  </select>
+
+  <label for="qty">Quantity</label>
+  <input id="qty" type="number" min="1" max="10" value="1">
+
+  <label for="name">Full name</label>
+  <input id="name" type="text" autocomplete="name">
+
+  <label for="email">Email</label>
+  <input id="email" type="email" autocomplete="email">
+
+   <label for="address">Address</label>
+  <input id="address" type="address" autocomplete="address">
+
+  <div id="total">Total: $20.00</div>
+  <div id="error" role="alert"></div>
+
+  <button type="submit">Continue to payment</button>
+</form>
+
+<script>
+  var form = document.getElementById("ticket-form");
+  var type = document.getElementById("type");
+  var qty = document.getElementById("qty");
+
+  function updateTotal() {
+    var total = Number(type.value) * Number(qty.value || 0);
+    document.getElementById("total").textContent = "Total: $" + total.toFixed(2);
+  }
+  type.addEventListener("change", updateTotal);
+  qty.addEventListener("input", updateTotal);
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var name = document.getElementById("name").value.trim();
+    var email = document.getElementById("email").value.trim();
+    var address = document.getElementById('address').value.trim();
+    var error = document.getElementById("error");
+
+    if (qty.value < 1 || qty.value > 10) { error.textContent = "Choose 1 to 10 tickets."; return; }
+    if (name.length < 2) { error.textContent = "Enter your name."; return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { error.textContent = "Enter a valid email."; return; }
+    error.textContent = "";
+
+    // CHANGE: send the order to YOUR server, which should recalculate the
+    // price itself and create a payment session (Stripe, PayPal, Square...).
+    fetch("/create-checkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ticketType: type.options[type.selectedIndex].text,
+        quantity: Number(qty.value),
+        name: name,
+        email: email
+      })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) { window.location = data.checkoutUrl; })
+      .catch(function () { error.textContent = "Something went wrong. Please try again."; });
+  });
+</script>
+</body>
+</html>
