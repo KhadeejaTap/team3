@@ -4,7 +4,7 @@ function LoginPage() {
 	const [email, setEmail] = useState('');
 	const [password, setPassword] = useState('');
 	const [error, setError] = useState('');
-
+	const [isSignUp, setIsSignUp] = useState(false);
 	const handleSubmit = async (e) => {
 		e.preventDefault();
 		setError('');
@@ -28,7 +28,7 @@ function LoginPage() {
 	//still need to add: autocreate account for new employee with random pass, email employee to make new pass?? and a sign up button for visitors (if email exists let them know)
 	return (
 		<div className="login-container">
-			<h2> Login to Zoo Portal </h2>
+			<h2> {isSignUp ? "Create Visitor Account" : "Login to Zoo Portal"} </h2>
 			<p>{error}</p>
 			<form onSubmit={handleSubmit}>
 				<div>
@@ -43,8 +43,12 @@ function LoginPage() {
 						type="password" value={password} onChange={(e) => setPassword(e.target.value)} required
 					/>
 				</div>
-				<button type="submit"> Log In </button>
+				<button type="submit"> {isSignUp ? "Create Account" : "Log In"} </button>
 			</form>
+			<p>{isSignUp ? "Already have an account?" : "Don't have an account?"}</p>
+			<button type="button" onClick={() => setIsSignUp(!isSignUp)}>
+				{isSignUp ? "Go to Login" : "Sign Up"}
+			</button>
 		</div>
 
 	);
