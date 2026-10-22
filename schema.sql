@@ -57,7 +57,7 @@ CREATE TABLE CUST_TRANSACTION (
     visitor_ID  INT, -- this will be a foreign key referencing the VISITOR table
     total  DECIMAL(10,2),
     transaction_date  DATE,
-    payment_method  VARCHAR(50) NOT NULL CHECK (payment_method IN ('cash', 'credit', 'debit', 'online'))
+    payment_method  VARCHAR(50) NOT NULL CHECK (payment_method IN ('credit', 'debit', 'digital_wallet', 'paypal'))
 );
 CREATE TABLE DEPARTMENT(
 	department_ID INT AUTO_INCREMENT PRIMARY KEY, -- fk to employee and enclosure
