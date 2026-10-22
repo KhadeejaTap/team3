@@ -74,5 +74,4 @@ async function handleFood(req, res, pool, send, readBody) {
 
   return false;
 }
-
 module.exports = handleFood;

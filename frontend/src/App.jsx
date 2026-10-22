@@ -2,8 +2,9 @@ import './App.css';
 import EmpView from './khadeeja/employee_directory';
 import LoginPage from './khadeeja/login';
 import Home from './Home';
-import GiftShop from './GiftShop';
-import Food from './Food';
+import GiftShop from './Daniel/giftshop';
+import Food from './Daniel/food';
+import Parking from './Daniel/parking';
 
 import {
   BrowserRouter as Router,
@@ -29,6 +30,9 @@ function App() {
           <li className="nav-item">
             <Link to="/food">Food</Link>
           </li>
+          <li className="nav-item">
+            <Link to="/parking">Parking</Link>
+          </li>
         </ul>
       </nav>
 
@@ -39,6 +43,7 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/gift-shop" element={<GiftShop />} />
           <Route path="/food" element={<Food />} />
+          <Route path="/parking" element={<Parking />} />
         </Routes>
       </div>
     </Router>

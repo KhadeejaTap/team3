@@ -2,6 +2,7 @@ require('dotenv').config();
 const http = require('http');
 const pool = require('./db');
 const handleFood = require('./food');
+const handleParking = require('./parking');
 const PORT = process.env.PORT || 5000;
 
 function send(res, status, data) {
@@ -45,6 +46,10 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (await handleFood(req, res, pool, send, readBody)) {
+      return;
+    }
+
+    if (await handleParking(req, res, pool, send, readBody)) {
       return;
     }
 
