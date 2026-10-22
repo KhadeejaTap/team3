@@ -166,6 +166,51 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (req.url === '/api/animals' && req.method === 'GET') {
+      const [rows] = await pool.query('SELECT * FROM ANIMAL');
+      send(res, 200, rows);
+      return;
+    }
+
+    if (req.url === '/api/animals' && req.method === 'POST') {
+      const animal = await readBody(req);
+
+      if (
+        !animal ||
+        !Number.isInteger(animal.species_ID) ||
+        animal.species_ID <= 0 ||
+        !Number.isInteger(animal.enclosure_ID) ||
+        animal.enclosure_ID <= 0
+      ) {
+        send(res, 400, {
+          error: 'Valid species and enclosure IDs are required.'
+        });
+        return;
+      }
+
+      const [result] = await pool.execute(
+        `INSERT INTO ANIMAL
+         (name, species_ID, enclosure_ID, age, gender, weight, arrival_date, breeding_status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          animal.name || null,
+          animal.species_ID,
+          animal.enclosure_ID,
+          animal.age ?? null,
+          animal.gender || null,
+          animal.weight ?? null,
+          animal.arrival_date || null,
+          animal.breeding_status || null
+        ]
+      );
+
+      send(res, 201, {
+        message: 'Animal saved successfully',
+        animal_ID: result.insertId
+      });
+      return;
+    }
+
     send(res, 404, { message: 'Not Found' });
   } catch (err) {
     console.error(err);
