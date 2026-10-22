@@ -19,7 +19,7 @@ function App() {
                         <Link to="/login">Login or Sign Up</Link>
                     </li>
                     <li className="nav-item">
-                        <Link to="/animals">Animal Query</Link>
+                        <Link to="/animals">Animal Management</Link>
                     </li>
                 </ul>
             </nav>
