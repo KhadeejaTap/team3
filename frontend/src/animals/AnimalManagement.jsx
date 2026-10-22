@@ -65,7 +65,7 @@ function AnimalManagement() {
 
     return (
         <div className="animal-management">
-            <h1>Animal Query</h1>
+            <h1>Animal Management</h1>
             <p>Enter the animal's information below.</p>
 
             <form onSubmit={handleSubmit}>
