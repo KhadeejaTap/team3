@@ -5,6 +5,7 @@ import Home from './Home';
 import GiftShop from './Daniel/giftshop';
 import Food from './Daniel/food';
 import Parking from './Daniel/parking';
+import AnimalManagement from './animals/AnimalManagement';
 
 import {
   BrowserRouter as Router,
@@ -33,6 +34,9 @@ function App() {
           <li className="nav-item">
             <Link to="/parking">Parking</Link>
           </li>
+          <li className="nav-item">
+            <Link to="/animals">Animal Management</Link>
+          </li>
         </ul>
       </nav>
 
@@ -44,6 +48,7 @@ function App() {
           <Route path="/gift-shop" element={<GiftShop />} />
           <Route path="/food" element={<Food />} />
           <Route path="/parking" element={<Parking />} />
+          <Route path="/animals" element={<AnimalManagement />} />
         </Routes>
       </div>
     </Router>
