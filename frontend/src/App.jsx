@@ -1,5 +1,6 @@
 import './App.css';
 import LoginPage from './khadeeja/login';
+import Donations from './kim/Donations';
 import Home from './Home';
 import { useState } from 'react';
 import ReturnDir from './khadeeja/employee_directory';
@@ -47,6 +48,9 @@ function App() {
 					<li className="nav-item">
 						<Link to="/attractions">Attraction Management</Link>
 					</li>
+					<li className="nav-item">
+						<Link to="/donations"> Donations </Link>
+					</li>
 					{role ? (
 						<li className="nav-item">
 							<button type="button" onClick={handleLogout}>
@@ -68,6 +72,7 @@ function App() {
 					<Route path="/login" element={<LoginPage onLogin={handleLogin} />} />
 					<Route path="/animals" element={<AnimalManagement />} />
 					<Route path="/attractions" element={<AttractionManagement />} />
+					<Route path="/donations" element={< Donations />} /> 
 				</Routes>
 			</div>
 		</Router>
