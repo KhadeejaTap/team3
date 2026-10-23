@@ -1,6 +1,7 @@
 import './App.css'
 import EmpView from './khadeeja/employee_directory';
 import LoginPage from './khadeeja/login';
+import Donations from './kim/Donations';
 import Home from './Home';
 
 import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
@@ -16,6 +17,9 @@ function App() {
 					<li className="nav-item">
 						<Link to="/login"> Login or Sign Up </Link>
 					</li>
+					<li className="nav-item">
+						<Link to="/donations"> Donations </Link>
+					</li>
 				</ul>
 			</nav>
 
@@ -24,6 +28,7 @@ function App() {
 					<Route path="/" element={<Home />} />
 					<Route path="/employees" element={<EmpView />} />
 					<Route path="/login" element={< LoginPage />} />
+					<Route path="/donations" element={< Donations />} /> 
 				</Routes>
 			</div>
 		</Router>
