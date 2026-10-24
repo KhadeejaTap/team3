@@ -55,7 +55,6 @@ function App() {
 				<Routes>
 					<Route path="/" element={<Home />} />
 					<Route path="/directory" element={<ReturnDir role={role} />} />
-					<Route path="/employees" element={<ReturnDir role={role} />} />
 					<Route path="/login" element={<LoginPage onLogin={handleLogin} />} />
 					<Route path="/animals" element={<AnimalManagement />} />
 				</Routes>
