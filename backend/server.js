@@ -348,6 +348,18 @@ const server = http.createServer(async (req, res) => {
 			}
 		});
 	}
+		else if (req.url === '/api/species' && req.method === 'GET') {
+    try {
+        const [rows] = await pool.query(
+            'SELECT species_ID, common_name FROM SPECIES ORDER BY common_name'
+        );
+        res.end(JSON.stringify(rows));
+    } catch (error) {
+        console.error('Error fetching species:', error);
+        res.statusCode = 500;
+        res.end(JSON.stringify({ error: 'Failed to fetch species.' }));
+    }
+}
 	else {
 		res.statusCode = 404;
 		res.end((JSON.stringify({ message: 'Not Found' })));
