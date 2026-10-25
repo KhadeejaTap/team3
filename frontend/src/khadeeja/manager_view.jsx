@@ -1,7 +1,9 @@
 import '.././App.css';
 import { useState, useEffect } from 'react';
+import EmpView from './employee_view';
 
-function MgrView() {
+function MgrView({ userEmail }) {
+	const [activeTab, setActiveTab] = useState('team');
 	const [employees, setEmployees] = useState([]);
 	const [attractionsList, setAttractionsList] = useState([]);
 	const [selectedDept, setSelectedDept] = useState('');
@@ -9,9 +11,15 @@ function MgrView() {
 	const [searchTerm, setSearchTerm] = useState('');
 	const [error, setError] = useState('');
 	const [successMsg, setSuccessMsg] = useState('');
+	const [editingId, setEditingId] = useState(null);
+	const [editFormData, setEditFormData] = useState({});
 
 	const fetchManagerData = () => {
-		fetch('http://localhost:5000/api/manager')
+		const endpoint = userEmail
+			? `http://localhost:5000/api/manager?email=${encodeURIComponent(userEmail)}`
+			: 'http://localhost:5000/api/manager';
+
+		fetch(endpoint)
 			.then(async (res) => {
 				if (!res.ok) {
 					const errBody = await res.json().catch(() => ({}));
@@ -43,7 +51,7 @@ function MgrView() {
 	useEffect(() => {
 		fetchManagerData();
 		fetchAttractions();
-	}, []);
+	}, [userEmail]);
 
 	const handleDelete = async (employeeID, employeeName) => {
 		const confirmed = window.confirm(`Are you sure you want to terminate ${employeeName} (ID: ${employeeID})?`);
@@ -93,6 +101,51 @@ function MgrView() {
 		}
 	};
 
+	const handleStartEdit = (emp) => {
+		setEditingId(emp.employee_ID);
+		setEditFormData({
+			role: emp.role || '',
+			phone_number: emp.phone_number || '',
+			salary: emp.salary || '',
+			hours: emp.hours || ''
+		});
+	};
+
+	const handleCancelEdit = () => {
+		setEditingId(null);
+		setEditFormData({});
+	};
+
+	const handleSaveEdit = async (employeeID) => {
+		try {
+			const res = await fetch(`http://localhost:5000/api/employees/${employeeID}`, {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					role: editFormData.role,
+					phone_number: editFormData.phone_number,
+					salary: editFormData.salary !== '' ? Number(editFormData.salary) : null,
+					hours: editFormData.hours !== '' ? Number(editFormData.hours) : null
+				})
+			});
+			const data = await res.json().catch(() => ({}));
+
+			if (res.status === 200) {
+				setSuccessMsg(data.message || `Employee ID ${employeeID} updated successfully.`);
+				setError('');
+				setEditingId(null);
+				setEditFormData({});
+				fetchManagerData();
+				setTimeout(() => setSuccessMsg(''), 4000);
+			} else {
+				setError(`Failed to update employee: ${data.error || `HTTP ${res.status}`}`);
+			}
+		} catch (err) {
+			console.error('Update error:', err);
+			setError(`Connection error while updating: ${err.message}`);
+		}
+	};
+
 	const filteredEmployees = employees.filter((emp) => {
 		// 1. Department filter
 		const matchesDept = selectedDept === '' || emp.department_name === selectedDept;
@@ -121,110 +174,186 @@ function MgrView() {
 			<div>
 				<h2> Manager View </h2>
 
-				{error && <p style={{ color: 'red' }}><strong>Error: </strong>{error}</p>}
-				{successMsg && <p style={{ color: 'green' }}><strong>Success: </strong>{successMsg}</p>}
-
 				<div>
-					<label><strong>Filter by Department: </strong></label>
-					<select value={selectedDept} onChange={(e) => setSelectedDept(e.target.value)}>
-						<option value="">All Departments</option>
-						<option value="HR">HR</option>
-						<option value="Animal Care">Animal Care</option>
-						<option value="Veterinary">Veterinary</option>
-						<option value="Maintenance">Maintenance</option>
-						<option value="Security">Security</option>
-					</select>
-
-					&nbsp;&nbsp;&nbsp;
-
-					<label><strong>Filter by Attraction: </strong></label>
-					<select value={selectedAttr} onChange={(e) => setSelectedAttr(e.target.value)}>
-						<option value="">All Attractions</option>
-						<option value="Unassigned">Unassigned</option>
-						{attractionsList.map((a) => (
-							<option key={a.attr_ID} value={a.name}>
-								{a.name}
-							</option>
-						))}
-					</select>
+					<button type="button" onClick={() => setActiveTab('team')}>
+						{activeTab === 'team' ? <strong>My Team</strong> : 'My Team'}
+					</button>
+					&nbsp;
+					<button type="button" onClick={() => setActiveTab('directory')}>
+						{activeTab === 'directory' ? <strong>Zoo Directory</strong> : 'Zoo Directory'}
+					</button>
 				</div>
 
 				<br />
 
-				<div>
-					<label><strong> Search Employee (by Name, ID, or Role): </strong></label>
-					<input
-						type="text"
-						placeholder="e.g. Katy, 9, or Keeper..."
-						value={searchTerm}
-						onChange={(e) => setSearchTerm(e.target.value)}
-					/>
-				</div>
+				{activeTab === 'directory' ? (
+					<EmpView />
+				) : (
+					<div>
+						{error && <p style={{ color: 'red' }}><strong>Error: </strong>{error}</p>}
+						{successMsg && <p style={{ color: 'green' }}><strong>Success: </strong>{successMsg}</p>}
 
-				<br />
+						<div>
+							<label><strong>Filter by Department: </strong></label>
+							<select value={selectedDept} onChange={(e) => setSelectedDept(e.target.value)}>
+								<option value="">All Departments</option>
+								<option value="HR">HR</option>
+								<option value="Animal Care">Animal Care</option>
+								<option value="Veterinary">Veterinary</option>
+								<option value="Maintenance">Maintenance</option>
+								<option value="Security">Security</option>
+							</select>
 
-				<table border="1" cellPadding="8">
-					<thead>
-						<tr>
-							<th>Dept Head</th>
-							<th>Department</th>
-							<th>Employee Name</th>
-							<th>Role</th>
-							<th>Assigned Attractions</th>
-							<th>Billing Address</th>
-							<th>Email</th>
-							<th>Phone</th>
-							<th>Salary</th>
-							<th>Hire Date</th>
-							<th>Weekly Hours</th>
-							<th>Action</th>
-						</tr>
-					</thead>
-					<tbody>
-						{filteredEmployees.length > 0 ? (
-							filteredEmployees.map((item, index) => (
-								<tr key={index}>
-									<td>{item.head_of_dept}</td>
-									<td>{item.department_name}</td>
-									<td>{item.name}</td>
-									<td>{item.role}</td>
-									<td><strong>{item.attractions}</strong></td>
-									<td>{item.address}</td>
-									<td>{item.email}</td>
-									<td>{item.phone_number}</td>
-									<td>${Number(item.salary).toLocaleString()}</td>
-									<td>{item.hire_date ? item.hire_date.split('T')[0] : ''}</td>
-									<td>{item.hours}</td>
-									<td>
-										<button onClick={() => handleDelete(item.employee_ID, item.name)}>
-											Delete
-										</button>
-										&nbsp;
-										<select
-											value=""
-											onChange={(e) => handleAssign(item.employee_ID, e.target.value)}
-										>
-											<option value="" disabled>+ Assign Attraction</option>
-											{attractionsList.map((a) => (
-												<option key={a.attr_ID} value={a.attr_ID}>
-													{a.name}
-												</option>
-											))}
-										</select>
-									</td>
+							&nbsp;&nbsp;&nbsp;
+
+							<label><strong>Filter by Attraction: </strong></label>
+							<select value={selectedAttr} onChange={(e) => setSelectedAttr(e.target.value)}>
+								<option value="">All Attractions</option>
+								<option value="Unassigned">Unassigned</option>
+								{attractionsList.map((a) => (
+									<option key={a.attr_ID} value={a.name}>
+										{a.name}
+									</option>
+								))}
+							</select>
+						</div>
+
+						<br />
+
+						<div>
+							<label><strong> Search Employee (by Name, ID, or Role): </strong></label>
+							<input
+								type="text"
+								placeholder="e.g. Katy, 9, or Keeper..."
+								value={searchTerm}
+								onChange={(e) => setSearchTerm(e.target.value)}
+							/>
+						</div>
+
+						<br />
+
+						<table border="1" cellPadding="8">
+							<thead>
+								<tr>
+									<th>Dept Head</th>
+									<th>Department</th>
+									<th>Employee Name</th>
+									<th>Role</th>
+									<th>Assigned Attractions</th>
+									<th>Billing Address</th>
+									<th>Email</th>
+									<th>Phone</th>
+									<th>Salary</th>
+									<th>Hire Date</th>
+									<th>Weekly Hours</th>
+									<th>Action</th>
 								</tr>
-							))
-						) : (
-							<tr>
-								<td colSpan="12">
-									{error
-										? 'Could not load data due to an error.'
-										: 'No employees found matching the current filters.'}
-								</td>
-							</tr>
-						)}
-					</tbody>
-				</table>
+							</thead>
+							<tbody>
+								{filteredEmployees.length > 0 ? (
+									filteredEmployees.map((item, index) => (
+										<tr key={index}>
+											<td>{item.head_of_dept}</td>
+											<td>{item.department_name}</td>
+											<td>{item.name}</td>
+											<td>
+												{editingId === item.employee_ID ? (
+													<input
+														type="text"
+														value={editFormData.role}
+														onChange={(e) => setEditFormData({ ...editFormData, role: e.target.value })}
+													/>
+												) : (
+													item.role
+												)}
+											</td>
+											<td><strong>{item.attractions}</strong></td>
+											<td>{item.address}</td>
+											<td>{item.email}</td>
+											<td>
+												{editingId === item.employee_ID ? (
+													<input
+														type="text"
+														value={editFormData.phone_number}
+														onChange={(e) => setEditFormData({ ...editFormData, phone_number: e.target.value })}
+													/>
+												) : (
+													item.phone_number
+												)}
+											</td>
+											<td>
+												{editingId === item.employee_ID ? (
+													<input
+														type="number"
+														value={editFormData.salary}
+														onChange={(e) => setEditFormData({ ...editFormData, salary: e.target.value })}
+													/>
+												) : (
+													`$${Number(item.salary).toLocaleString()}`
+												)}
+											</td>
+											<td>{item.hire_date ? item.hire_date.split('T')[0] : ''}</td>
+											<td>
+												{editingId === item.employee_ID ? (
+													<input
+														type="number"
+														value={editFormData.hours}
+														onChange={(e) => setEditFormData({ ...editFormData, hours: e.target.value })}
+													/>
+												) : (
+													item.hours
+												)}
+											</td>
+											<td>
+												{editingId === item.employee_ID ? (
+													<>
+														<button type="button" onClick={() => handleSaveEdit(item.employee_ID)}>
+															Save
+														</button>
+														&nbsp;
+														<button type="button" onClick={handleCancelEdit}>
+															Cancel
+														</button>
+													</>
+												) : (
+													<>
+														<button type="button" onClick={() => handleStartEdit(item)}>
+															Edit
+														</button>
+														&nbsp;
+														<button type="button" onClick={() => handleDelete(item.employee_ID, item.name)}>
+															Delete
+														</button>
+														&nbsp;
+														<select
+															value=""
+															onChange={(e) => handleAssign(item.employee_ID, e.target.value)}
+														>
+															<option value="" disabled>+ Assign Attraction</option>
+															{attractionsList.map((a) => (
+																<option key={a.attr_ID} value={a.attr_ID}>
+																	{a.name}
+																</option>
+															))}
+														</select>
+													</>
+												)}
+											</td>
+										</tr>
+									))
+								) : (
+									<tr>
+										<td colSpan="12">
+											{error
+												? 'Could not load data due to an error.'
+												: 'No employees found matching the current filters.'}
+										</td>
+									</tr>
+								)}
+							</tbody>
+						</table>
+					</div>
+				)}
 			</div>
 		</>
 	);
