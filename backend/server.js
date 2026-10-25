@@ -8,7 +8,7 @@ const server = http.createServer(async (req, res) => {
 	res.setHeader('Content-Type', 'application/json');
 	res.statusCode = 200;
 	res.setHeader('Access-Control-Allow-Origin', '*');
-	res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+	res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
 	res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 	if (req.method === 'OPTIONS') {
 		res.writeHead(204); // status code for no content
@@ -25,9 +25,17 @@ const server = http.createServer(async (req, res) => {
 			res.end(JSON.stringify({ error: err.message }));
 		}
 	}
-	else if (req.url === '/api/manager' && req.method === 'GET') {
+	else if (req.url.startsWith('/api/manager') && req.method === 'GET') {
 		try {
-			const [rows] = await pool.query('SELECT * FROM manager_view');
+			const parsedUrl = new URL(req.url, 'http://localhost');
+			const email = parsedUrl.searchParams.get('email');
+			let query = 'SELECT * FROM manager_view';
+			let params = [];
+			if (email) {
+				query += ' WHERE department_ID = (SELECT department_ID FROM EMPLOYEE WHERE email = ?)';
+				params.push(email);
+			}
+			const [rows] = await pool.query(query, params);
 			res.end(JSON.stringify(rows));
 		}
 		catch (err) {
@@ -74,7 +82,7 @@ const server = http.createServer(async (req, res) => {
 			try {
 				const { email, password } = JSON.parse(body);
 				const [rows] = await pool.query( //.query is a built in method of pool . pool is a bunch of conections always open that i made
-					'SELECT userID, role FROM users WHERE email = ? AND password = ?',
+					'SELECT userID, email, role FROM users WHERE email = ? AND password = ?',
 					[email, password]
 				);
 				if (rows.length > 0) {
@@ -201,6 +209,131 @@ const server = http.createServer(async (req, res) => {
 			res.end(JSON.stringify({ error: `Database error: ${err.message}, contact DBA` }));
 		}
 	}
+	else if (req.method === 'PUT' && req.url.startsWith('/api/employees/')) {
+		const parts = req.url.split('/');
+		const employeeID = parts[3];
+		if (!employeeID || isNaN(employeeID)) {
+			res.statusCode = 400;
+			res.end(JSON.stringify({ error: 'A valid numeric Employee ID is required.' }));
+			return;
+		}
+
+		let body = '';
+		req.on('data', (chunk) => {
+			body += chunk;
+		});
+
+		req.on('end', async () => {
+			let data;
+			try {
+				data = JSON.parse(body);
+			} catch {
+				res.statusCode = 400;
+				res.end(JSON.stringify({ error: 'Invalid JSON request body.' }));
+				return;
+			}
+
+			const allowedFields = [
+				'first_name',
+				'minit',
+				'last_name',
+				'street_address',
+				'city',
+				'state',
+				'zip_code',
+				'country',
+				'email',
+				'phone_number',
+				'department_ID',
+				'role',
+				'salary',
+				'hours',
+				'manager_ID'
+			];
+
+			const updates = [];
+			const params = [];
+
+			for (const field of allowedFields) {
+				if (data[field] !== undefined) {
+					updates.push(`\`${field}\` = ?`);
+					params.push(data[field]);
+				}
+			}
+
+			if (updates.length === 0) {
+				res.statusCode = 400;
+				res.end(JSON.stringify({ error: 'No valid fields provided to update.' }));
+				return;
+			}
+
+			params.push(employeeID);
+
+			const connection = await pool.getConnection();
+			try {
+				await connection.beginTransaction();
+
+				// If email changed, check old email and update users table login
+				if (data.email) {
+					const [oldEmp] = await connection.query('SELECT email FROM EMPLOYEE WHERE employee_ID = ?', [employeeID]);
+					if (oldEmp.length > 0 && oldEmp[0].email !== data.email.trim()) {
+						await connection.query('UPDATE users SET email = ? WHERE email = ?', [data.email.trim(), oldEmp[0].email]);
+					}
+				}
+
+				// 1. Update EMPLOYEE table
+				const [result] = await connection.query(
+					`UPDATE EMPLOYEE SET ${updates.join(', ')} WHERE employee_ID = ?`,
+					params
+				);
+
+				if (result.affectedRows === 0) {
+					await connection.rollback();
+					res.statusCode = 404;
+					res.end(JSON.stringify({ error: `Employee ID ${employeeID} was not found.` }));
+					return;
+				}
+
+				// 2. If department_ID, role, or salary changed, update current active stint in EMPLOYMENT_HISTORY
+				if (data.department_ID !== undefined || data.role !== undefined || data.salary !== undefined) {
+					const histUpdates = [];
+					const histParams = [];
+					if (data.department_ID !== undefined) {
+						histUpdates.push('department_ID = ?');
+						histParams.push(data.department_ID);
+					}
+					if (data.role !== undefined) {
+						histUpdates.push('role = ?');
+						histParams.push(data.role);
+					}
+					if (data.salary !== undefined) {
+						histUpdates.push('salary = ?');
+						histParams.push(data.salary);
+					}
+					histParams.push(employeeID);
+					await connection.query(
+						`UPDATE EMPLOYMENT_HISTORY SET ${histUpdates.join(', ')} WHERE employee_ID = ? AND status = 'active'`,
+						histParams
+					);
+				}
+
+				await connection.commit();
+				res.statusCode = 200;
+				res.end(JSON.stringify({ message: `Employee ID ${employeeID} updated successfully.` }));
+			} catch (err) {
+				await connection.rollback();
+				if (err.code === 'ER_DUP_ENTRY') {
+					res.statusCode = 409;
+					res.end(JSON.stringify({ error: `An account or employee with email '${data.email}' already exists.` }));
+				} else {
+					res.statusCode = 500;
+					res.end(JSON.stringify({ error: `Database error: ${err.message}` }));
+				}
+			} finally {
+				connection.release();
+			}
+		});
+	}
 	else if (req.url === '/api/employees' && req.method === 'POST') {
 		let body = '';
 		req.on('data', (chunk) => {
@@ -232,8 +365,8 @@ const server = http.createServer(async (req, res) => {
 
 				// 1. Insert into EMPLOYEE
 				const [empResult] = await connection.query(
-					`INSERT INTO EMPLOYEE 
-					(first_name, minit, last_name, street_address, city, state, zip_code, country, email, phone_number, department_ID, role, salary, hire_date, \`current\`, hours, manager_ID) 
+					`INSERT INTO EMPLOYEE
+					(first_name, minit, last_name, street_address, city, state, zip_code, country, email, phone_number, department_ID, role, salary, hire_date, \`current\`, hours, manager_ID)
 					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
 					[
 						data.first_name.trim(),
@@ -259,8 +392,8 @@ const server = http.createServer(async (req, res) => {
 
 				// 2. Insert initial record into EMPLOYMENT_HISTORY
 				await connection.query(
-					`INSERT INTO EMPLOYMENT_HISTORY 
-					(employee_ID, department_ID, role, salary, start_date, end_date, status) 
+					`INSERT INTO EMPLOYMENT_HISTORY
+					(employee_ID, department_ID, role, salary, start_date, end_date, status)
 					VALUES (?, ?, ?, ?, ?, NULL, 'active')`,
 					[newEmployeeID, data.department_ID, data.role.trim(), data.salary, data.hire_date]
 				);
@@ -270,7 +403,10 @@ const server = http.createServer(async (req, res) => {
 					'INSERT INTO users (email, password, role) VALUES (?, ?, ?)',
 					[data.email.trim(), 'welcome123', 'employee']
 				);
-
+				if (data.attr_ID) {
+					await connection.query('INSERT INTO STAFFED_AT (employee_ID, attr_ID) VALUES (?,?)',
+						[newEmployeeID, data.attr_ID]);
+				}
 				await connection.commit();
 
 				res.statusCode = 201;
@@ -348,18 +484,18 @@ const server = http.createServer(async (req, res) => {
 			}
 		});
 	}
-		else if (req.url === '/api/species' && req.method === 'GET') {
-    try {
-        const [rows] = await pool.query(
-            'SELECT species_ID, common_name FROM SPECIES ORDER BY common_name'
-        );
-        res.end(JSON.stringify(rows));
-    } catch (error) {
-        console.error('Error fetching species:', error);
-        res.statusCode = 500;
-        res.end(JSON.stringify({ error: 'Failed to fetch species.' }));
-    }
-}
+	else if (req.url === '/api/species' && req.method === 'GET') {
+		try {
+			const [rows] = await pool.query(
+				'SELECT species_ID, common_name FROM SPECIES ORDER BY common_name'
+			);
+			res.end(JSON.stringify(rows));
+		} catch (error) {
+			console.error('Error fetching species:', error);
+			res.statusCode = 500;
+			res.end(JSON.stringify({ error: 'Failed to fetch species.' }));
+		}
+	}
 	else {
 		res.statusCode = 404;
 		res.end((JSON.stringify({ message: 'Not Found' })));

@@ -9,7 +9,7 @@ const initialFormData = {
 	city: '',
 	state: '',
 	zip_code: '',
-	country: '',
+	country: 'USA',
 	email: '',
 	phone_number: '',
 	department_ID: '',
@@ -17,7 +17,8 @@ const initialFormData = {
 	salary: '',
 	hire_date: '',
 	hours: '',
-	manager_ID: ''
+	manager_ID: '',
+	attr_ID: ''
 };
 
 function AdminView() {
@@ -25,8 +26,10 @@ function AdminView() {
 	const [searchTerm, setSearchTerm] = useState('');
 	const [error, setError] = useState('');
 	const [successMsg, setSuccessMsg] = useState('');
-	const [showAddForm, setShowAddForm] = useState(false);
+	const [showForm, setShowForm] = useState(false);
+	const [editingEmployeeId, setEditingEmployeeId] = useState(null);
 	const [formData, setFormData] = useState(initialFormData);
+	const [attractionsList, setAttractionsList] = useState([]);
 
 	const fetchAdminData = () => {
 		fetch('http://localhost:5000/api/admin')
@@ -53,6 +56,10 @@ function AdminView() {
 
 	useEffect(() => {
 		fetchAdminData();
+		fetch('http://localhost:5000/api/attractions')
+			.then((res) => (res.ok ? res.json() : []))
+			.then((data) => setAttractionsList(data))
+			.catch((err) => console.error('Error fetching attractions:', err));
 	}, []);
 
 	const handleChange = (e) => {
@@ -62,30 +69,71 @@ function AdminView() {
 		});
 	};
 
-	const handleAddEmployee = async (e) => {
+	const handleStartEdit = (emp) => {
+		setEditingEmployeeId(emp.employee_ID);
+		setShowForm(true);
+		setFormData({
+			first_name: emp.first_name || '',
+			minit: emp.minit || '',
+			last_name: emp.last_name || '',
+			email: emp.email || '',
+			phone_number: emp.phone_number || '',
+			street_address: emp.street_address || '',
+			city: emp.city || '',
+			state: emp.state || '',
+			zip_code: emp.zip_code || '',
+			country: emp.country || 'USA',
+			department_ID: emp.department_ID || '',
+			role: emp.role || '',
+			salary: emp.salary !== null && emp.salary !== undefined ? emp.salary : '',
+			hire_date: emp.hire_date ? emp.hire_date.split('T')[0] : '',
+			hours: emp.hours !== null && emp.hours !== undefined ? emp.hours : '',
+			manager_ID: emp.manager_ID || '',
+			attr_ID: ''
+		});
+		window.scrollTo({ top: 0, behavior: 'smooth' });
+	};
+
+	const handleCancelForm = () => {
+		setShowForm(false);
+		setEditingEmployeeId(null);
+		setFormData(initialFormData);
+	};
+
+	const handleFormSubmit = async (e) => {
 		e.preventDefault();
 		setError('');
 
+		const isEditing = Boolean(editingEmployeeId);
+		const endpoint = isEditing
+			? `http://localhost:5000/api/employees/${editingEmployeeId}`
+			: 'http://localhost:5000/api/employees';
+		const method = isEditing ? 'PUT' : 'POST';
+
 		try {
-			const res = await fetch('http://localhost:5000/api/employees', {
-				method: 'POST',
+			const res = await fetch(endpoint, {
+				method,
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify(formData)
 			});
 
 			const data = await res.json().catch(() => ({}));
 
-			if (res.status === 201 || res.status === 200) {
-				setSuccessMsg(data.message || `Employee ${formData.first_name} added successfully!`);
+			if (res.status === 200 || res.status === 201) {
+				setSuccessMsg(
+					data.message ||
+						(isEditing
+							? `Employee ID ${editingEmployeeId} updated successfully!`
+							: `Employee ${formData.first_name} added successfully!`)
+				);
 				fetchAdminData();
-				setShowAddForm(false);
-				setFormData(initialFormData);
+				handleCancelForm();
 				setTimeout(() => setSuccessMsg(''), 4000);
 			} else {
-				setError(`Failed to add employee: ${data.error || `Server responded with status ${res.status}`}`);
+				setError(`Failed to save employee: ${data.error || `Server responded with status ${res.status}`}`);
 			}
 		} catch (err) {
-			console.error('Error adding employee:', err);
+			console.error('Error saving employee:', err);
 			setError(`Connection error: ${err.message}. Please verify the server is running.`);
 		}
 	};
@@ -131,15 +179,28 @@ function AdminView() {
 				{successMsg && <p style={{ color: 'green' }}><strong>Success: </strong>{successMsg}</p>}
 
 				<div>
-					<button type="button" onClick={() => setShowAddForm(!showAddForm)}>
-						{showAddForm ? 'Cancel' : '+ Add New Employee'}
-					</button>
+					{showForm ? (
+						<button type="button" onClick={handleCancelForm}>
+							Cancel {editingEmployeeId ? 'Editing' : 'Form'}
+						</button>
+					) : (
+						<button
+							type="button"
+							onClick={() => {
+								setEditingEmployeeId(null);
+								setFormData(initialFormData);
+								setShowForm(true);
+							}}
+						>
+							+ Add New Employee
+						</button>
+					)}
 				</div>
 
-				{showAddForm && (
+				{showForm && (
 					<div>
-						<h3>Add New Employee</h3>
-						<form onSubmit={handleAddEmployee}>
+						<h3>{editingEmployeeId ? `Edit Employee (ID: ${editingEmployeeId})` : 'Add New Employee'}</h3>
+						<form onSubmit={handleFormSubmit}>
 							<div>
 								<label>First Name: </label>
 								<input type="text" name="first_name" value={formData.first_name} onChange={handleChange} required />
@@ -201,7 +262,14 @@ function AdminView() {
 							</div>
 							<div>
 								<label>Hire Date: </label>
-								<input type="date" name="hire_date" value={formData.hire_date} onChange={handleChange} required />
+								<input
+									type="date"
+									name="hire_date"
+									value={formData.hire_date}
+									onChange={handleChange}
+									disabled={Boolean(editingEmployeeId)}
+									required
+								/>
 							</div>
 							<div>
 								<label>Weekly Hours: </label>
@@ -211,8 +279,27 @@ function AdminView() {
 								<label>Manager ID: </label>
 								<input type="number" name="manager_ID" placeholder="Optional" value={formData.manager_ID} onChange={handleChange} />
 							</div>
+							{!editingEmployeeId && (
+								<div>
+									<label>Staffed at Attraction: </label>
+									<select name="attr_ID" value={formData.attr_ID} onChange={handleChange}>
+										<option value="">-- Unassigned --</option>
+										{attractionsList.map((a) => (
+											<option key={a.attr_ID} value={a.attr_ID}>
+												{a.name}
+											</option>
+										))}
+									</select>
+								</div>
+							)}
 							<br />
-							<button type="submit">Submit New Employee</button>
+							<button type="submit">
+								{editingEmployeeId ? 'Save Changes' : 'Submit New Employee'}
+							</button>
+							&nbsp;
+							<button type="button" onClick={handleCancelForm}>
+								Cancel
+							</button>
 						</form>
 						<hr />
 					</div>
@@ -266,11 +353,21 @@ function AdminView() {
 									<td>{item.employment_status}</td>
 									<td>
 										{item.employment_status === 'current' ? (
-											<button
-												onClick={() => handleDelete(item.employee_ID, item.name)}
-											>
-												Delete
-											</button>
+											<>
+												<button
+													type="button"
+													onClick={() => handleStartEdit(item)}
+												>
+													Edit
+												</button>
+												&nbsp;
+												<button
+													type="button"
+													onClick={() => handleDelete(item.employee_ID, item.name)}
+												>
+													Delete
+												</button>
+											</>
 										) : (
 											<span>Inactive</span>
 										)}

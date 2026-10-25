@@ -8,18 +8,24 @@ import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 
 function App() {
 	const [role, setRole] = useState(() => localStorage.getItem('user_role'));
+	const [userEmail, setUserEmail] = useState(() => localStorage.getItem('user_email'));
 
-	const handleLogin = (newRole) => {
+	const handleLogin = (newRole, newEmail) => {
 		setRole(newRole);
+		setUserEmail(newEmail);
 		if (newRole) {
 			localStorage.setItem('user_role', newRole);
+			if (newEmail) {
+				localStorage.setItem('user_email', newEmail);
+			}
 		} else {
 			localStorage.removeItem('user_role');
+			localStorage.removeItem('user_email');
 		}
 	};
 
 	const handleLogout = () => {
-		handleLogin(null);
+		handleLogin(null, null);
 	};
 
 	return (
@@ -54,7 +60,7 @@ function App() {
 			<div className="content">
 				<Routes>
 					<Route path="/" element={<Home />} />
-					<Route path="/directory" element={<ReturnDir role={role} />} />
+					<Route path="/directory" element={<ReturnDir role={role} userEmail={userEmail} />} />
 					<Route path="/login" element={<LoginPage onLogin={handleLogin} />} />
 					<Route path="/animals" element={<AnimalManagement />} />
 				</Routes>

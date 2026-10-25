@@ -31,7 +31,7 @@ function LoginPage({ onLogin }) {
 				} else {
 					alert(`Welcome! Role: ${userRole}`);
 				}
-				onLogin(userRole);
+				onLogin(userRole, email);
 			} else {
 				setError(data.error || (isSignUp ? 'Registration failed' : 'Login failed'));
 			}

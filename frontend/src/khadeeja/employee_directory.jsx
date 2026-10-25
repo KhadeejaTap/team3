@@ -3,7 +3,7 @@ import MgrView from './manager_view';
 import AdminView from './admin_view';
 import EmpView from './employee_view';
 
-function ReturnDir({ role }) {
+function ReturnDir({ role, userEmail }) {
 	if (!role) {
 		return (
 			<div>
@@ -23,7 +23,7 @@ function ReturnDir({ role }) {
 	}
 
 	if (role === 'manager') {
-		return <MgrView />;
+		return <MgrView userEmail={userEmail} />;
 	}
 
 	if (role === 'admin') {
