@@ -4,6 +4,7 @@ import Home from './Home';
 import { useState } from 'react';
 import ReturnDir from './khadeeja/employee_directory';
 import AnimalManagement from './animals/AnimalManagement';
+import AttractionManagement from './Attractions/attractionManagement';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 
 function App() {
@@ -43,6 +44,9 @@ function App() {
 					<li className="nav-item">
 						<Link to="/animals">Animal Management</Link>
 					</li>
+					<li className="nav-item">
+						<Link to="/attractions">Attraction Management</Link>
+					</li>
 					{role ? (
 						<li className="nav-item">
 							<button type="button" onClick={handleLogout}>
@@ -63,6 +67,7 @@ function App() {
 					<Route path="/directory" element={<ReturnDir role={role} userEmail={userEmail} />} />
 					<Route path="/login" element={<LoginPage onLogin={handleLogin} />} />
 					<Route path="/animals" element={<AnimalManagement />} />
+					<Route path="/attractions" element={<AttractionManagement />} />
 				</Routes>
 			</div>
 		</Router>
