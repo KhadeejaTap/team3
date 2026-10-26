@@ -51,9 +51,6 @@ function App() {
 					<li className="nav-item">
 						<Link to="/donations"> Donations </Link>
 					</li>
-					<li className="nav-item">
-						<Link to="/donations"> Donations </Link>
-					</li>
 					{role ? (
 						<li className="nav-item">
 							<button type="button" onClick={handleLogout}>
