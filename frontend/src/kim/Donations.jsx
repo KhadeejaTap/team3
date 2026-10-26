@@ -24,7 +24,17 @@ function Donations() {
         });
     }
 
-    
+    // handling form submission 
+    function handleSubmit(event){
+        // prevent browser from refreshing the page on form submission 
+        event.preventDefault();
+
+        console.log(donationForm);
+
+        setMessage("Donation form submitted successfully!");
+    }
+
+    const [message, setMessage] = useState("");
 
 
 
@@ -32,7 +42,7 @@ function Donations() {
     return(
         <main>
             <h1>Donations</h1>
-            <form>
+            <form onSubmit={handleSubmit}>
                 <label htmlFor="donor_first"> First Name</label>
                 <input type="text" id="donor_first" name="donor_first" value={donationForm.donor_first} onChange={handleChange} required />
 
@@ -63,6 +73,7 @@ function Donations() {
                 </select>
 
                 <button type="submit">Submit Donation</button>
+                {message && <p role="status">{message}</p>}
             </form>
         </main>
     );
