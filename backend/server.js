@@ -73,6 +73,39 @@ const server = http.createServer(async (req, res) => {
 			res.end(JSON.stringify({ error: `Database error: ${err.message}` }));
 		}
 	}
+	else if (req.url === '/api/attractions' && req.method === 'POST') {
+		let body = '';
+		req.on('data', (chunk) => {
+			body += chunk;
+		});
+		req.on('end', async () => {
+			try {
+				const attraction = JSON.parse(body);
+				const [result] = await pool.query(
+					`INSERT INTO ATTRACTION
+					(name, type, location, attr_datetime, capacity, description)
+					VALUES (?, ?, ?, ?, ?, ?)`,
+					[
+						attraction.name || null,
+						attraction.type || null,
+						attraction.location || null,
+						attraction.attr_datetime || null,
+						attraction.capacity ?? null,
+						attraction.description || null
+					]
+				);
+
+				res.statusCode = 201;
+				res.end(JSON.stringify({
+					message: 'Attraction saved successfully',
+					attr_ID: result.insertId
+				}));
+			} catch (err) {
+				res.statusCode = 500;
+				res.end(JSON.stringify({ error: err.message }));
+			}
+		});
+	}
 	else if (req.url === '/api/login' && req.method === 'POST') {
 		let body = '';
 		req.on('data', (chunk) => {

@@ -17,6 +17,43 @@
   }
 }
 
+.attraction-management form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 24px;
+  max-width: 800px;
+  margin: 24px auto;
+  padding: 24px;
+  text-align: left;
+}
+
+.attraction-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.attraction-form-field input {
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.attraction-management form button {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+
+@media (max-width: 600px) {
+  .attraction-management form {
+    grid-template-columns: 1fr;
+    padding: 16px;
+  }
+
+  .attraction-management form button {
+    grid-column: auto;
+  }
+}
+
 .hero {
   position: relative;
 
