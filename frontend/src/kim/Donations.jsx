@@ -1,33 +1,61 @@
 import { useState } from "react";
 
 function Donations() {
+
+    // state to hold form data
+    const [donationForm, setDonationForm] = useState({
+        donor_first: "", 
+        donor_last: "", 
+        donor_email: "", 
+        donor_phone: "", 
+        donation_amt: "", 
+        donation_date: "", 
+        purpose: "", 
+        payment_method: "credit"
+    }); 
+
+    // updating input changes to form state 
+    function handleChange(event) {
+        const { name, value } = event.target; 
+        
+        setDonationForm({
+            ...donationForm, 
+            [name]: value, 
+        });
+    }
+
+    
+
+
+
+
     return(
         <main>
             <h1>Donations</h1>
             <form>
                 <label htmlFor="donor_first"> First Name</label>
-                <input type="text" id="donor_first" name="donor_first" required />
+                <input type="text" id="donor_first" name="donor_first" value={donationForm.donor_first} onChange={handleChange} required />
 
                 <label htmlFor="donor_last"> Last Name</label>
-                <input type="text" id="donor_last" name="donor_last" required />
+                <input type="text" id="donor_last" name="donor_last" value={donationForm.donor_last} onChange={handleChange} required />
                 
                 <label htmlFor="donor_email"> Email</label>
-                <input type="email" id="donor_email" name="donor_email" required />
+                <input type="email" id="donor_email" name="donor_email" value={donationForm.donor_email} onChange={handleChange} required />
                 
                 <label htmlFor="donor_phone"> Phone Number</label>
-                <input type="text" id="donor_phone" name="donor_phone" required />
+                <input type="text" id="donor_phone" name="donor_phone" value={donationForm.donor_phone} onChange={handleChange} required />
 
                 <label htmlFor="donation_amt">Donation Amount ($)</label>
-                <input type="number" id="donation_amt" name="donation_amt" step="0.01" min="0.01" required />
+                <input type="number" id="donation_amt" name="donation_amt" step="0.01" min="0.01" value={donationForm.donation_amt} onChange={handleChange} required />
 
                 <label htmlFor="donation_date">Donation Date</label>
-                <input type="date" id="donation_date" name="donation_date" required />
+                <input type="date" id="donation_date" name="donation_date" value={donationForm.donation_date} onChange={handleChange} required />
 
                 <label htmlFor="purpose">Purpose of Donation</label>
-                <input type="text" id="purpose" name="purpose" required />
+                <input type="text" id="purpose" name="purpose" value={donationForm.purpose} onChange={handleChange} required />
 
                 <label htmlFor="payment_method">Payment Method</label>
-                <select id="payment_method" name="payment_method" required>
+                <select id="payment_method" name="payment_method" value={donationForm.payment_method} onChange={handleChange} required>
                     <option value="credit">Credit</option>
                     <option value="debit">Debit</option>
                     <option value="digital_wallet">Digital Wallet</option>
