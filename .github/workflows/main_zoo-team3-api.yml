@@ -6,9 +6,9 @@ name: Build and deploy Node.js app to Azure Web App - zoo-team3-api
 on:
   push:
     branches:
-      - 'main'
+      - main
   workflow_dispatch:
-
+  
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -28,12 +28,15 @@ jobs:
         run: npm install
 
       - name: Package backend for deployment
+        working-directory: backend
         run: |
-          cd backend
+          npm install --omit=dev
           zip -r ../backend.zip . \
-            -x ".env" \
-               "node_modules/*"
+            -x ".env"
 
+      - name: Verify backend package
+        run: unzip -l backend.zip
+        
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
