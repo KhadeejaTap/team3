@@ -25,13 +25,35 @@ function Donations() {
     }
 
     // handling form submission 
-    function handleSubmit(event){
+    async function handleSubmit(event){
         // prevent browser from refreshing the page on form submission 
         event.preventDefault();
+        setMessage(""); 
 
-        console.log(donationForm);
+        try{
+            // sends data to backend 
+            const response = await fetch("http://localhost:5000/api/donations", {
+                method: "POST", 
+                headers: {
+                    "Content-Type": "application/json"
+                }, 
+                body: JSON.stringify(donationForm)
+            }); 
 
-        setMessage("Donation form submitted successfully!");
+            // reads backend response 
+            const data = await response.json(); 
+
+            // did backend succeed? 
+            if(!response.ok){
+                throw new Error(data.error || "Failed to save donation."); 
+            } 
+
+            setMessage(data.message); 
+            console.log("Donation saved:", data); 
+        } catch (error){
+            console.error("Donation submission error:", error);
+            setMessage(error.message || "Unable to save donation. Please try again."); 
+        }
     }
 
     const [message, setMessage] = useState("");
