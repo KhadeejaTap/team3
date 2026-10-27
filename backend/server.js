@@ -626,6 +626,125 @@ const server = http.createServer(async (req, res) => {
 			res.end(JSON.stringify({ error: 'Failed to fetch species.' }));
 		}
 	}
+	// Donation API endpoints
+	else if (req.url === '/api/donations' && req.method === 'POST'){
+		let body = '';
+
+		req.on('data', (chunk) => {
+			body += chunk;
+		});
+
+		req.on('end', async () => {
+			let data;
+
+			try{
+				data = JSON.parse(body);
+			} catch{
+				res.statusCode = 400;
+				res.end(JSON.stringify({ error: 'Invalid JSON request body.'}));
+				return;
+			}
+
+			const {
+				donor_first,
+				donor_last,
+				donor_email,
+				donor_phone,
+				donation_amt,
+				donation_date,
+				purpose,
+				payment_method
+			} = data;
+
+			const amount = Number(donation_amt);
+			const allowedMethods = ['credit', 'debit', 'digital_wallet', 'paypal'];
+
+			if (
+				![donor_first, donor_last, donor_email, donor_phone, donation_date, purpose].every(value => typeof value === 'string' && value.trim() !== '') ||
+					!Number.isFinite(amount) || amount <= 0 || !Number.isFinite(Number.EPSILON(amount.toFixed(2))) || !allowedMethods.includes(payment_method)
+			) {
+				res.statusCode = 400;
+				res.end(JSON.stringify({ error: 'Please provide valid donation details.' }));
+				return;
+			}
+			if (!/^\d{4}-\d{2}-\d{2}$/.test(donation_date) ||
+				Number.isNaN(Date.parse(donation_date)) ||
+				new Date(donation_date).toISOString().slice(0, 10) !== donation_date) {
+				res.statusCode = 400;
+				res.end(JSON.stringify({
+					error: 'Please provide a valid donation date.'
+				}));
+				return;
+			}
+
+			const connection = await pool.getConnection();
+
+			try{
+				await connection.beginTransaction();
+
+				// 1. Save donor as guest (no linked acc yet)
+				const [donorResult] = await connection.query(
+					`INSERT INTO donor
+					(first_name, last_name, donor_email, donor_phone, userID)
+					VALUES (?, ?, ?, ?, NULL)`,
+					[
+						donor_first.trim(),
+						donor_last.trim(),
+						donor_email.trim(),
+						donor_phone.trim()
+					]
+				);
+
+				const donorID = donorResult.insertId;
+
+				// 2. Save donation
+				const [donationResult] = await connection.query(
+					`INSERT INTO DONATION
+					(donor_ID, amount, donation_date, purpose)
+					VALUES (?, ?, ?, ?))`,
+					[donorID, amount.toFixed(2), donation_date, purpose.trim()]
+				);
+
+				const donationID = donationResult.insertId;
+
+				// 3. Save transaction item
+				const [transactionResult] = await connection.query(
+					`INSERT INTO TRANSACTION_ITEM
+					(visiotr_ID, total, transaction_date, payment_method)
+					VALUES (NULL, ?, ?, ?)`,
+					[amount.toFixed(2), donation_date, payment_method]
+				);
+
+				const transactionID = transactionResult.insertId;
+
+				// 4. Link the transaction to the donation
+				await connection.query(
+					`INSERT INTO TRANSACTION_ITEM
+					(transcation_ID, item_type, item_ID, quanity, price)
+					VALUES (?, 'donation', ?, 1, ?)`,
+					[transactionID, donationID, amount.toFixed(2)]
+				);
+
+				await connection.commit();
+
+				res.statusCode = 201;
+				res.end(JSON.stringify({
+					message: 'Donation processed successfully!',
+					donor_ID: donorID,
+					donation_ID: donationID,
+					transaction_ID: transactionID
+				}));
+			} catch (err) {
+				await connection.rollback();
+				console.error('Error saving donation:', err);
+
+				res.statusCode = 500;
+				res.end(JSON.stringify({ error: 'Unable to save donation. Please try again.' }));
+			} finally {
+				connection.release();
+			}
+		});
+	}
 	else {
 		res.statusCode = 404;
 		res.end((JSON.stringify({ message: 'Not Found' })));
