@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 function AnimalManagement() {
     const [formData, setFormData] = useState({
@@ -11,8 +11,27 @@ function AnimalManagement() {
         arrival_date: '',
         breeding_status: ''
     });
-
+    const [species, setSpecies] = useState([]);
     const [message, setMessage] = useState('');
+    const [loadingSpecies, setLoadingSpecies] = useState(true);
+
+    useEffect(() => {
+        async function fetchSpecies() {
+            try {
+                const response = await fetch('http://localhost:5000/api/species');
+                if (!response.ok) {
+                    throw new Error('Could not load species.');
+                }
+                const result = await response.json();
+                setSpecies(result);
+            } catch (error) {
+                setMessage(`Error: ${error.message}`);
+            } finally {
+                setLoadingSpecies(false);
+            }
+        }
+        fetchSpecies();
+    }, []);
 
     function handleChange(event) {
         setFormData({
@@ -41,13 +60,11 @@ function AnimalManagement() {
             });
 
             const result = await response.json();
-
             if (!response.ok) {
                 throw new Error(result.error || 'Could not save animal.');
             }
 
             setMessage(`Animal saved successfully! ID: ${result.animal_ID}`);
-
             setFormData({
                 name: '',
                 species_ID: '',
@@ -62,7 +79,6 @@ function AnimalManagement() {
             setMessage(`Error: ${error.message}`);
         }
     }
-
     return (
         <div className="animal-management">
             <h1>Animal Management</h1>
@@ -78,16 +94,24 @@ function AnimalManagement() {
                     maxLength="100"
                 />
 
-                <label htmlFor="species_ID">Species ID:</label>
-                <input
+                <label htmlFor="species_ID">Species:</label>
+                <select
                     id="species_ID"
                     name="species_ID"
-                    type="number"
-                    min="1"
                     value={formData.species_ID}
                     onChange={handleChange}
                     required
-                />
+                    disabled={loadingSpecies || species.length === 0}
+                >
+                    <option value="">
+                        {loadingSpecies ? 'Loading species...' : 'Select a species'}
+                    </option>
+                    {species.map((item) => (
+                        <option key={item.species_ID} value={item.species_ID}>
+                            {item.common_name}
+                        </option>
+                    ))}
+                </select>
 
                 <label htmlFor="enclosure_ID">Enclosure ID:</label>
                 <input
@@ -150,7 +174,6 @@ function AnimalManagement() {
 
                 <button type="submit">Save Animal</button>
             </form>
-
             {message && <p role="status">{message}</p>}
         </div>
     );

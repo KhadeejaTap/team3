@@ -1,52 +1,87 @@
-import '.././App.css'
+import '.././App.css';
 import { useState } from 'react';
-function LoginPage() {
+
+function LoginPage({ onLogin }) {
 	const [email, setEmail] = useState('');
 	const [password, setPassword] = useState('');
 	const [error, setError] = useState('');
+	const [isSignUp, setIsSignUp] = useState(false);
 
 	const handleSubmit = async (e) => {
 		e.preventDefault();
 		setError('');
+
+		const endpoint = isSignUp
+			? 'http://localhost:5000/api/register'
+			: 'http://localhost:5000/api/login';
+
 		try {
-			const res = await fetch('http://localhost:5000/api/login', { //options object
+			const res = await fetch(endpoint, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ email, password })
 			});
-			const data = await res.json(); //await so waits for all info to arrive
-			if (res.ok) { //meaning within valid codes of 200 and 299
-				alert(`Welcome ${data.username}! Role: ${data.role}`);
+
+			const data = await res.json().catch(() => ({}));
+
+			if (res.ok) {
+				const userRole = isSignUp ? 'visitor' : data.role;
+				if (isSignUp) {
+					alert('Visitor account created successfully! You are now logged in.');
+				} else {
+					alert(`Welcome! Role: ${userRole}`);
+				}
+				onLogin(userRole, email);
 			} else {
-				setError(data.error || 'Login Failed')
+				setError(data.error || (isSignUp ? 'Registration failed' : 'Login failed'));
 			}
+		} catch (err) {
+			console.error('Auth error:', err);
+			setError('Cannot connect to server. Please ensure the backend is running.');
 		}
-		catch {
-			setError('Cannot connect to server');
-		}
-	}
-	//still need to add: autocreate account for new employee with random pass, email employee to make new pass?? and a sign up button for visitors (if email exists let them know)
+	};
+
+	const toggleMode = () => {
+		setIsSignUp(!isSignUp);
+		setError('');
+	};
+
 	return (
 		<div className="login-container">
-			<h2> Login to Zoo Portal </h2>
-			<p>{error}</p>
+			<h2>{isSignUp ? 'Create Visitor Account' : 'Login to Zoo Portal'}</h2>
+
+			{error && <p style={{ color: 'red' }}><strong>Error: </strong>{error}</p>}
+
 			<form onSubmit={handleSubmit}>
 				<div>
-					<label>Email:</label>
+					<label>Email: </label>
 					<input
-						type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
+						type="email"
+						value={email}
+						onChange={(e) => setEmail(e.target.value)}
+						required
 					/>
 				</div>
+				<br />
 				<div>
-					<label>Password:</label>
+					<label>Password: </label>
 					<input
-						type="password" value={password} onChange={(e) => setPassword(e.target.value)} required
+						type="password"
+						value={password}
+						onChange={(e) => setPassword(e.target.value)}
+						required
 					/>
 				</div>
-				<button type="submit"> Log In </button>
+				<br />
+				<button type="submit">{isSignUp ? 'Create Account' : 'Log In'}</button>
 			</form>
-		</div>
 
+			<br />
+			<p>{isSignUp ? 'Already have an account?' : "Don't have an account?"}</p>
+			<button type="button" onClick={toggleMode}>
+				{isSignUp ? 'Go to Login' : 'Sign Up as Visitor'}
+			</button>
+		</div>
 	);
 }
 
