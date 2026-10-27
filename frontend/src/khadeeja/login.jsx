@@ -1,6 +1,8 @@
 import '.././App.css';
 import { useState } from 'react';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 function LoginPage({ onLogin }) {
 	const [email, setEmail] = useState('');
 	const [password, setPassword] = useState('');
@@ -12,8 +14,8 @@ function LoginPage({ onLogin }) {
 		setError('');
 
 		const endpoint = isSignUp
-			? 'http://localhost:5000/api/register'
-			: 'http://localhost:5000/api/login';
+			? `${API_URL}/api/register`
+			: `${API_URL}/api/login`;
 
 		try {
 			const res = await fetch(endpoint, {
