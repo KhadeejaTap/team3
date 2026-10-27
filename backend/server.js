@@ -1,771 +1,1184 @@
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
+
 const http = require('http');
-const PORT = process.env.PORT || 5000;
 const pool = require('./db');
+const handleFood = require('./food');
+const handleParking = require('./parking');
+const handleAccess = require('./access');
+
+const PORT = process.env.PORT || 5000;
+
+function send(res, status, data) {
+  res.statusCode = status;
+  res.end(JSON.stringify(data));
+}
+
+async function readBody(req) {
+  let body = '';
+
+  for await (const chunk of req) {
+    body += chunk;
+
+    if (Buffer.byteLength(body) > 16384) {
+      const error = new Error('Request is too large.');
+      error.status = 413;
+      throw error;
+    }
+  }
+
+  try {
+    return JSON.parse(body);
+  } catch {
+    const error = new Error('Invalid JSON.');
+    error.status = 400;
+    throw error;
+  }
+}
 
 const server = http.createServer(async (req, res) => {
-	res.setHeader('Content-Type', 'application/json');
-	res.statusCode = 200;
-	res.setHeader('Access-Control-Allow-Origin', '*');
-	res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-	res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept');
-	if (req.method === 'OPTIONS') {
-		res.writeHead(204); // status code for no content
-		res.end();
-		return;
-	}
-	if (req.url === '/api/employees' && req.method === 'GET') {
-		try {
-			const [rows] = await pool.query('SELECT * FROM employee_directory');
-			res.end(JSON.stringify(rows));
-		}
-		catch (err) {
-			res.statusCode = 500;
-			res.end(JSON.stringify({ error: err.message }));
-		}
-	}
-	else if (req.url.startsWith('/api/manager') && req.method === 'GET') {
-		try {
-			const parsedUrl = new URL(req.url, 'http://localhost');
-			const email = parsedUrl.searchParams.get('email');
-			let query = 'SELECT * FROM manager_view';
-			let params = [];
-			if (email) {
-				query += ' WHERE department_ID = (SELECT department_ID FROM EMPLOYEE WHERE email = ?)';
-				params.push(email);
-			}
-			const [rows] = await pool.query(query, params);
-			res.end(JSON.stringify(rows));
-		}
-		catch (err) {
-			res.statusCode = 500;
-			res.end(JSON.stringify({ error: err.message }));
-		}
-	}
-	else if (req.url === '/api/admin' && req.method === 'GET') {
-		try {
-			const [rows] = await pool.query('SELECT * FROM admin_view');
-			res.end(JSON.stringify(rows));
-		}
-		catch (err) {
-			res.statusCode = 500;
-			res.end(JSON.stringify({ error: err.message }));
-		}
-	}
-	else if (req.url === '/api/hr' && req.method === 'GET') {
-		try {
-			const [rows] = await pool.query('SELECT * FROM hr_view');
-			res.end(JSON.stringify(rows));
-		}
-		catch (err) {
-			res.statusCode = 500;
-			res.end(JSON.stringify({ error: err.message }));
-		}
-	}
-	else if (req.url === '/api/attractions' && req.method === 'GET') {
-		try {
-			const [rows] = await pool.query('SELECT attr_ID, name, location, type FROM ATTRACTION ORDER BY name ASC');
-			res.end(JSON.stringify(rows));
-		}
-		catch (err) {
-			res.statusCode = 500;
-			res.end(JSON.stringify({ error: `Database error: ${err.message}` }));
-		}
-	}
-	else if (req.url === '/api/attractions' && req.method === 'POST') {
-		let body = '';
-		req.on('data', (chunk) => {
-			body += chunk;
-		});
-		req.on('end', async () => {
-			try {
-				const attraction = JSON.parse(body);
-				const [result] = await pool.query(
-					`INSERT INTO ATTRACTION
-					(name, type, location, attr_datetime, capacity, description)
-					VALUES (?, ?, ?, ?, ?, ?)`,
-					[
-						attraction.name || null,
-						attraction.type || null,
-						attraction.location || null,
-						attraction.attr_datetime || null,
-						attraction.capacity ?? null,
-						attraction.description || null
-					]
-				);
+  res.setHeader('Content-Type', 'application/json');
+  res.statusCode = 200;
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader(
+    'Access-Control-Allow-Methods',
+    'GET, POST, PUT, DELETE, OPTIONS'
+  );
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Content-Type, Authorization, Accept'
+  );
 
-				res.statusCode = 201;
-				res.end(JSON.stringify({
-					message: 'Attraction saved successfully',
-					attr_ID: result.insertId
-				}));
-			} catch (err) {
-				res.statusCode = 500;
-				res.end(JSON.stringify({ error: err.message }));
-			}
-		});
-	}
-	else if (req.url === '/api/tickets' && req.method === 'POST') {
-		let body = '';
-		req.on('data', (chunk) => {
-			body += chunk;
-		});
-		req.on('end', async () => {
-			try {
-				let ticket;
-				try {
-					ticket = JSON.parse(body);
-				} catch {
-					res.statusCode = 400;
-					res.end(JSON.stringify({ error: 'Request body must be valid JSON.' }));
-					return;
-				}
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
 
-				if (!ticket || typeof ticket !== 'object' || Array.isArray(ticket)) {
-					res.statusCode = 400;
-					res.end(JSON.stringify({ error: 'Request body must contain ticket details.' }));
-					return;
-				}
+  try {
+    if (await handleAccess(req, res, pool, send, readBody)) {
+      return;
+    }
 
-				const visitDate = new Date(`${ticket.visit_date}T00:00:00.000Z`);
-				const validVisitDate = typeof ticket.visit_date === 'string'
-					&& /^\d{4}-\d{2}-\d{2}$/.test(ticket.visit_date)
-					&& !Number.isNaN(visitDate.getTime())
-					&& visitDate.toISOString().slice(0, 10) === ticket.visit_date;
-				const ticketPrices = { Adult: 25, Child: 15 };
-				const ticketType = typeof ticket.ticket_type === 'string'
-					? ticket.ticket_type.trim()
-					: '';
-				const price = Object.prototype.hasOwnProperty.call(ticketPrices, ticketType)
-					? ticketPrices[ticketType]
-					: undefined;
-				const visitorName = ticket.visitor_name;
-				const hasValidVisitorName = visitorName == null
-					|| (
-						typeof visitorName === 'string'
-						&& visitorName.trim() !== ''
-						&& visitorName.trim().length <= 100
-					);
+    if (await handleFood(req, res, pool, send, readBody)) {
+      return;
+    }
 
-				if (
-					price === undefined
-					|| !validVisitDate
-					|| !hasValidVisitorName
-				) {
-					res.statusCode = 400;
-					res.end(JSON.stringify({ error: 'Choose a valid ticket type, enter a valid visit date, and provide an optional visitor name.' }));
-					return;
-				}
+    if (await handleParking(req, res, pool, send, readBody)) {
+      return;
+    }
 
-				const connection = await pool.getConnection();
-				let ticketID;
-				try {
-					await connection.beginTransaction();
+    const getQueries = {
+      '/api/products': `
+        SELECT p.*, s.name AS shop_name
+        FROM PRODUCT AS p
+        JOIN GIFT_SHOP AS s ON p.shop_ID = s.shop_ID
+        ORDER BY p.product_ID
+      `,
+      '/api/gift-shops':
+        'SELECT shop_ID, name FROM GIFT_SHOP ORDER BY name'
+    };
 
-					let visitorID = null;
-					if (visitorName != null) {
-						const [visitorResult] = await connection.query(
-							'INSERT INTO VISITOR (name) VALUES (?)',
-							[visitorName.trim()]
-						);
-						visitorID = visitorResult.insertId;
-					}
+    if (
+      req.method === 'GET' &&
+      Object.hasOwn(getQueries, req.url)
+    ) {
+      const [rows] = await pool.query(getQueries[req.url]);
+      send(res, 200, rows);
+      return;
+    }
 
-					const [result] = await connection.query(
-						`INSERT INTO TICKET (visitor_ID, ticket_type, price, purchase_date, visit_date)
-						VALUES (?, ?, ?, CURRENT_DATE, ?)`,
-						[
-							visitorID,
-							ticketType,
-							price,
-							ticket.visit_date,
-						]
-					);
+    if (req.url === '/api/products' && req.method === 'POST') {
+      const data = await readBody(req);
 
-					await connection.commit();
-					ticketID = result.insertId;
-				} catch (err) {
-					await connection.rollback();
-					throw err;
-				} finally {
-					connection.release();
-				}
+      const validText = (value, max) =>
+        typeof value === 'string' &&
+        value.trim().length > 0 &&
+        value.trim().length <= max;
 
-				res.statusCode = 201;
-				res.end(JSON.stringify({
-					message: 'Ticket purchased successfully',
-					ticket_ID: ticketID,
-				}));
-			} catch (err) {
-				res.statusCode = 500;
-				res.end(JSON.stringify({ error: err.message }));
-			}
-		});
-	}
-	else if (req.url === '/api/login' && req.method === 'POST') {
-		let body = '';
-		req.on('data', (chunk) => {
-			body += chunk;
-		});
-		req.on('end', async () => {
-			try {
-				const { email, password } = JSON.parse(body);
-				const [rows] = await pool.query( //.query is a built in method of pool . pool is a bunch of conections always open that i made
-					'SELECT userID, email, role FROM users WHERE email = ? AND password = ?',
-					[email, password]
-				);
-				if (rows.length > 0) {
-					res.statusCode = 200;
-					res.end(JSON.stringify(rows[0]));
-				} else {
-					res.statusCode = 401;
-					res.end(JSON.stringify({ error: 'Invalid email or password or user does not exist' }));
-				}
-			}
-			catch (err) {
-				console.log(err);
-				res.statusCode = 500;
-				res.end(JSON.stringify({ error: 'Server error' }));
-			}
-		});
-	}
-	else if (req.url === '/api/register' && req.method === 'POST') {
-		let body = '';
-		req.on('data', (chunk) => {
-			body += chunk;
-		});
-		req.on('end', async () => {
-			try {
-				const { email, password } = JSON.parse(body);
+      if (
+        !data ||
+        !validText(data.name, 100) ||
+        !validText(data.category, 50) ||
+        !validText(data.color, 50) ||
+        !validText(data.design, 100) ||
+        !/^\d{1,6}(\.\d{1,2})?$/.test(String(data.price)) ||
+        !Number.isInteger(data.quantity_in_stock) ||
+        data.quantity_in_stock < 0 ||
+        data.quantity_in_stock > 2147483647 ||
+        !Number.isInteger(data.shop_ID) ||
+        data.shop_ID <= 0
+      ) {
+        send(res, 400, {
+          error:
+            'Check all fields. Price and stock must be valid, nonnegative numbers.'
+        });
+        return;
+      }
 
-				if (!email || !password) {
-					res.statusCode = 400;
-					res.end(JSON.stringify({ error: 'Both email and password are required.' }));
-					return;
-				}
+      const [shops] = await pool.execute(
+        'SELECT shop_ID FROM GIFT_SHOP WHERE shop_ID = ?',
+        [data.shop_ID]
+      );
 
-				const [result] = await pool.query(
-					'INSERT INTO users (email, password, role) VALUES (?, ?, ?)',
-					[email.trim(), password.trim(), 'visitor']
-				);
+      if (shops.length === 0) {
+        send(res, 400, {
+          error: 'Select an existing gift shop.'
+        });
+        return;
+      }
 
-				res.statusCode = 201;
-				res.end(JSON.stringify({
-					message: 'Visitor account created successfully!',
-					userID: result.insertId,
-					role: 'visitor'
-				}));
-			} catch (err) {
-				if (err.code === 'ER_DUP_ENTRY') {
-					res.statusCode = 409;
-					res.end(JSON.stringify({ error: 'An account with this email already exists. Please log in instead.' }));
-				} else {
-					res.statusCode = 500;
-					res.end(JSON.stringify({ error: `Database error: ${err.message}` }));
-				}
-			}
-		});
-	}
-	else if (req.url === '/api/animals' && req.method === 'GET') {
-		try {
-			const [rows] = await pool.query('SELECT * FROM ANIMAL');
-			res.end(JSON.stringify(rows));
-		} catch (err) {
-			res.statusCode = 500;
-			res.end(JSON.stringify({ error: err.message }));
-		}
-	}
-	else if (req.url === '/api/animals' && req.method === 'POST') {
-		let body = '';
-		req.on('data', (chunk) => {
-			body += chunk;
-		});
-		req.on('end', async () => {
-			try {
-				const animal = JSON.parse(body);
+      const [result] = await pool.execute(
+        `INSERT INTO PRODUCT
+         (name, category, price, quantity_in_stock, color, design, shop_ID)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [
+          data.name.trim(),
+          data.category.trim(),
+          data.price,
+          data.quantity_in_stock,
+          data.color.trim(),
+          data.design.trim(),
+          data.shop_ID
+        ]
+      );
 
-				const [result] = await pool.query(
-					`INSERT INTO ANIMAL
-					(name, species_ID, enclosure_ID, age, gender, weight, arrival_date, breeding_status)
-					VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-					[
-						animal.name || null,
-						animal.species_ID,
-						animal.enclosure_ID,
-						animal.age || null,
-						animal.gender || null,
-						animal.weight || null,
-						animal.arrival_date || null,
-						animal.breeding_status || null
-					]
-				);
+      send(res, 201, {
+        product_ID: result.insertId,
+        message: 'Product added successfully.'
+      });
+      return;
+    }
+  } catch (err) {
+    console.error(err);
+    send(res, err.status || 500, {
+      error: err.status ? err.message : 'Server error'
+    });
+    return;
+  }
 
-				res.statusCode = 201;
-				res.end(JSON.stringify({
-					message: 'Animal saved successfully',
-					animal_ID: result.insertId
-				}));
-			} catch (err) {
-				res.statusCode = 500;
-				res.end(JSON.stringify({ error: err.message }));
-			}
-		});
-	}
-	else if (req.method == 'DELETE' && req.url.startsWith('/api/employees/')) {
-		const parts = req.url.split('/');
-		const employeeID = parts[3];
-		if (!employeeID || isNaN(employeeID)) {
-			res.statusCode = 400;
-			res.end(JSON.stringify({ error: 'A valid numeric Employee ID is required.' }));
-			return;
-		}
-		try {
-			const [result] = await pool.query(
-				'UPDATE EMPLOYEE SET current = 0 WHERE employee_ID = ?',
-				[employeeID]
-			);
-			if (result.affectedRows === 0) {
-				res.statusCode = 404;
-				res.end(JSON.stringify({ error: `Employee ID ${employeeID} was not found.` }));
-			} else {
-				// worked so update active history row as terminated
-				await pool.query("UPDATE EMPLOYMENT_HISTORY SET status = 'terminated', end_date = CURDATE() WHERE employee_ID = ? AND status = 'active'", [employeeID]);
-				res.statusCode = 200;
-				res.end(JSON.stringify({ message: `Employee ID ${employeeID} deactivated successfully.` }));
-			}
-		} catch (err) {
-			res.statusCode = 500;
-			res.end(JSON.stringify({ error: `Database error: ${err.message}, contact DBA` }));
-		}
-	}
-	else if (req.method === 'PUT' && req.url.startsWith('/api/employees/')) {
-		const parts = req.url.split('/');
-		const employeeID = parts[3];
-		if (!employeeID || isNaN(employeeID)) {
-			res.statusCode = 400;
-			res.end(JSON.stringify({ error: 'A valid numeric Employee ID is required.' }));
-			return;
-		}
+  if (req.url === '/api/employees' && req.method === 'GET') {
+    try {
+      const [rows] = await pool.query(
+        'SELECT * FROM employee_directory'
+      );
+      res.end(JSON.stringify(rows));
+    } catch (err) {
+      res.statusCode = 500;
+      res.end(JSON.stringify({ error: err.message }));
+    }
+  } else if (
+    req.url.startsWith('/api/manager') &&
+    req.method === 'GET'
+  ) {
+    try {
+      const parsedUrl = new URL(req.url, 'http://localhost');
+      const email = parsedUrl.searchParams.get('email');
+      let query = 'SELECT * FROM manager_view';
+      const params = [];
 
-		let body = '';
-		req.on('data', (chunk) => {
-			body += chunk;
-		});
+      if (email) {
+        query +=
+          ' WHERE department_ID = (SELECT department_ID FROM EMPLOYEE WHERE email = ?)';
+        params.push(email);
+      }
 
-		req.on('end', async () => {
-			let data;
-			try {
-				data = JSON.parse(body);
-			} catch {
-				res.statusCode = 400;
-				res.end(JSON.stringify({ error: 'Invalid JSON request body.' }));
-				return;
-			}
+      const [rows] = await pool.query(query, params);
+      res.end(JSON.stringify(rows));
+    } catch (err) {
+      res.statusCode = 500;
+      res.end(JSON.stringify({ error: err.message }));
+    }
+  } else if (req.url === '/api/admin' && req.method === 'GET') {
+    try {
+      const [rows] = await pool.query('SELECT * FROM admin_view');
+      res.end(JSON.stringify(rows));
+    } catch (err) {
+      res.statusCode = 500;
+      res.end(JSON.stringify({ error: err.message }));
+    }
+  } else if (req.url === '/api/hr' && req.method === 'GET') {
+    try {
+      const [rows] = await pool.query('SELECT * FROM hr_view');
+      res.end(JSON.stringify(rows));
+    } catch (err) {
+      res.statusCode = 500;
+      res.end(JSON.stringify({ error: err.message }));
+    }
+  } else if (
+    req.url === '/api/attractions' &&
+    req.method === 'GET'
+  ) {
+    try {
+      const [rows] = await pool.query(
+        'SELECT attr_ID, name, location, type FROM ATTRACTION ORDER BY name ASC'
+      );
+      res.end(JSON.stringify(rows));
+    } catch (err) {
+      res.statusCode = 500;
+      res.end(
+        JSON.stringify({ error: `Database error: ${err.message}` })
+      );
+    }
+  } else if (
+    req.url === '/api/attractions' &&
+    req.method === 'POST'
+  ) {
+    let body = '';
 
-			const allowedFields = [
-				'first_name',
-				'minit',
-				'last_name',
-				'street_address',
-				'city',
-				'state',
-				'zip_code',
-				'country',
-				'email',
-				'phone_number',
-				'department_ID',
-				'role',
-				'salary',
-				'hours',
-				'manager_ID'
-			];
+    req.on('data', chunk => {
+      body += chunk;
+    });
 
-			const updates = [];
-			const params = [];
+    req.on('end', async () => {
+      try {
+        const attraction = JSON.parse(body);
 
-			for (const field of allowedFields) {
-				if (data[field] !== undefined) {
-					updates.push(`\`${field}\` = ?`);
-					params.push(data[field]);
-				}
-			}
+        const [result] = await pool.query(
+          `INSERT INTO ATTRACTION
+           (name, type, location, attr_datetime, capacity, description)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [
+            attraction.name || null,
+            attraction.type || null,
+            attraction.location || null,
+            attraction.attr_datetime || null,
+            attraction.capacity ?? null,
+            attraction.description || null
+          ]
+        );
 
-			if (updates.length === 0) {
-				res.statusCode = 400;
-				res.end(JSON.stringify({ error: 'No valid fields provided to update.' }));
-				return;
-			}
+        res.statusCode = 201;
+        res.end(
+          JSON.stringify({
+            message: 'Attraction saved successfully',
+            attr_ID: result.insertId
+          })
+        );
+      } catch (err) {
+        res.statusCode = 500;
+        res.end(JSON.stringify({ error: err.message }));
+      }
+    });
+  } else if (
+    req.url === '/api/tickets' &&
+    req.method === 'POST'
+  ) {
+    let body = '';
 
-			params.push(employeeID);
+    req.on('data', chunk => {
+      body += chunk;
+    });
 
-			const connection = await pool.getConnection();
-			try {
-				await connection.beginTransaction();
+    req.on('end', async () => {
+      try {
+        let ticket;
 
-				// If email changed, check old email and update users table login
-				if (data.email) {
-					const [oldEmp] = await connection.query('SELECT email FROM EMPLOYEE WHERE employee_ID = ?', [employeeID]);
-					if (oldEmp.length > 0 && oldEmp[0].email !== data.email.trim()) {
-						await connection.query('UPDATE users SET email = ? WHERE email = ?', [data.email.trim(), oldEmp[0].email]);
-					}
-				}
+        try {
+          ticket = JSON.parse(body);
+        } catch {
+          res.statusCode = 400;
+          res.end(
+            JSON.stringify({
+              error: 'Request body must be valid JSON.'
+            })
+          );
+          return;
+        }
 
-				// 1. Update EMPLOYEE table
-				const [result] = await connection.query(
-					`UPDATE EMPLOYEE SET ${updates.join(', ')} WHERE employee_ID = ?`,
-					params
-				);
+        if (
+          !ticket ||
+          typeof ticket !== 'object' ||
+          Array.isArray(ticket)
+        ) {
+          res.statusCode = 400;
+          res.end(
+            JSON.stringify({
+              error: 'Request body must contain ticket details.'
+            })
+          );
+          return;
+        }
 
-				if (result.affectedRows === 0) {
-					await connection.rollback();
-					res.statusCode = 404;
-					res.end(JSON.stringify({ error: `Employee ID ${employeeID} was not found.` }));
-					return;
-				}
+        const visitDate = new Date(
+          `${ticket.visit_date}T00:00:00.000Z`
+        );
 
-				// 2. If department_ID, role, or salary changed, update current active stint in EMPLOYMENT_HISTORY
-				if (data.department_ID !== undefined || data.role !== undefined || data.salary !== undefined) {
-					const histUpdates = [];
-					const histParams = [];
-					if (data.department_ID !== undefined) {
-						histUpdates.push('department_ID = ?');
-						histParams.push(data.department_ID);
-					}
-					if (data.role !== undefined) {
-						histUpdates.push('role = ?');
-						histParams.push(data.role);
-					}
-					if (data.salary !== undefined) {
-						histUpdates.push('salary = ?');
-						histParams.push(data.salary);
-					}
-					histParams.push(employeeID);
-					await connection.query(
-						`UPDATE EMPLOYMENT_HISTORY SET ${histUpdates.join(', ')} WHERE employee_ID = ? AND status = 'active'`,
-						histParams
-					);
-				}
+        const validVisitDate =
+          typeof ticket.visit_date === 'string' &&
+          /^\d{4}-\d{2}-\d{2}$/.test(ticket.visit_date) &&
+          !Number.isNaN(visitDate.getTime()) &&
+          visitDate.toISOString().slice(0, 10) === ticket.visit_date;
 
-				await connection.commit();
-				res.statusCode = 200;
-				res.end(JSON.stringify({ message: `Employee ID ${employeeID} updated successfully.` }));
-			} catch (err) {
-				await connection.rollback();
-				if (err.code === 'ER_DUP_ENTRY') {
-					res.statusCode = 409;
-					res.end(JSON.stringify({ error: `An account or employee with email '${data.email}' already exists.` }));
-				} else {
-					res.statusCode = 500;
-					res.end(JSON.stringify({ error: `Database error: ${err.message}` }));
-				}
-			} finally {
-				connection.release();
-			}
-		});
-	}
-	else if (req.url === '/api/employees' && req.method === 'POST') {
-		let body = '';
-		req.on('data', (chunk) => {
-			body += chunk;
-		});
+        const ticketPrices = { Adult: 25, Child: 15 };
 
-		req.on('end', async () => {
-			let data;
-			try {
-				data = JSON.parse(body);
-			} catch {
-				res.statusCode = 400;
-				res.end(JSON.stringify({ error: 'Invalid JSON request body.' }));
-				return;
-			}
+        const ticketType =
+          typeof ticket.ticket_type === 'string'
+            ? ticket.ticket_type.trim()
+            : '';
 
-			const required = ['first_name', 'last_name', 'email', 'street_address', 'city', 'state', 'zip_code', 'country', 'department_ID', 'role', 'salary', 'hire_date'];
-			for (const field of required) {
-				if (!data[field] || data[field].toString().trim() === '') {
-					res.statusCode = 400;
-					res.end(JSON.stringify({ error: `Field '${field}' is required.` }));
-					return;
-				}
-			}
+        const price = Object.prototype.hasOwnProperty.call(
+          ticketPrices,
+          ticketType
+        )
+          ? ticketPrices[ticketType]
+          : undefined;
 
-			const connection = await pool.getConnection();
-			try {
-				await connection.beginTransaction();
+        const visitorName = ticket.visitor_name;
 
-				// 1. Insert into EMPLOYEE
-				const [empResult] = await connection.query(
-					`INSERT INTO EMPLOYEE
-					(first_name, minit, last_name, street_address, city, state, zip_code, country, email, phone_number, department_ID, role, salary, hire_date, \`current\`, hours, manager_ID)
-					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
-					[
-						data.first_name.trim(),
-						data.minit ? data.minit.trim() : null,
-						data.last_name.trim(),
-						data.street_address.trim(),
-						data.city.trim(),
-						data.state.trim(),
-						data.zip_code.trim(),
-						data.country.trim(),
-						data.email.trim(),
-						data.phone_number ? data.phone_number.trim() : null,
-						data.department_ID,
-						data.role.trim(),
-						data.salary,
-						data.hire_date,
-						data.hours ? data.hours : null,
-						data.manager_ID ? data.manager_ID : null
-					]
-				);
+        const hasValidVisitorName =
+          visitorName == null ||
+          (
+            typeof visitorName === 'string' &&
+            visitorName.trim() !== '' &&
+            visitorName.trim().length <= 100
+          );
 
-				const newEmployeeID = empResult.insertId;
+        if (
+          price === undefined ||
+          !validVisitDate ||
+          !hasValidVisitorName
+        ) {
+          res.statusCode = 400;
+          res.end(
+            JSON.stringify({
+              error:
+                'Choose a valid ticket type, enter a valid visit date, and provide an optional visitor name.'
+            })
+          );
+          return;
+        }
 
-				// 2. Insert initial record into EMPLOYMENT_HISTORY
-				await connection.query(
-					`INSERT INTO EMPLOYMENT_HISTORY
-					(employee_ID, department_ID, role, salary, start_date, end_date, status)
-					VALUES (?, ?, ?, ?, ?, NULL, 'active')`,
-					[newEmployeeID, data.department_ID, data.role.trim(), data.salary, data.hire_date]
-				);
+        const connection = await pool.getConnection();
+        let ticketID;
 
-				// 3. Insert login account into users with temporary password
-				await connection.query(
-					'INSERT INTO users (email, password, role) VALUES (?, ?, ?)',
-					[data.email.trim(), 'welcome123', 'employee']
-				);
-				if (data.attr_ID) {
-					await connection.query('INSERT INTO STAFFED_AT (employee_ID, attr_ID) VALUES (?,?)',
-						[newEmployeeID, data.attr_ID]);
-				}
-				await connection.commit();
+        try {
+          await connection.beginTransaction();
 
-				res.statusCode = 201;
-				res.end(JSON.stringify({
-					message: `Employee ${data.first_name} ${data.last_name} created successfully (ID: ${newEmployeeID}). Login generated with temporary password 'welcome123'.`,
-					employee_ID: newEmployeeID
-				}));
-			} catch (err) {
-				await connection.rollback();
+          let visitorID = null;
 
-				if (err.code === 'ER_DUP_ENTRY') {
-					res.statusCode = 409;
-					res.end(JSON.stringify({ error: `An account or employee with email '${data.email}' already exists.` }));
-				} else {
-					res.statusCode = 500;
-					res.end(JSON.stringify({ error: `Database error: ${err.message}` }));
-				}
-			} finally {
-				connection.release();
-			}
-		});
-	}
-	else if (req.url === '/api/staffed-at' && req.method === 'POST') {
-		let body = '';
-		req.on('data', (chunk) => {
-			body += chunk;
-		});
-		req.on('end', async () => {
-			try {
-				const { employee_ID, attr_ID } = JSON.parse(body);
-				if (!employee_ID || !attr_ID) {
-					res.statusCode = 400;
-					res.end(JSON.stringify({ error: 'Both employee_ID and attr_ID are required.' }));
-					return;
-				}
-				await pool.query(
-					'INSERT INTO STAFFED_AT (employee_ID, attr_ID) VALUES (?, ?)',
-					[employee_ID, attr_ID]
-				);
-				res.statusCode = 201;
-				res.end(JSON.stringify({ message: 'Attraction assigned successfully.' }));
-			} catch (err) {
-				if (err.code === 'ER_DUP_ENTRY') {
-					res.statusCode = 409;
-					res.end(JSON.stringify({ error: 'Employee is already assigned to this attraction.' }));
-				} else {
-					res.statusCode = 500;
-					res.end(JSON.stringify({ error: `Database error: ${err.message}` }));
-				}
-			}
-		});
-	}
-	else if (req.url === '/api/staffed-at' && req.method === 'DELETE') {
-		let body = '';
-		req.on('data', (chunk) => {
-			body += chunk;
-		});
-		req.on('end', async () => {
-			try {
-				const { employee_ID, attr_ID } = JSON.parse(body);
-				if (!employee_ID || !attr_ID) {
-					res.statusCode = 400;
-					res.end(JSON.stringify({ error: 'Both employee_ID and attr_ID are required.' }));
-					return;
-				}
-				await pool.query(
-					'DELETE FROM STAFFED_AT WHERE employee_ID = ? AND attr_ID = ?',
-					[employee_ID, attr_ID]
-				);
-				res.statusCode = 200;
-				res.end(JSON.stringify({ message: 'Attraction assignment removed successfully.' }));
-			} catch (err) {
-				res.statusCode = 500;
-				res.end(JSON.stringify({ error: `Database error: ${err.message}` }));
-			}
-		});
-	}
-	else if (req.url === '/api/species' && req.method === 'GET') {
-		try {
-			const [rows] = await pool.query(
-				'SELECT species_ID, common_name FROM SPECIES ORDER BY common_name'
-			);
-			res.end(JSON.stringify(rows));
-		} catch (error) {
-			console.error('Error fetching species:', error);
-			res.statusCode = 500;
-			res.end(JSON.stringify({ error: 'Failed to fetch species.' }));
-		}
-	}
-	// Donation API endpoints
-	else if (req.url === '/api/donations' && req.method === 'POST') {
-		let body = '';
+          if (visitorName != null) {
+            const [visitorResult] = await connection.query(
+              'INSERT INTO VISITOR (name) VALUES (?)',
+              [visitorName.trim()]
+            );
+            visitorID = visitorResult.insertId;
+          }
 
-		req.on('data', (chunk) => {
-			body += chunk;
-		});
+          const [result] = await connection.query(
+            `INSERT INTO TICKET
+             (visitor_ID, ticket_type, price, purchase_date, visit_date)
+             VALUES (?, ?, ?, CURRENT_DATE, ?)`,
+            [
+              visitorID,
+              ticketType,
+              price,
+              ticket.visit_date
+            ]
+          );
 
-		req.on('end', async () => {
-			let data;
+          await connection.commit();
+          ticketID = result.insertId;
+        } catch (err) {
+          await connection.rollback();
+          throw err;
+        } finally {
+          connection.release();
+        }
 
-			try {
-				data = JSON.parse(body);
-			} catch {
-				res.statusCode = 400;
-				res.end(JSON.stringify({ error: 'Invalid JSON request body.' }));
-				return;
-			}
+        res.statusCode = 201;
+        res.end(
+          JSON.stringify({
+            message: 'Ticket purchased successfully',
+            ticket_ID: ticketID
+          })
+        );
+      } catch (err) {
+        res.statusCode = 500;
+        res.end(JSON.stringify({ error: err.message }));
+      }
+    });
+  } else if (
+    req.url === '/api/register' &&
+    req.method === 'POST'
+  ) {
+    let body = '';
 
-			const {
-				donor_first,
-				donor_last,
-				donor_email,
-				donor_phone,
-				donation_amt,
-				donation_date,
-				purpose,
-				payment_method
-			} = data;
+    req.on('data', chunk => {
+      body += chunk;
+    });
 
-			const amount = Number(donation_amt);
-			const allowedMethods = ['credit', 'debit', 'digital_wallet', 'paypal'];
+    req.on('end', async () => {
+      try {
+        const { email, password } = JSON.parse(body);
 
-			if (
-				![donor_first, donor_last, donor_email, donor_phone, donation_date, purpose]
-					.every(value => typeof value === 'string' && value.trim() !== '') ||
-				!Number.isFinite(amount) ||
-				amount <= 0 ||
-				Math.round(amount * 100) !== amount * 100 ||
-				!allowedMethods.includes(payment_method)
-			) {
-				res.statusCode = 400;
-				res.end(JSON.stringify({
-					error: 'Please provide valid donation details.'
-				}));
-				return;
-			}
+        if (!email || !password) {
+          res.statusCode = 400;
+          res.end(
+            JSON.stringify({
+              error: 'Both email and password are required.'
+            })
+          );
+          return;
+        }
 
-			if (
-				!/^\d{4}-\d{2}-\d{2}$/.test(donation_date) ||
-				Number.isNaN(Date.parse(donation_date)) ||
-				new Date(donation_date).toISOString().slice(0, 10) !== donation_date
-			) {
-				res.statusCode = 400;
-				res.end(JSON.stringify({
-					error: 'Please provide a valid donation date.'
-				}));
-				return;
-			}
+        const [result] = await pool.query(
+          'INSERT INTO users (email, password, role) VALUES (?, ?, ?)',
+          [email.trim(), password.trim(), 'visitor']
+        );
 
-			let connection;
+        res.statusCode = 201;
+        res.end(
+          JSON.stringify({
+            message: 'Visitor account created successfully!',
+            userID: result.insertId,
+            role: 'visitor'
+          })
+        );
+      } catch (err) {
+        if (err.code === 'ER_DUP_ENTRY') {
+          res.statusCode = 409;
+          res.end(
+            JSON.stringify({
+              error:
+                'An account with this email already exists. Please log in instead.'
+            })
+          );
+        } else {
+          res.statusCode = 500;
+          res.end(
+            JSON.stringify({
+              error: `Database error: ${err.message}`
+            })
+          );
+        }
+      }
+    });
+  } else if (
+    req.url === '/api/animals' &&
+    req.method === 'GET'
+  ) {
+    try {
+      const [rows] = await pool.query('SELECT * FROM ANIMAL');
+      res.end(JSON.stringify(rows));
+    } catch (err) {
+      res.statusCode = 500;
+      res.end(JSON.stringify({ error: err.message }));
+    }
+  } else if (
+    req.url === '/api/animals' &&
+    req.method === 'POST'
+  ) {
+    let body = '';
 
-			try {
-				connection = await pool.getConnection();
-				await connection.beginTransaction();
+    req.on('data', chunk => {
+      body += chunk;
+    });
 
-				// 1. Save the guest donor
-				const [donorResult] = await connection.query(
-					`INSERT INTO donor
-					(first_name, last_name, donor_email, donor_phone, userID)
-					VALUES (?, ?, ?, ?, NULL)`,
-					[
-						donor_first.trim(),
-						donor_last.trim(),
-						donor_email.trim(),
-						donor_phone.trim()
-					]
-				);
+    req.on('end', async () => {
+      try {
+        const animal = JSON.parse(body);
 
-				const donorID = donorResult.insertId;
+        const [result] = await pool.query(
+          `INSERT INTO ANIMAL
+           (name, species_ID, enclosure_ID, age, gender, weight,
+            arrival_date, breeding_status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            animal.name || null,
+            animal.species_ID,
+            animal.enclosure_ID,
+            animal.age || null,
+            animal.gender || null,
+            animal.weight || null,
+            animal.arrival_date || null,
+            animal.breeding_status || null
+          ]
+        );
 
-				// 2. Save the donation
-				const [donationResult] = await connection.query(
-					`INSERT INTO DONATION
-					(donor_ID, amount, donation_date, purpose)
-					VALUES (?, ?, ?, ?)`,
-					[donorID, amount.toFixed(2), donation_date, purpose.trim()]
-				);
+        res.statusCode = 201;
+        res.end(
+          JSON.stringify({
+            message: 'Animal saved successfully',
+            animal_ID: result.insertId
+          })
+        );
+      } catch (err) {
+        res.statusCode = 500;
+        res.end(JSON.stringify({ error: err.message }));
+      }
+    });
+  } else if (
+    req.method === 'DELETE' &&
+    req.url.startsWith('/api/employees/')
+  ) {
+    const parts = req.url.split('/');
+    const employeeID = parts[3];
 
-				const donationID = donationResult.insertId;
+    if (!employeeID || isNaN(employeeID)) {
+      res.statusCode = 400;
+      res.end(
+        JSON.stringify({
+          error: 'A valid numeric Employee ID is required.'
+        })
+      );
+      return;
+    }
 
-				// 3. Save the customer transaction
-				const [transactionResult] = await connection.query(
-					`INSERT INTO CUST_TRANSACTION
-					(visitor_ID, total, payment_method)
-					VALUES (NULL, ?, ?)`,
-					[amount.toFixed(2), payment_method]
-				);
+    try {
+      const [result] = await pool.query(
+        'UPDATE EMPLOYEE SET current = 0 WHERE employee_ID = ?',
+        [employeeID]
+      );
 
-				const transactionID = transactionResult.insertId;
+      if (result.affectedRows === 0) {
+        res.statusCode = 404;
+        res.end(
+          JSON.stringify({
+            error: `Employee ID ${employeeID} was not found.`
+          })
+        );
+      } else {
+        await pool.query(
+          `UPDATE EMPLOYMENT_HISTORY
+           SET status = 'terminated', end_date = CURDATE()
+           WHERE employee_ID = ? AND status = 'active'`,
+          [employeeID]
+        );
 
-				// 4. Link the transaction to the donation
-				await connection.query(
-					`INSERT INTO TRANSACTION_ITEM
-					(transaction_ID, item_type, item_ID, quantity, price)
-					VALUES (?, 'donation', ?, 1, ?)`,
-					[transactionID, donationID, amount.toFixed(2)]
-				);
+        res.statusCode = 200;
+        res.end(
+          JSON.stringify({
+            message: `Employee ID ${employeeID} deactivated successfully.`
+          })
+        );
+      }
+    } catch (err) {
+      res.statusCode = 500;
+      res.end(
+        JSON.stringify({
+          error: `Database error: ${err.message}, contact DBA`
+        })
+      );
+    }
+  } else if (
+    req.method === 'PUT' &&
+    req.url.startsWith('/api/employees/')
+  ) {
+    const parts = req.url.split('/');
+    const employeeID = parts[3];
 
-				await connection.commit();
+    if (!employeeID || isNaN(employeeID)) {
+      res.statusCode = 400;
+      res.end(
+        JSON.stringify({
+          error: 'A valid numeric Employee ID is required.'
+        })
+      );
+      return;
+    }
 
-				res.statusCode = 201;
-				res.end(JSON.stringify({
-					message: 'Donation processed successfully!',
-					donor_ID: donorID,
-					donation_ID: donationID,
-					transaction_ID: transactionID
-				}));
-			} catch (err) {
-				if (connection) {
-					await connection.rollback();
-				}
+    let body = '';
 
-				console.error('Error saving donation:', err);
-				res.statusCode = 500;
-				res.end(JSON.stringify({
-					error: 'Unable to save donation. Please try again.'
-				}));
-			} finally {
-				if (connection) {
-					connection.release();
-				}
-			}
-		});
-	}
-	else {
-		res.statusCode = 404;
-		res.end((JSON.stringify({ message: 'Not Found' })));
-	}
+    req.on('data', chunk => {
+      body += chunk;
+    });
+
+    req.on('end', async () => {
+      let data;
+
+      try {
+        data = JSON.parse(body);
+      } catch {
+        res.statusCode = 400;
+        res.end(
+          JSON.stringify({
+            error: 'Invalid JSON request body.'
+          })
+        );
+        return;
+      }
+
+      const allowedFields = [
+        'first_name',
+        'minit',
+        'last_name',
+        'street_address',
+        'city',
+        'state',
+        'zip_code',
+        'country',
+        'email',
+        'phone_number',
+        'department_ID',
+        'role',
+        'salary',
+        'hours',
+        'manager_ID'
+      ];
+
+      const updates = [];
+      const params = [];
+
+      for (const field of allowedFields) {
+        if (data[field] !== undefined) {
+          updates.push(`\`${field}\` = ?`);
+          params.push(data[field]);
+        }
+      }
+
+      if (updates.length === 0) {
+        res.statusCode = 400;
+        res.end(
+          JSON.stringify({
+            error: 'No valid fields provided to update.'
+          })
+        );
+        return;
+      }
+
+      params.push(employeeID);
+
+      const connection = await pool.getConnection();
+
+      try {
+        await connection.beginTransaction();
+
+        if (data.email) {
+          const [oldEmp] = await connection.query(
+            'SELECT email FROM EMPLOYEE WHERE employee_ID = ?',
+            [employeeID]
+          );
+
+          if (
+            oldEmp.length > 0 &&
+            oldEmp[0].email !== data.email.trim()
+          ) {
+            await connection.query(
+              'UPDATE users SET email = ? WHERE email = ?',
+              [data.email.trim(), oldEmp[0].email]
+            );
+          }
+        }
+
+        const [result] = await connection.query(
+          `UPDATE EMPLOYEE
+           SET ${updates.join(', ')}
+           WHERE employee_ID = ?`,
+          params
+        );
+
+        if (result.affectedRows === 0) {
+          await connection.rollback();
+          res.statusCode = 404;
+          res.end(
+            JSON.stringify({
+              error: `Employee ID ${employeeID} was not found.`
+            })
+          );
+          return;
+        }
+
+        if (
+          data.department_ID !== undefined ||
+          data.role !== undefined ||
+          data.salary !== undefined
+        ) {
+          const histUpdates = [];
+          const histParams = [];
+
+          if (data.department_ID !== undefined) {
+            histUpdates.push('department_ID = ?');
+            histParams.push(data.department_ID);
+          }
+
+          if (data.role !== undefined) {
+            histUpdates.push('role = ?');
+            histParams.push(data.role);
+          }
+
+          if (data.salary !== undefined) {
+            histUpdates.push('salary = ?');
+            histParams.push(data.salary);
+          }
+
+          histParams.push(employeeID);
+
+          await connection.query(
+            `UPDATE EMPLOYMENT_HISTORY
+             SET ${histUpdates.join(', ')}
+             WHERE employee_ID = ? AND status = 'active'`,
+            histParams
+          );
+        }
+
+        await connection.commit();
+
+        res.statusCode = 200;
+        res.end(
+          JSON.stringify({
+            message: `Employee ID ${employeeID} updated successfully.`
+          })
+        );
+      } catch (err) {
+        await connection.rollback();
+
+        if (err.code === 'ER_DUP_ENTRY') {
+          res.statusCode = 409;
+          res.end(
+            JSON.stringify({
+              error:
+                `An account or employee with email '${data.email}' already exists.`
+            })
+          );
+        } else {
+          res.statusCode = 500;
+          res.end(
+            JSON.stringify({
+              error: `Database error: ${err.message}`
+            })
+          );
+        }
+      } finally {
+        connection.release();
+      }
+    });
+  } else if (
+    req.url === '/api/employees' &&
+    req.method === 'POST'
+  ) {
+    let body = '';
+
+    req.on('data', chunk => {
+      body += chunk;
+    });
+
+    req.on('end', async () => {
+      let data;
+
+      try {
+        data = JSON.parse(body);
+      } catch {
+        res.statusCode = 400;
+        res.end(
+          JSON.stringify({
+            error: 'Invalid JSON request body.'
+          })
+        );
+        return;
+      }
+
+      const required = [
+        'first_name',
+        'last_name',
+        'email',
+        'street_address',
+        'city',
+        'state',
+        'zip_code',
+        'country',
+        'department_ID',
+        'role',
+        'salary',
+        'hire_date'
+      ];
+
+      for (const field of required) {
+        if (!data[field] || data[field].toString().trim() === '') {
+          res.statusCode = 400;
+          res.end(
+            JSON.stringify({
+              error: `Field '${field}' is required.`
+            })
+          );
+          return;
+        }
+      }
+
+      const connection = await pool.getConnection();
+
+      try {
+        await connection.beginTransaction();
+
+        const [empResult] = await connection.query(
+          `INSERT INTO EMPLOYEE
+           (first_name, minit, last_name, street_address, city,
+            state, zip_code, country, email, phone_number,
+            department_ID, role, salary, hire_date,
+            \`current\`, hours, manager_ID)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+          [
+            data.first_name.trim(),
+            data.minit ? data.minit.trim() : null,
+            data.last_name.trim(),
+            data.street_address.trim(),
+            data.city.trim(),
+            data.state.trim(),
+            data.zip_code.trim(),
+            data.country.trim(),
+            data.email.trim(),
+            data.phone_number ? data.phone_number.trim() : null,
+            data.department_ID,
+            data.role.trim(),
+            data.salary,
+            data.hire_date,
+            data.hours ? data.hours : null,
+            data.manager_ID ? data.manager_ID : null
+          ]
+        );
+
+        const newEmployeeID = empResult.insertId;
+
+        await connection.query(
+          `INSERT INTO EMPLOYMENT_HISTORY
+           (employee_ID, department_ID, role, salary,
+            start_date, end_date, status)
+           VALUES (?, ?, ?, ?, ?, NULL, 'active')`,
+          [
+            newEmployeeID,
+            data.department_ID,
+            data.role.trim(),
+            data.salary,
+            data.hire_date
+          ]
+        );
+
+        await connection.query(
+          'INSERT INTO users (email, password, role) VALUES (?, ?, ?)',
+          [data.email.trim(), 'welcome123', 'employee']
+        );
+
+        if (data.attr_ID) {
+          await connection.query(
+            'INSERT INTO STAFFED_AT (employee_ID, attr_ID) VALUES (?, ?)',
+            [newEmployeeID, data.attr_ID]
+          );
+        }
+
+        await connection.commit();
+
+        res.statusCode = 201;
+        res.end(
+          JSON.stringify({
+            message:
+              `Employee ${data.first_name} ${data.last_name} created successfully (ID: ${newEmployeeID}). Login generated with temporary password 'welcome123'.`,
+            employee_ID: newEmployeeID
+          })
+        );
+      } catch (err) {
+        await connection.rollback();
+
+        if (err.code === 'ER_DUP_ENTRY') {
+          res.statusCode = 409;
+          res.end(
+            JSON.stringify({
+              error:
+                `An account or employee with email '${data.email}' already exists.`
+            })
+          );
+        } else {
+          res.statusCode = 500;
+          res.end(
+            JSON.stringify({
+              error: `Database error: ${err.message}`
+            })
+          );
+        }
+      } finally {
+        connection.release();
+      }
+    });
+  } else if (
+    req.url === '/api/staffed-at' &&
+    req.method === 'POST'
+  ) {
+    let body = '';
+
+    req.on('data', chunk => {
+      body += chunk;
+    });
+
+    req.on('end', async () => {
+      try {
+        const { employee_ID, attr_ID } = JSON.parse(body);
+
+        if (!employee_ID || !attr_ID) {
+          res.statusCode = 400;
+          res.end(
+            JSON.stringify({
+              error: 'Both employee_ID and attr_ID are required.'
+            })
+          );
+          return;
+        }
+
+        await pool.query(
+          'INSERT INTO STAFFED_AT (employee_ID, attr_ID) VALUES (?, ?)',
+          [employee_ID, attr_ID]
+        );
+
+        res.statusCode = 201;
+        res.end(
+          JSON.stringify({
+            message: 'Attraction assigned successfully.'
+          })
+        );
+      } catch (err) {
+        if (err.code === 'ER_DUP_ENTRY') {
+          res.statusCode = 409;
+          res.end(
+            JSON.stringify({
+              error: 'Employee is already assigned to this attraction.'
+            })
+          );
+        } else {
+          res.statusCode = 500;
+          res.end(
+            JSON.stringify({
+              error: `Database error: ${err.message}`
+            })
+          );
+        }
+      }
+    });
+  } else if (
+    req.url === '/api/staffed-at' &&
+    req.method === 'DELETE'
+  ) {
+    let body = '';
+
+    req.on('data', chunk => {
+      body += chunk;
+    });
+
+    req.on('end', async () => {
+      try {
+        const { employee_ID, attr_ID } = JSON.parse(body);
+
+        if (!employee_ID || !attr_ID) {
+          res.statusCode = 400;
+          res.end(
+            JSON.stringify({
+              error: 'Both employee_ID and attr_ID are required.'
+            })
+          );
+          return;
+        }
+
+        await pool.query(
+          'DELETE FROM STAFFED_AT WHERE employee_ID = ? AND attr_ID = ?',
+          [employee_ID, attr_ID]
+        );
+
+        res.statusCode = 200;
+        res.end(
+          JSON.stringify({
+            message: 'Attraction assignment removed successfully.'
+          })
+        );
+      } catch (err) {
+        res.statusCode = 500;
+        res.end(
+          JSON.stringify({
+            error: `Database error: ${err.message}`
+          })
+        );
+      }
+    });
+  } else if (
+    req.url === '/api/species' &&
+    req.method === 'GET'
+  ) {
+    try {
+      const [rows] = await pool.query(
+        'SELECT species_ID, common_name FROM SPECIES ORDER BY common_name'
+      );
+      res.end(JSON.stringify(rows));
+    } catch (error) {
+      console.error('Error fetching species:', error);
+      res.statusCode = 500;
+      res.end(
+        JSON.stringify({
+          error: 'Failed to fetch species.'
+        })
+      );
+    }
+  } else if (
+    req.url === '/api/donations' &&
+    req.method === 'POST'
+  ) {
+    let body = '';
+
+    req.on('data', chunk => {
+      body += chunk;
+    });
+
+    req.on('end', async () => {
+      let data;
+
+      try {
+        data = JSON.parse(body);
+      } catch {
+        res.statusCode = 400;
+        res.end(
+          JSON.stringify({
+            error: 'Invalid JSON request body.'
+          })
+        );
+        return;
+      }
+
+      const {
+        donor_first,
+        donor_last,
+        donor_email,
+        donor_phone,
+        donation_amt,
+        donation_date,
+        purpose,
+        payment_method
+      } = data;
+
+      const amount = Number(donation_amt);
+      const allowedMethods = [
+        'credit',
+        'debit',
+        'digital_wallet',
+        'paypal'
+      ];
+
+      if (
+        ![
+          donor_first,
+          donor_last,
+          donor_email,
+          donor_phone,
+          donation_date,
+          purpose
+        ].every(
+          value =>
+            typeof value === 'string' &&
+            value.trim() !== ''
+        ) ||
+        !Number.isFinite(amount) ||
+        amount <= 0 ||
+        Math.round(amount * 100) !== amount * 100 ||
+        !allowedMethods.includes(payment_method)
+      ) {
+        res.statusCode = 400;
+        res.end(
+          JSON.stringify({
+            error: 'Please provide valid donation details.'
+          })
+        );
+        return;
+      }
+
+      if (
+        !/^\d{4}-\d{2}-\d{2}$/.test(donation_date) ||
+        Number.isNaN(Date.parse(donation_date)) ||
+        new Date(donation_date).toISOString().slice(0, 10) !==
+          donation_date
+      ) {
+        res.statusCode = 400;
+        res.end(
+          JSON.stringify({
+            error: 'Please provide a valid donation date.'
+          })
+        );
+        return;
+      }
+
+      let connection;
+
+      try {
+        connection = await pool.getConnection();
+        await connection.beginTransaction();
+
+        const [donorResult] = await connection.query(
+          `INSERT INTO donor
+           (first_name, last_name, donor_email, donor_phone, userID)
+           VALUES (?, ?, ?, ?, NULL)`,
+          [
+            donor_first.trim(),
+            donor_last.trim(),
+            donor_email.trim(),
+            donor_phone.trim()
+          ]
+        );
+
+        const donorID = donorResult.insertId;
+
+        const [donationResult] = await connection.query(
+          `INSERT INTO DONATION
+           (donor_ID, amount, donation_date, purpose)
+           VALUES (?, ?, ?, ?)`,
+          [
+            donorID,
+            amount.toFixed(2),
+            donation_date,
+            purpose.trim()
+          ]
+        );
+
+        const donationID = donationResult.insertId;
+
+        const [transactionResult] = await connection.query(
+          `INSERT INTO CUST_TRANSACTION
+           (visitor_ID, total, payment_method)
+           VALUES (NULL, ?, ?)`,
+          [amount.toFixed(2), payment_method]
+        );
+
+        const transactionID = transactionResult.insertId;
+
+        await connection.query(
+          `INSERT INTO TRANSACTION_ITEM
+           (transaction_ID, item_type, item_ID, quantity, price)
+           VALUES (?, 'donation', ?, 1, ?)`,
+          [
+            transactionID,
+            donationID,
+            amount.toFixed(2)
+          ]
+        );
+
+        await connection.commit();
+
+        res.statusCode = 201;
+        res.end(
+          JSON.stringify({
+            message: 'Donation processed successfully!',
+            donor_ID: donorID,
+            donation_ID: donationID,
+            transaction_ID: transactionID
+          })
+        );
+      } catch (err) {
+        if (connection) {
+          await connection.rollback();
+        }
+
+        console.error('Error saving donation:', err);
+
+        res.statusCode = 500;
+        res.end(
+          JSON.stringify({
+            error: 'Unable to save donation. Please try again.'
+          })
+        );
+      } finally {
+        if (connection) {
+          connection.release();
+        }
+      }
+    });
+  } else {
+    res.statusCode = 404;
+    res.end(JSON.stringify({ message: 'Not Found' }));
+  }
 });
+
 server.listen(PORT, () => {
-	console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Server running on http://localhost:${PORT}`);
 });
