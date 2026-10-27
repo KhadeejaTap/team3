@@ -157,8 +157,33 @@ CREATE TABLE MEDICAL_RECORD (
   notes VARCHAR(255),
   vet_ID INT,
   follow_up DATE
+	
 
 );
+
+CREATE TABLE MEDICAL_RECORD (
+  record_ID INT AUTO_INCREMENT PRIMARY KEY,
+  animal_ID INT,
+  date DATE,
+  diagnosis VARCHAR(255),
+  treatment VARCHAR(255),
+  notes VARCHAR(255),
+  vet_ID INT,
+  follow_up DATE
+	);
+
+ALTER TABLE MEDICAL_RECORD
+ADD CONSTRAINT fk_medical_record_vet
+FOREIGN KEY (vet_ID)
+REFERENCES EMPLOYEE(employee_ID);
+
+ALTER TABLE MEDICAL_RECORD
+ADD CONSTRAINT fk_medical_record_animal
+FOREIGN KEY (animal_ID)
+REFERENCES ANIMAL(animal_ID);
+
+);
+
 
 CREATE TABLE MEMBERSHIP(
 	membership_ID INT AUTO_INCREMENT PRIMARY KEY,
