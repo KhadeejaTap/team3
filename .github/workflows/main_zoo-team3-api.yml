@@ -23,17 +23,23 @@ jobs:
         with:
           node-version: '24.x'
 
-      - name: npm install, build, and test
+      - name: npm install, build, and test backend
+        working-directory: backend
         run: |
           npm install
           npm run build --if-present
           npm run test --if-present
 
+      - name: Package backend for deployment
+        run: |
+          cd backend
+          zip -r ../backend.zip .
+
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
           name: node-app
-          path: .
+          path: backend.zip
 
   deploy:
     runs-on: ubuntu-latest
@@ -47,7 +53,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: node-app
-      
+
       - name: Login to Azure
         uses: azure/login@v2
         with:
@@ -61,5 +67,4 @@ jobs:
         with:
           app-name: 'zoo-team3-api'
           slot-name: 'Production'
-          package: .
-          
+          package: backend.zip
