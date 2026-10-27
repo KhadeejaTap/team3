@@ -31,6 +31,9 @@ jobs:
             -x ".env" \
                "node_modules/*"
 
+      - name: Verify backend package
+        run: unzip -l backend.zip
+        
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
