@@ -198,7 +198,13 @@ function App() {
 
           <Route
             path="/donations"
-            element={<Donations />}
+            element={
+              <Donations
+                role={role}
+                userEmail={userEmail}
+                token={localStorage.getItem('user_token')}
+              />
+            }
           />
 
           <Route
