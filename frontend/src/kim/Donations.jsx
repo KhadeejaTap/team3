@@ -84,7 +84,7 @@ function Donations() {
                 <input type="number" id="donation_amt" name="donation_amt" step="0.01" min="0.01" value={donationForm.donation_amt} onChange={handleChange} required />
 
                 <label htmlFor="donation_date">Donation Date</label>
-                <input type="date" id="donation_date" name="donation_date" value={donationForm.donation_date} onChange={handleChange} required />
+                <input type="date" value={donationForm.donation_date} readOnly/>
 
                 <label htmlFor="purpose">Purpose of Donation</label>
                 <input type="text" id="purpose" name="purpose" value={donationForm.purpose} onChange={handleChange} required />

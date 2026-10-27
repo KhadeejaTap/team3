@@ -720,9 +720,9 @@ const server = http.createServer(async (req, res) => {
 				// 3. Save the customer transaction
 				const [transactionResult] = await connection.query(
 					`INSERT INTO CUST_TRANSACTION
-					(visitor_ID, total, transaction_date, payment_method)
-					VALUES (NULL, ?, ?, ?)`,
-					[amount.toFixed(2), donation_date, payment_method]
+					(visitor_ID, total, payment_method)
+					VALUES (NULL, ?, ?)`,
+					[amount.toFixed(2), payment_method]
 				);
 
 				const transactionID = transactionResult.insertId;
