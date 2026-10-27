@@ -1,8 +1,11 @@
+import { apiFetch as fetch } from '../api';
 import { useEffect, useState } from 'react';
 
 const API = 'http://localhost:5000/api';
 
-export default function GiftShop() {
+export default function GiftShop({ role }) {
+  const canManage = ['admin', 'manager'].includes(role);
+
   const [products, setProducts] = useState([]);
   const [shops, setShops] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -18,12 +21,12 @@ export default function GiftShop() {
           fetch(`${API}/gift-shops`)
         ]);
 
-        if (responses.some((response) => !response.ok)) {
+        if (responses.some(response => !response.ok)) {
           throw new Error('Could not load products and gift shops.');
         }
 
         const [productData, shopData] = await Promise.all(
-          responses.map((response) => response.json())
+          responses.map(response => response.json())
         );
 
         setProducts(productData);
@@ -40,7 +43,7 @@ export default function GiftShop() {
 
   async function addProduct(event) {
     event.preventDefault();
-    if (saving) return;
+    if (saving || !canManage) return;
 
     const form = event.currentTarget;
     const fields = new FormData(form);
@@ -73,10 +76,10 @@ export default function GiftShop() {
       }
 
       const shop = shops.find(
-        (item) => item.shop_ID === product.shop_ID
+        item => item.shop_ID === product.shop_ID
       );
 
-      setProducts((previous) => [
+      setProducts(previous => [
         ...previous,
         {
           ...product,
@@ -102,7 +105,7 @@ export default function GiftShop() {
       {error && <p role="alert">{error}</p>}
       {message && <p role="status">{message}</p>}
 
-      {!loading && shops.length > 0 && (
+      {!loading && canManage && shops.length > 0 && (
         <form
           onSubmit={addProduct}
           style={{ maxWidth: 420, margin: '0 auto 40px' }}
@@ -116,8 +119,11 @@ export default function GiftShop() {
               <label>
                 Gift shop<br />
                 <select name="shop_ID" required defaultValue="">
-                  <option value="" disabled>Select a shop</option>
-                  {shops.map((shop) => (
+                  <option value="" disabled>
+                    Select a shop
+                  </option>
+
+                  {shops.map(shop => (
                     <option key={shop.shop_ID} value={shop.shop_ID}>
                       {shop.name}
                     </option>
@@ -135,7 +141,11 @@ export default function GiftShop() {
               <p key={name}>
                 <label>
                   {label}<br />
-                  <input name={name} maxLength={maxLength} required />
+                  <input
+                    name={name}
+                    maxLength={maxLength}
+                    required
+                  />
                 </label>
               </p>
             ))}
@@ -175,7 +185,7 @@ export default function GiftShop() {
         </form>
       )}
 
-      {!loading && shops.length === 0 && (
+      {!loading && canManage && shops.length === 0 && (
         <p>Add a gift shop to the database before adding products.</p>
       )}
 
@@ -185,7 +195,7 @@ export default function GiftShop() {
         <p>No products available yet.</p>
       )}
 
-      {products.map((product) => (
+      {products.map(product => (
         <article key={product.product_ID}>
           <h3>{product.name}</h3>
           <p>Shop: {product.shop_name}</p>

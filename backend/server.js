@@ -5,6 +5,7 @@ const http = require('http');
 const pool = require('./db');
 const handleFood = require('./food');
 const handleParking = require('./parking');
+const handleAccess = require('./access');
 
 const PORT = process.env.PORT || 5000;
 
@@ -43,7 +44,10 @@ const server = http.createServer(async (req, res) => {
     'Access-Control-Allow-Methods',
     'GET, POST, PUT, DELETE, OPTIONS'
   );
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Content-Type, Authorization'
+  );
 
   if (req.method === 'OPTIONS') {
     res.writeHead(204);
@@ -52,6 +56,10 @@ const server = http.createServer(async (req, res) => {
   }
 
   try {
+    if (await handleAccess(req, res, pool, send, readBody)) {
+      return;
+    }
+
     if (await handleFood(req, res, pool, send, readBody)) {
       return;
     }
@@ -167,7 +175,7 @@ const server = http.createServer(async (req, res) => {
       const parsedUrl = new URL(req.url, 'http://localhost');
       const email = parsedUrl.searchParams.get('email');
       let query = 'SELECT * FROM manager_view';
-      let params = [];
+      const params = [];
 
       if (email) {
         query +=
@@ -388,42 +396,6 @@ const server = http.createServer(async (req, res) => {
       } catch (err) {
         res.statusCode = 500;
         res.end(JSON.stringify({ error: err.message }));
-      }
-    });
-  } else if (
-    req.url === '/api/login' &&
-    req.method === 'POST'
-  ) {
-    let body = '';
-
-    req.on('data', chunk => {
-      body += chunk;
-    });
-
-    req.on('end', async () => {
-      try {
-        const { email, password } = JSON.parse(body);
-
-        const [rows] = await pool.query(
-          'SELECT userID, email, role FROM users WHERE email = ? AND password = ?',
-          [email, password]
-        );
-
-        if (rows.length > 0) {
-          res.statusCode = 200;
-          res.end(JSON.stringify(rows[0]));
-        } else {
-          res.statusCode = 401;
-          res.end(
-            JSON.stringify({
-              error: 'Invalid email or password or user does not exist'
-            })
-          );
-        }
-      } catch (err) {
-        console.log(err);
-        res.statusCode = 500;
-        res.end(JSON.stringify({ error: 'Server error' }));
       }
     });
   } else if (
