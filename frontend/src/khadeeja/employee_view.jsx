@@ -1,13 +1,15 @@
 import '.././App.css';
 import { useState, useEffect } from 'react';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 function EmpView() {
 	const [employees, setEmployees] = useState([]);
 	const [searchTerm, setSearchTerm] = useState('');
 	const [error, setError] = useState('');
 
 	useEffect(() => {
-		fetch('http://localhost:5000/api/employees')
+		fetch(`${API_URL}/api/employees`)
 			.then(async (res) => {
 				if (!res.ok) {
 					const errBody = await res.json().catch(() => ({}));
@@ -22,7 +24,7 @@ function EmpView() {
 			.catch((err) => {
 				console.error('Error fetching employees:', err);
 				if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
-					setError('Unable to connect to the backend server at localhost:5000. Please verify the server is running.');
+					setError('Unable to connect to the backend server. Please verify the server is running.');
 				} else {
 					setError(`Failed to load employee directory: ${err.message}`);
 				}
