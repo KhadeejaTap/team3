@@ -3,7 +3,7 @@ import { useState } from "react";
 const API_URL =
     import.meta.env.VITE_API_URL || "http://localhost:5000";
 
-function Donations() {
+function Donations({ role, userEmail, userID, token }) {
 
     // state to hold form data
     const [donationForm, setDonationForm] = useState({
@@ -38,8 +38,9 @@ function Donations() {
             const response = await fetch(`${API_URL}/api/donations`, {
                 method: "POST", 
                 headers: {
-                    "Content-Type": "application/json"
-                }, 
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
+                },
                 body: JSON.stringify(donationForm)
             }); 
 

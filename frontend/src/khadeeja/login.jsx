@@ -11,9 +11,12 @@ function LoginPage({ onLogin }) {
 		e.preventDefault();
 		setError('');
 
+		// udpdated with database hosted on Azure 
+		const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 		const endpoint = isSignUp
-			? 'http://localhost:5000/api/register'
-			: 'http://localhost:5000/api/login';
+			? `${API_URL}/api/register`
+			: `${API_URL}/api/login`;
 
 		try {
 			const res = await fetch(endpoint, {
@@ -31,7 +34,7 @@ function LoginPage({ onLogin }) {
 				} else {
 					alert(`Welcome! Role: ${userRole}`);
 				}
-				onLogin(userRole, email);
+				onLogin(userRole, data.email || email, data.userID, data.token); // added userId when logging in + tokens 
 			} else {
 				setError(data.error || (isSignUp ? 'Registration failed' : 'Login failed'));
 			}

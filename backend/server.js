@@ -1,15 +1,18 @@
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 const http = require('http');
+const crypto = require('crypto');
+const sessions = new Map();
 const PORT = process.env.PORT || 5000;
 const pool = require('./db');
+
 
 const server = http.createServer(async (req, res) => {
 	res.setHeader('Content-Type', 'application/json');
 	res.statusCode = 200;
 	res.setHeader('Access-Control-Allow-Origin', '*');
 	res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-	res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+	res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization'); //allow front end to send tokens
 	if (req.method === 'OPTIONS') {
 		res.writeHead(204); // status code for no content
 		res.end();
@@ -216,8 +219,25 @@ const server = http.createServer(async (req, res) => {
 					[email, password]
 				);
 				if (rows.length > 0) {
+					const user = rows[0];
+
+					// Generate a unique login token
+					const token = crypto.randomUUID();
+
+					// Store the user's identity on the server
+					sessions.set(token, {
+						userID: user.userID,
+						email: user.email,
+						role: user.role
+					});
+
 					res.statusCode = 200;
-					res.end(JSON.stringify(rows[0]));
+					res.end(JSON.stringify({
+						userID: user.userID,
+						email: user.email,
+						role: user.role,
+						token: token
+					}));
 				} else {
 					res.statusCode = 401;
 					res.end(JSON.stringify({ error: 'Invalid email or password or user does not exist' }));
@@ -250,11 +270,23 @@ const server = http.createServer(async (req, res) => {
 					[email.trim(), password.trim(), 'visitor']
 				);
 
+				const user = {
+					userID: result.insertId,
+					email: email.trim(),
+					role: 'visitor'
+				};
+
+				const token = crypto.randomUUID();
+
+				sessions.set(token, user);
+
 				res.statusCode = 201;
 				res.end(JSON.stringify({
 					message: 'Visitor account created successfully!',
-					userID: result.insertId,
-					role: 'visitor'
+					userID: user.userID,
+					email: user.email,
+					role: user.role,
+					token: token
 				}));
 			} catch (err) {
 				if (err.code === 'ER_DUP_ENTRY') {

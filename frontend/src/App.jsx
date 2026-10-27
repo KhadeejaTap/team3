@@ -12,18 +12,35 @@ import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 function App() {
 	const [role, setRole] = useState(() => localStorage.getItem('user_role'));
 	const [userEmail, setUserEmail] = useState(() => localStorage.getItem('user_email'));
+	const [userID, setUserID] = useState(() => localStorage.getItem('user_id'));
+	const [token, setToken] = useState(() => localStorage.getItem('auth_token'));
 
-	const handleLogin = (newRole, newEmail) => {
+	// changed login with token 
+	const handleLogin = (newRole, newEmail, newUserID, newToken) => {
 		setRole(newRole);
 		setUserEmail(newEmail);
+		setUserID(newUserID ? String(newUserID) : null);
+		setToken(newToken || null);
+
 		if (newRole) {
 			localStorage.setItem('user_role', newRole);
+
 			if (newEmail) {
 				localStorage.setItem('user_email', newEmail);
+			}
+
+			if (newUserID) {
+				localStorage.setItem('user_id', String(newUserID));
+			}
+
+			if (newToken) {
+				localStorage.setItem('auth_token', newToken);
 			}
 		} else {
 			localStorage.removeItem('user_role');
 			localStorage.removeItem('user_email');
+			localStorage.removeItem('user_id');
+			localStorage.removeItem('auth_token');
 		}
 	};
 
@@ -76,7 +93,7 @@ function App() {
 					<Route path="/login" element={<LoginPage onLogin={handleLogin} />} />
 					<Route path="/animals" element={<AnimalManagement />} />
 					<Route path="/attractions" element={<AttractionManagement />} />
-					<Route path="/donations" element={< Donations />} /> 
+					<Route path="/donations" element={<Donations role={role} userEmail={userEmail} userID={userID} token={token}/>}/>
 					<Route path="/tickets" element={<Tickets />} />
 				</Routes>
 			</div>
