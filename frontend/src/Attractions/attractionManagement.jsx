@@ -1,5 +1,7 @@
 import { useState } from 'react';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 function AttractionManagement() {
     const [formData, setFormData] = useState({
         name: '',
@@ -23,7 +25,7 @@ function AttractionManagement() {
         setMessage('');
 
         try {
-            const response = await fetch('http://localhost:5000/api/attractions', {
+            const response = await fetch(`${API_URL}/api/attractions`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
