@@ -1,14 +1,26 @@
-const API = 'http://localhost:5000/api';
+const API_ORIGIN = (
+  import.meta.env.VITE_API_URL || 'http://localhost:5000'
+).replace(/\/+$/, '');
 
 export async function apiFetch(url, options = {}) {
-  const target = new URL(url, window.location.origin);
+  const requested = new URL(url, window.location.origin);
+  const configured = new URL(API_ORIGIN);
+
+  const allowedOrigin =
+    requested.origin === 'http://localhost:5000' ||
+    requested.origin === configured.origin;
 
   if (
-    target.origin !== new URL(API).origin ||
-    !target.pathname.startsWith('/api/')
+    !allowedOrigin ||
+    !requested.pathname.startsWith('/api/')
   ) {
     throw new Error('Unexpected API address.');
   }
+
+  const target = new URL(
+    requested.pathname + requested.search,
+    configured.origin
+  );
 
   const headers = new Headers(options.headers);
   const token = localStorage.getItem('user_token');

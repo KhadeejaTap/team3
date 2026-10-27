@@ -46,7 +46,7 @@ const server = http.createServer(async (req, res) => {
   );
   res.setHeader(
     'Access-Control-Allow-Headers',
-    'Content-Type, Authorization'
+    'Content-Type, Authorization, Accept'
   );
 
   if (req.method === 'OPTIONS') {

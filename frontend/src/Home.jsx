@@ -1,11 +1,5 @@
-import './App.css'
-/*function EmpView() {
-	const [employees, setEmployees] = useState([])
+import './App.css';
 
-	useEffect(() => {
-		fetch('http://localhost:5000/api/employees').then((res) => res.json()).then((data) => setEmployees(data)).catch((err) => console.error('Error fetching employees:', err));
-	}, []);
-*/
 function Home() {
 	return (
 		<>
