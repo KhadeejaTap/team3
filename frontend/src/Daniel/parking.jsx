@@ -1,3 +1,4 @@
+import { apiFetch as fetch } from '../api';
 import { useEffect, useState } from 'react';
 
 const API = 'http://localhost:5000/api';
@@ -7,7 +8,29 @@ function formatDateTime(value) {
   return String(value).replace('T', ' ').slice(0, 16);
 }
 
-export default function Parking() {
+async function fetchParking(canManage) {
+  const responses = await Promise.all([
+    fetch(`${API}/parking-lots`),
+    ...(canManage ? [fetch(`${API}/parking-sessions`)] : [])
+  ]);
+
+  if (responses.some(response => !response.ok)) {
+    throw new Error('Could not load parking data.');
+  }
+
+  const data = await Promise.all(
+    responses.map(response => response.json())
+  );
+
+  return {
+    lots: data[0],
+    sessions: canManage ? data[1] : []
+  };
+}
+
+export default function Parking({ role }) {
+  const canManage = ['admin', 'manager', 'employee'].includes(role);
+
   const [lots, setLots] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -15,41 +38,49 @@ export default function Parking() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
-  async function loadParking() {
-    const responses = await Promise.all([
-      fetch(`${API}/parking-lots`),
-      fetch(`${API}/parking-sessions`)
-    ]);
-
-    if (responses.some(response => !response.ok)) {
-      throw new Error('Could not load parking lots and sessions.');
-    }
-
-    const [lotData, sessionData] = await Promise.all(
-      responses.map(response => response.json())
-    );
-
-    setLots(lotData);
-    setSessions(sessionData);
-  }
-
   useEffect(() => {
+    let cancelled = false;
+
     async function load() {
+      setLoading(true);
+      setError('');
+      setMessage('');
+      setSessions([]);
+
       try {
-        await loadParking();
+        const data = await fetchParking(canManage);
+
+        if (!cancelled) {
+          setLots(data.lots);
+          setSessions(data.sessions);
+        }
       } catch (err) {
-        setError(err.message);
+        if (!cancelled) {
+          setError(err.message);
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     }
 
     load();
-  }, []);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [canManage]);
+
+  async function refreshParking() {
+    const data = await fetchParking(canManage);
+    setLots(data.lots);
+    setSessions(data.sessions);
+  }
 
   async function recordArrival(event) {
     event.preventDefault();
-    if (saving) return;
+    if (saving || !canManage) return;
 
     const form = event.currentTarget;
     const fields = new FormData(form);
@@ -67,13 +98,16 @@ export default function Parking() {
           license_plate: fields.get('license_plate').trim()
         })
       });
+
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || 'Could not record parking arrival.');
+        throw new Error(
+          result.error || 'Could not record parking arrival.'
+        );
       }
 
-      await loadParking();
+      await refreshParking();
       form.reset();
       setMessage('Parking arrival recorded.');
     } catch (err) {
@@ -84,7 +118,7 @@ export default function Parking() {
   }
 
   async function recordDeparture(session_ID) {
-    if (saving) return;
+    if (saving || !canManage) return;
 
     setSaving(true);
     setError('');
@@ -95,13 +129,16 @@ export default function Parking() {
         `${API}/parking-sessions/${session_ID}/exit`,
         { method: 'POST' }
       );
+
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || 'Could not record parking departure.');
+        throw new Error(
+          result.error || 'Could not record parking departure.'
+        );
       }
 
-      await loadParking();
+      await refreshParking();
       setMessage('Parking departure recorded.');
     } catch (err) {
       setError(err.message);
@@ -116,7 +153,7 @@ export default function Parking() {
 
       {loading && <p>Loading...</p>}
       {error && <p role="alert">{error}</p>}
-      {message && <p role="status">{message}</p>}
+      {canManage && message && <p role="status">{message}</p>}
 
       <h2>Parking Lots</h2>
 
@@ -140,7 +177,7 @@ export default function Parking() {
         </article>
       ))}
 
-      {!loading && lots.length > 0 && (
+      {!loading && canManage && lots.length > 0 && (
         <form
           onSubmit={recordArrival}
           style={{ maxWidth: 420, margin: '30px auto' }}
@@ -154,7 +191,10 @@ export default function Parking() {
               <label>
                 Parking lot<br />
                 <select name="lot_ID" required defaultValue="">
-                  <option value="" disabled>Select a parking lot</option>
+                  <option value="" disabled>
+                    Select a parking lot
+                  </option>
+
                   {lots.map(lot => (
                     <option key={lot.lot_ID} value={lot.lot_ID}>
                       {lot.name}
@@ -167,7 +207,11 @@ export default function Parking() {
             <p>
               <label>
                 License plate<br />
-                <input name="license_plate" maxLength={20} required />
+                <input
+                  name="license_plate"
+                  maxLength={20}
+                  required
+                />
               </label>
             </p>
 
@@ -178,29 +222,34 @@ export default function Parking() {
         </form>
       )}
 
-      <h2>Parking Sessions</h2>
+      {canManage && (
+        <>
+          <h2>Parking Sessions</h2>
 
-      {!loading && sessions.length === 0 && (
-        <p>No parking sessions recorded yet.</p>
-      )}
-
-      {sessions.map(session => (
-        <article key={session.session_ID}>
-          <h3>{session.license_plate}</h3>
-          <p>Lot: {session.lot_name}</p>
-          <p>Entry: {formatDateTime(session.entry_time)}</p>
-          <p>Exit: {formatDateTime(session.exit_time)}</p>
-          {!session.exit_time && (
-            <button
-              type="button"
-              disabled={saving}
-              onClick={() => recordDeparture(session.session_ID)}
-            >
-              {saving ? 'Saving...' : 'Record Departure'}
-            </button>
+          {!loading && sessions.length === 0 && (
+            <p>No parking sessions recorded yet.</p>
           )}
-        </article>
-      ))}
+
+          {sessions.map(session => (
+            <article key={session.session_ID}>
+              <h3>{session.license_plate}</h3>
+              <p>Lot: {session.lot_name}</p>
+              <p>Entry: {formatDateTime(session.entry_time)}</p>
+              <p>Exit: {formatDateTime(session.exit_time)}</p>
+
+              {!session.exit_time && (
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => recordDeparture(session.session_ID)}
+                >
+                  {saving ? 'Saving...' : 'Record Departure'}
+                </button>
+              )}
+            </article>
+          ))}
+        </>
+      )}
     </section>
   );
 }

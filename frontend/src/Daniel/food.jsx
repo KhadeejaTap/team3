@@ -1,8 +1,11 @@
+import { apiFetch as fetch } from '../api';
 import { useEffect, useState } from 'react';
 
 const API = 'http://localhost:5000/api';
 
-export default function Food() {
+export default function Food({ role }) {
+  const canManage = ['admin', 'manager'].includes(role);
+
   const [stalls, setStalls] = useState([]);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -40,7 +43,7 @@ export default function Food() {
 
   async function addMenuItem(event) {
     event.preventDefault();
-    if (saving) return;
+    if (saving || !canManage) return;
 
     const form = event.currentTarget;
     const fields = new FormData(form);
@@ -110,7 +113,7 @@ export default function Food() {
         </article>
       ))}
 
-      {!loading && stalls.length > 0 && (
+      {!loading && canManage && stalls.length > 0 && (
         <form
           onSubmit={addMenuItem}
           style={{ maxWidth: 420, margin: '30px auto' }}
@@ -124,7 +127,10 @@ export default function Food() {
               <label>
                 Food stall<br />
                 <select name="stall_ID" required defaultValue="">
-                  <option value="" disabled>Select a food stall</option>
+                  <option value="" disabled>
+                    Select a food stall
+                  </option>
+
                   {stalls.map(stall => (
                     <option key={stall.stall_ID} value={stall.stall_ID}>
                       {stall.name}
