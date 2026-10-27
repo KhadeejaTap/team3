@@ -6,6 +6,7 @@ const pool = require('./db');
 const handleFood = require('./food');
 const handleParking = require('./parking');
 const handleAccess = require('./access');
+const { requireRoles } = require('./auth');
 
 const PORT = process.env.PORT || 5000;
 
@@ -1004,6 +1005,48 @@ const server = http.createServer(async (req, res) => {
       );
     }
   } else if (
+    req.url === '/api/donations/history' &&
+    req.method === 'GET'
+  ) {
+    try {
+      const allowed = await requireRoles(
+        req,
+        res,
+        pool,
+        send,
+        ['admin', 'manager', 'employee', 'visitor']
+      );
+
+      if (!allowed) return;
+
+      const [rows] = await pool.query(
+        `SELECT
+           dn.donation_ID,
+           dn.amount,
+           dn.donation_date,
+           dn.purpose,
+           ct.payment_method,
+           ct.transaction_date
+         FROM donor AS d
+         JOIN DONATION AS dn ON d.donor_ID = dn.donor_ID
+         JOIN TRANSACTION_ITEM AS ti
+           ON ti.item_ID = dn.donation_ID
+           AND ti.item_type = 'donation'
+         JOIN CUST_TRANSACTION AS ct
+           ON ct.transaction_ID = ti.transaction_ID
+         WHERE d.userID = ?
+         ORDER BY dn.donation_date DESC, dn.donation_ID DESC`,
+        [req.user.userID]
+      );
+
+      send(res, 200, rows);
+    } catch (error) {
+      console.error('Error fetching donation history:', error);
+      send(res, 500, {
+        error: 'Unable to load donation history.'
+      });
+    }
+  } else if (
     req.url === '/api/donations' &&
     req.method === 'POST'
   ) {
@@ -1038,6 +1081,27 @@ const server = http.createServer(async (req, res) => {
         purpose,
         payment_method
       } = data;
+
+      let linkedUserID = null;
+      if (req.headers.authorization) {
+        try {
+          const allowed = await requireRoles(
+            req,
+            res,
+            pool,
+            send,
+            ['admin', 'manager', 'employee', 'visitor']
+          );
+          if (!allowed) return;
+          linkedUserID = req.user.userID;
+        } catch (error) {
+          console.error('Error validating donation session:', error);
+          send(res, 500, {
+            error: 'Unable to verify your session. Please try again.'
+          });
+          return;
+        }
+      }
 
       const amount = Number(donation_amt);
       const allowedMethods = [
@@ -1098,12 +1162,13 @@ const server = http.createServer(async (req, res) => {
         const [donorResult] = await connection.query(
           `INSERT INTO donor
            (first_name, last_name, donor_email, donor_phone, userID)
-           VALUES (?, ?, ?, ?, NULL)`,
+           VALUES (?, ?, ?, ?, ?)`,
           [
             donor_first.trim(),
             donor_last.trim(),
             donor_email.trim(),
-            donor_phone.trim()
+            donor_phone.trim(),
+            linkedUserID
           ]
         );
 

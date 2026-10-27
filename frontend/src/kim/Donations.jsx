@@ -1,9 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const API_URL =
     import.meta.env.VITE_API_URL || "http://localhost:5000";
 
-function Donations() {
+function Donations({ role, userEmail, userID, token }) {
+    console.log("Current role:", role);
+    console.log("Current userID:", userID);
+    console.log("Current token:", token);
 
     // state to hold form data
     const [donationForm, setDonationForm] = useState({
@@ -16,6 +19,51 @@ function Donations() {
         purpose: "", 
         payment_method: "credit"
     }); 
+
+    // history state and fetch for user's donations 
+    const [donationHistory, setDonationHistory] = useState([]);
+    const [historyMessage, setHistoryMessage] = useState("");
+    const [historyLoading, setHistoryLoading] = useState(false);
+
+    useEffect(() => {
+        if (!token) {
+            setDonationHistory([]);
+            setHistoryMessage("");
+            return;
+        }
+
+        async function loadDonationHistory() {
+            setHistoryLoading(true);
+            setHistoryMessage("");
+
+            try {
+                const response = await fetch(
+                    `${API_URL}/api/donations/history`,
+                    {
+                        headers: {
+                            Authorization: `Bearer ${token}`
+                        }
+                    }
+                );
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(
+                        data.error || "Unable to load donation history."
+                    );
+                }
+
+                setDonationHistory(data);
+            } catch (error) {
+                setHistoryMessage(error.message);
+            } finally {
+                setHistoryLoading(false);
+            }
+        }
+
+        loadDonationHistory();
+    }, [token]);
 
     // updating input changes to form state 
     function handleChange(event) {
@@ -38,8 +86,9 @@ function Donations() {
             const response = await fetch(`${API_URL}/api/donations`, {
                 method: "POST", 
                 headers: {
-                    "Content-Type": "application/json"
-                }, 
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
+                },
                 body: JSON.stringify(donationForm)
             }); 
 
@@ -52,6 +101,21 @@ function Donations() {
             } 
 
             setMessage(data.message); 
+            if (token) {
+                const historyResponse = await fetch(
+                    `${API_URL}/api/donations/history`,
+                    {
+                        headers: {
+                            Authorization: `Bearer ${token}`
+                        }
+                    }
+                );
+
+                if (historyResponse.ok) {
+                    const historyData = await historyResponse.json();
+                    setDonationHistory(historyData);
+                }
+            }
             console.log("Donation saved:", data); 
         } catch (error){
             console.error("Donation submission error:", error);
@@ -100,6 +164,44 @@ function Donations() {
                 <button type="submit">Submit Donation</button>
                 {message && <p role="status">{message}</p>}
             </form>
+            <section>
+                <h2>My Donation History</h2>
+
+                {!token ? (
+                    <p>Log in to view your donation history.</p>
+                ) : historyLoading ? (
+                    <p>Loading donation history...</p>
+                ) : historyMessage ? (
+                    <p>{historyMessage}</p>
+                ) : donationHistory.length === 0 ? (
+                    <p>You haven't made any linked donations yet.</p>
+                ) : (
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Amount</th>
+                                <th>Purpose</th>
+                                <th>Payment Method</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {donationHistory.map((donation) => (
+                                <tr key={donation.donation_ID}>
+                                    <td>
+                                        {String(donation.donation_date).slice(0, 10)}
+                                    </td>
+                                    <td>
+                                        ${Number(donation.amount).toFixed(2)}
+                                    </td>
+                                    <td>{donation.purpose}</td>
+                                    <td>{donation.payment_method}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                )}
+            </section>
         </main>
     );
     }
