@@ -627,7 +627,7 @@ const server = http.createServer(async (req, res) => {
 		}
 	}
 	// Donation API endpoints
-	else if (req.url === '/api/donations' && req.method === 'POST'){
+	else if (req.url === '/api/donations' && req.method === 'POST') {
 		let body = '';
 
 		req.on('data', (chunk) => {
@@ -637,11 +637,11 @@ const server = http.createServer(async (req, res) => {
 		req.on('end', async () => {
 			let data;
 
-			try{
+			try {
 				data = JSON.parse(body);
-			} catch{
+			} catch {
 				res.statusCode = 400;
-				res.end(JSON.stringify({ error: 'Invalid JSON request body.'}));
+				res.end(JSON.stringify({ error: 'Invalid JSON request body.' }));
 				return;
 			}
 
@@ -660,16 +660,25 @@ const server = http.createServer(async (req, res) => {
 			const allowedMethods = ['credit', 'debit', 'digital_wallet', 'paypal'];
 
 			if (
-				![donor_first, donor_last, donor_email, donor_phone, donation_date, purpose].every(value => typeof value === 'string' && value.trim() !== '') ||
-					!Number.isFinite(amount) || amount <= 0 || !Number.isFinite(Number.EPSILON(amount.toFixed(2))) || !allowedMethods.includes(payment_method)
+				![donor_first, donor_last, donor_email, donor_phone, donation_date, purpose]
+					.every(value => typeof value === 'string' && value.trim() !== '') ||
+				!Number.isFinite(amount) ||
+				amount <= 0 ||
+				Math.round(amount * 100) !== amount * 100 ||
+				!allowedMethods.includes(payment_method)
 			) {
 				res.statusCode = 400;
-				res.end(JSON.stringify({ error: 'Please provide valid donation details.' }));
+				res.end(JSON.stringify({
+					error: 'Please provide valid donation details.'
+				}));
 				return;
 			}
-			if (!/^\d{4}-\d{2}-\d{2}$/.test(donation_date) ||
+
+			if (
+				!/^\d{4}-\d{2}-\d{2}$/.test(donation_date) ||
 				Number.isNaN(Date.parse(donation_date)) ||
-				new Date(donation_date).toISOString().slice(0, 10) !== donation_date) {
+				new Date(donation_date).toISOString().slice(0, 10) !== donation_date
+			) {
 				res.statusCode = 400;
 				res.end(JSON.stringify({
 					error: 'Please provide a valid donation date.'
@@ -677,12 +686,13 @@ const server = http.createServer(async (req, res) => {
 				return;
 			}
 
-			const connection = await pool.getConnection();
+			let connection;
 
-			try{
+			try {
+				connection = await pool.getConnection();
 				await connection.beginTransaction();
 
-				// 1. Save donor as guest (no linked acc yet)
+				// 1. Save the guest donor
 				const [donorResult] = await connection.query(
 					`INSERT INTO donor
 					(first_name, last_name, donor_email, donor_phone, userID)
@@ -697,20 +707,20 @@ const server = http.createServer(async (req, res) => {
 
 				const donorID = donorResult.insertId;
 
-				// 2. Save donation
+				// 2. Save the donation
 				const [donationResult] = await connection.query(
 					`INSERT INTO DONATION
 					(donor_ID, amount, donation_date, purpose)
-					VALUES (?, ?, ?, ?))`,
+					VALUES (?, ?, ?, ?)`,
 					[donorID, amount.toFixed(2), donation_date, purpose.trim()]
 				);
 
 				const donationID = donationResult.insertId;
 
-				// 3. Save transaction item
+				// 3. Save the customer transaction
 				const [transactionResult] = await connection.query(
-					`INSERT INTO TRANSACTION_ITEM
-					(visiotr_ID, total, transaction_date, payment_method)
+					`INSERT INTO CUST_TRANSACTION
+					(visitor_ID, total, transaction_date, payment_method)
 					VALUES (NULL, ?, ?, ?)`,
 					[amount.toFixed(2), donation_date, payment_method]
 				);
@@ -720,7 +730,7 @@ const server = http.createServer(async (req, res) => {
 				// 4. Link the transaction to the donation
 				await connection.query(
 					`INSERT INTO TRANSACTION_ITEM
-					(transcation_ID, item_type, item_ID, quanity, price)
+					(transaction_ID, item_type, item_ID, quantity, price)
 					VALUES (?, 'donation', ?, 1, ?)`,
 					[transactionID, donationID, amount.toFixed(2)]
 				);
@@ -735,13 +745,19 @@ const server = http.createServer(async (req, res) => {
 					transaction_ID: transactionID
 				}));
 			} catch (err) {
-				await connection.rollback();
-				console.error('Error saving donation:', err);
+				if (connection) {
+					await connection.rollback();
+				}
 
+				console.error('Error saving donation:', err);
 				res.statusCode = 500;
-				res.end(JSON.stringify({ error: 'Unable to save donation. Please try again.' }));
+				res.end(JSON.stringify({
+					error: 'Unable to save donation. Please try again.'
+				}));
 			} finally {
-				connection.release();
+				if (connection) {
+					connection.release();
+				}
 			}
 		});
 	}
