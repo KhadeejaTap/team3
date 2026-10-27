@@ -2,6 +2,8 @@ import '.././App.css';
 import { useState, useEffect } from 'react';
 import EmpView from './employee_view';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 function MgrView({ userEmail }) {
 	const [activeTab, setActiveTab] = useState('team');
 	const [employees, setEmployees] = useState([]);
@@ -16,8 +18,8 @@ function MgrView({ userEmail }) {
 
 	const fetchManagerData = () => {
 		const endpoint = userEmail
-			? `http://localhost:5000/api/manager?email=${encodeURIComponent(userEmail)}`
-			: 'http://localhost:5000/api/manager';
+			? `${API_URL}/api/manager?email=${encodeURIComponent(userEmail)}`
+			: `${API_URL}/api/manager`;
 
 		fetch(endpoint)
 			.then(async (res) => {
@@ -34,7 +36,7 @@ function MgrView({ userEmail }) {
 			.catch((err) => {
 				console.error('Error fetching manager view:', err);
 				if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
-					setError('Unable to connect to the backend server at localhost:5000. Please verify the server is running.');
+					setError('Unable to connect to the backend server. Please verify the server is running.');
 				} else {
 					setError(`Failed to load manager view: ${err.message}`);
 				}
@@ -42,7 +44,7 @@ function MgrView({ userEmail }) {
 	};
 
 	const fetchAttractions = () => {
-		fetch('http://localhost:5000/api/attractions')
+		fetch(`${API_URL}/api/attractions`)
 			.then((res) => (res.ok ? res.json() : []))
 			.then((data) => setAttractionsList(data))
 			.catch((err) => console.error('Error loading attractions list:', err));
@@ -58,7 +60,7 @@ function MgrView({ userEmail }) {
 		if (!confirmed) return;
 
 		try {
-			const res = await fetch(`http://localhost:5000/api/employees/${employeeID}`, {
+			const res = await fetch(`${API_URL}/api/employees/${employeeID}`, {
 				method: 'DELETE'
 			});
 			const data = await res.json().catch(() => ({}));
@@ -80,7 +82,7 @@ function MgrView({ userEmail }) {
 	const handleAssign = async (employeeID, attrID) => {
 		if (!attrID) return;
 		try {
-			const res = await fetch('http://localhost:5000/api/staffed-at', {
+			const res = await fetch(`${API_URL}/api/staffed-at`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ employee_ID: employeeID, attr_ID: Number(attrID) })
@@ -118,7 +120,7 @@ function MgrView({ userEmail }) {
 
 	const handleSaveEdit = async (employeeID) => {
 		try {
-			const res = await fetch(`http://localhost:5000/api/employees/${employeeID}`, {
+			const res = await fetch(`${API_URL}/api/employees/${employeeID}`, {
 				method: 'PUT',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({

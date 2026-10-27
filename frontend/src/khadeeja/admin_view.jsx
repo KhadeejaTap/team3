@@ -1,6 +1,8 @@
 import '.././App.css';
 import { useState, useEffect } from 'react';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 const initialFormData = {
 	first_name: '',
 	minit: '',
@@ -32,7 +34,7 @@ function AdminView() {
 	const [attractionsList, setAttractionsList] = useState([]);
 
 	const fetchAdminData = () => {
-		fetch('http://localhost:5000/api/admin')
+		fetch(`${API_URL}/api/admin`)
 			.then(async (res) => {
 				if (!res.ok) {
 					const errBody = await res.json().catch(() => ({}));
@@ -47,7 +49,7 @@ function AdminView() {
 			.catch((err) => {
 				console.error('Error fetching admin view:', err);
 				if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
-					setError('Unable to connect to the backend server at localhost:5000. Please verify the server is running.');
+					setError('Unable to connect to the backend server. Please verify the server is running.');
 				} else {
 					setError(`Failed to load admin view: ${err.message}`);
 				}
@@ -56,7 +58,7 @@ function AdminView() {
 
 	useEffect(() => {
 		fetchAdminData();
-		fetch('http://localhost:5000/api/attractions')
+		fetch(`${API_URL}/api/attractions`)
 			.then((res) => (res.ok ? res.json() : []))
 			.then((data) => setAttractionsList(data))
 			.catch((err) => console.error('Error fetching attractions:', err));
@@ -106,8 +108,8 @@ function AdminView() {
 
 		const isEditing = Boolean(editingEmployeeId);
 		const endpoint = isEditing
-			? `http://localhost:5000/api/employees/${editingEmployeeId}`
-			: 'http://localhost:5000/api/employees';
+			? `${API_URL}/api/employees/${editingEmployeeId}`
+			: `${API_URL}/api/employees`;
 		const method = isEditing ? 'PUT' : 'POST';
 
 		try {
@@ -143,7 +145,7 @@ function AdminView() {
 		if (!confirmed) return;
 
 		try {
-			const res = await fetch(`http://localhost:5000/api/employees/${employeeID}`, {
+			const res = await fetch(`${API_URL}/api/employees/${employeeID}`, {
 				method: 'DELETE'
 			});
 			const data = await res.json().catch(() => ({}));

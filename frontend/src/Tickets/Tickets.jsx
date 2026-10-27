@@ -1,5 +1,7 @@
 import { useState } from 'react';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 const ticketPrices = {
     Adult: 25,
     Child: 15,
@@ -28,7 +30,7 @@ function Tickets() {
         setMessage('');
 
         try {
-            const response = await fetch('http://localhost:5000/api/tickets', {
+            const response = await fetch(`${API_URL}/api/tickets`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
