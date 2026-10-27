@@ -1,6 +1,7 @@
 import { useState } from "react";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API_URL =
+    import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 function Donations() {
 
@@ -11,7 +12,7 @@ function Donations() {
         donor_email: "", 
         donor_phone: "", 
         donation_amt: "", 
-        donation_date: "", 
+        donation_date: new Date().toISOString().split("T")[0],
         purpose: "", 
         payment_method: "credit"
     }); 
@@ -83,7 +84,7 @@ function Donations() {
                 <input type="number" id="donation_amt" name="donation_amt" step="0.01" min="0.01" value={donationForm.donation_amt} onChange={handleChange} required />
 
                 <label htmlFor="donation_date">Donation Date</label>
-                <input type="date" id="donation_date" name="donation_date" value={donationForm.donation_date} onChange={handleChange} required />
+                <input type="date" value={donationForm.donation_date} readOnly/>
 
                 <label htmlFor="purpose">Purpose of Donation</label>
                 <input type="text" id="purpose" name="purpose" value={donationForm.purpose} onChange={handleChange} required />
