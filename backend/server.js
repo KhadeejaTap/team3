@@ -658,6 +658,56 @@ const server = http.createServer(async (req, res) => {
 			res.end(JSON.stringify({ error: 'Failed to fetch species.' }));
 		}
 	}
+
+	// history endpoints 
+	else if (req.url === '/api/donations/history' && req.method === 'GET') {
+		const authHeader = req.headers.authorization || '';
+		const token = authHeader.startsWith('Bearer ')
+			? authHeader.slice(7)
+			: null;
+
+		const session = token ? sessions.get(token) : null;
+
+		if (!session) {
+			res.statusCode = 401;
+			res.end(JSON.stringify({
+				error: 'Please log in to view your donation history.'
+			}));
+			return;
+		}
+
+		try {
+			const [rows] = await pool.query(
+				`SELECT
+					dn.donation_ID,
+					dn.amount,
+					dn.donation_date,
+					dn.purpose,
+					ct.payment_method,
+					ct.transaction_date
+				FROM donor d
+				JOIN DONATION dn
+					ON d.donor_ID = dn.donor_ID
+				JOIN TRANSACTION_ITEM ti
+					ON ti.item_ID = dn.donation_ID
+					AND ti.item_type = 'donation'
+				JOIN CUST_TRANSACTION ct
+					ON ct.transaction_ID = ti.transaction_ID
+				WHERE d.userID = ?
+				ORDER BY dn.donation_date DESC, dn.donation_ID DESC`,
+				[session.userID]
+			);
+
+			res.statusCode = 200;
+			res.end(JSON.stringify(rows));
+		} catch (err) {
+			console.error('Error fetching donation history:', err);
+			res.statusCode = 500;
+			res.end(JSON.stringify({
+				error: 'Unable to load donation history.'
+			}));
+		}
+	}
 	// Donation API endpoints
 	else if (req.url === '/api/donations' && req.method === 'POST') {
 		let body = '';
@@ -687,6 +737,25 @@ const server = http.createServer(async (req, res) => {
 				purpose,
 				payment_method
 			} = data;
+
+			// Identify the logged-in user from their session token
+			const authHeader = req.headers.authorization || '';
+			const token = authHeader.startsWith('Bearer ')
+				? authHeader.slice(7)
+				: null;
+
+			const session = token ? sessions.get(token) : null;
+
+			// Reject an invalid token instead of treating the user as a guest
+			if (token && !session) {
+				res.statusCode = 401;
+				res.end(JSON.stringify({
+					error: 'Session expired. Please log in again.'
+				}));
+				return;
+			}
+
+			const linkedUserID = session ? session.userID : null;
 
 			const amount = Number(donation_amt);
 			const allowedMethods = ['credit', 'debit', 'digital_wallet', 'paypal'];
@@ -724,16 +793,17 @@ const server = http.createServer(async (req, res) => {
 				connection = await pool.getConnection();
 				await connection.beginTransaction();
 
-				// 1. Save the guest donor
+				// 1. Save the donor and link their account if logged in
 				const [donorResult] = await connection.query(
 					`INSERT INTO donor
 					(first_name, last_name, donor_email, donor_phone, userID)
-					VALUES (?, ?, ?, ?, NULL)`,
+					VALUES (?, ?, ?, ?, ?)`,
 					[
 						donor_first.trim(),
 						donor_last.trim(),
 						donor_email.trim(),
-						donor_phone.trim()
+						donor_phone.trim(),
+						linkedUserID
 					]
 				);
 

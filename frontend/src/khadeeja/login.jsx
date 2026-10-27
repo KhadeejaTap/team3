@@ -34,6 +34,11 @@ function LoginPage({ onLogin }) {
 				} else {
 					alert(`Welcome! Role: ${userRole}`);
 				}
+				console.log("Login response:", {
+					role: data.role,
+					userID: data.userID,
+					hasToken: Boolean(data.token)
+				});
 				onLogin(userRole, data.email || email, data.userID, data.token); // added userId when logging in + tokens 
 			} else {
 				setError(data.error || (isSignUp ? 'Registration failed' : 'Login failed'));

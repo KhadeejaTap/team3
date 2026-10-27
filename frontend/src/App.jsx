@@ -35,6 +35,8 @@ function App() {
 
 			if (newToken) {
 				localStorage.setItem('auth_token', newToken);
+			} else {
+				localStorage.removeItem('auth_token');
 			}
 		} else {
 			localStorage.removeItem('user_role');
