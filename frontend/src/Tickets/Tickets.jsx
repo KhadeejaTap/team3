@@ -11,7 +11,9 @@ function Tickets() {
     const now = new Date();
     const minVisitDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     const [formData, setFormData] = useState({
-        visitor_name: '',
+        first_name: '',
+        middle_initial: '',
+        last_name: '',
         ticket_type: '',
         visit_date: '',
     });
@@ -29,6 +31,23 @@ function Tickets() {
         event.preventDefault();
         setMessage('');
 
+        const firstName = formData.first_name.trim();
+        const middleInitial = formData.middle_initial.trim();
+        const lastName = formData.last_name.trim();
+        const visitorName = [firstName, middleInitial, lastName]
+            .filter(Boolean)
+            .join(' ');
+
+        if (!firstName || !lastName) {
+            setMessage('Enter both a first and last name.');
+            return;
+        }
+
+        if (visitorName.length > 100) {
+            setMessage('The full name must be 100 characters or fewer.');
+            return;
+        }
+
         try {
             const response = await fetch(`${API_URL}/api/tickets`, {
                 method: 'POST',
@@ -36,8 +55,9 @@ function Tickets() {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    ...formData,
-                    visitor_name: formData.visitor_name.trim() || null,
+                    ticket_type: formData.ticket_type,
+                    visit_date: formData.visit_date,
+                    visitor_name: visitorName,
                 }),
             });
             const result = await response.json();
@@ -47,7 +67,9 @@ function Tickets() {
 
             setMessage(`Ticket purchased successfully! Ticket ID: ${result.ticket_ID}`);
             setFormData({
-                visitor_name: '',
+                first_name: '',
+                middle_initial: '',
+                last_name: '',
                 ticket_type: '',
                 visit_date: '',
             });
@@ -101,12 +123,36 @@ function Tickets() {
                 </div>
 
                 <div className="ticket-form-field">
-                    <label htmlFor="visitor_name">Visitor Name (optional):</label>
+                    <label htmlFor="first_name">First Name:</label>
                     <input
-                        id="visitor_name"
-                        name="visitor_name"
+                        id="first_name"
+                        name="first_name"
+                        required
                         maxLength="100"
-                        value={formData.visitor_name}
+                        value={formData.first_name}
+                        onChange={handleChange}
+                    />
+                </div>
+
+                <div className="ticket-form-field">
+                    <label htmlFor="middle_initial">Middle Initial (optional):</label>
+                    <input
+                        id="middle_initial"
+                        name="middle_initial"
+                        maxLength="1"
+                        value={formData.middle_initial}
+                        onChange={handleChange}
+                    />
+                </div>
+
+                <div className="ticket-form-field">
+                    <label htmlFor="last_name">Last Name:</label>
+                    <input
+                        id="last_name"
+                        name="last_name"
+                        required
+                        maxLength="100"
+                        value={formData.last_name}
                         onChange={handleChange}
                     />
                 </div>
