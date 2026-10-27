@@ -1,6 +1,7 @@
 import { useState } from "react";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API_URL =
+    import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 function Donations() {
 
@@ -11,7 +12,7 @@ function Donations() {
         donor_email: "", 
         donor_phone: "", 
         donation_amt: "", 
-        donation_date: "", 
+        donation_date: new Date().toISOString().split("T")[0],
         purpose: "", 
         payment_method: "credit"
     }); 
