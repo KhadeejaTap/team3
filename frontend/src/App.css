@@ -43,13 +43,41 @@
   justify-self: start;
 }
 
+.ticket-purchase form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 24px;
+  max-width: 800px;
+  margin: 24px auto;
+  padding: 24px;
+  text-align: left;
+}
+
+.ticket-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ticket-form-field input {
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.ticket-purchase form button {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+
 @media (max-width: 600px) {
-  .attraction-management form {
+  .attraction-management form,
+  .ticket-purchase form {
     grid-template-columns: 1fr;
     padding: 16px;
   }
 
-  .attraction-management form button {
+  .attraction-management form button,
+  .ticket-purchase form button {
     grid-column: auto;
   }
 }

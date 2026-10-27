@@ -6,6 +6,7 @@ import { useState } from 'react';
 import ReturnDir from './khadeeja/employee_directory';
 import AnimalManagement from './animals/AnimalManagement';
 import AttractionManagement from './Attractions/attractionManagement';
+import Tickets from './Tickets/Tickets';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 
 function App() {
@@ -50,6 +51,9 @@ function App() {
 					</li>
 					<li className="nav-item">
 						<Link to="/donations"> Donations </Link>
+          </li>
+          <li className="nav-item">
+						<Link to="/tickets">Purchase a Ticket</Link>
 					</li>
 					{role ? (
 						<li className="nav-item">
@@ -73,6 +77,7 @@ function App() {
 					<Route path="/animals" element={<AnimalManagement />} />
 					<Route path="/attractions" element={<AttractionManagement />} />
 					<Route path="/donations" element={< Donations />} /> 
+					<Route path="/tickets" element={<Tickets />} />
 				</Routes>
 			</div>
 		</Router>

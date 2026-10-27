@@ -106,6 +106,103 @@ const server = http.createServer(async (req, res) => {
 			}
 		});
 	}
+	else if (req.url === '/api/tickets' && req.method === 'POST') {
+		let body = '';
+		req.on('data', (chunk) => {
+			body += chunk;
+		});
+		req.on('end', async () => {
+			try {
+				let ticket;
+				try {
+					ticket = JSON.parse(body);
+				} catch {
+					res.statusCode = 400;
+					res.end(JSON.stringify({ error: 'Request body must be valid JSON.' }));
+					return;
+				}
+
+				if (!ticket || typeof ticket !== 'object' || Array.isArray(ticket)) {
+					res.statusCode = 400;
+					res.end(JSON.stringify({ error: 'Request body must contain ticket details.' }));
+					return;
+				}
+
+				const visitDate = new Date(`${ticket.visit_date}T00:00:00.000Z`);
+				const validVisitDate = typeof ticket.visit_date === 'string'
+					&& /^\d{4}-\d{2}-\d{2}$/.test(ticket.visit_date)
+					&& !Number.isNaN(visitDate.getTime())
+					&& visitDate.toISOString().slice(0, 10) === ticket.visit_date;
+				const ticketPrices = { Adult: 25, Child: 15 };
+				const ticketType = typeof ticket.ticket_type === 'string'
+					? ticket.ticket_type.trim()
+					: '';
+				const price = Object.prototype.hasOwnProperty.call(ticketPrices, ticketType)
+					? ticketPrices[ticketType]
+					: undefined;
+				const visitorName = ticket.visitor_name;
+				const hasValidVisitorName = visitorName == null
+					|| (
+						typeof visitorName === 'string'
+						&& visitorName.trim() !== ''
+						&& visitorName.trim().length <= 100
+					);
+
+				if (
+					price === undefined
+					|| !validVisitDate
+					|| !hasValidVisitorName
+				) {
+					res.statusCode = 400;
+					res.end(JSON.stringify({ error: 'Choose a valid ticket type, enter a valid visit date, and provide an optional visitor name.' }));
+					return;
+				}
+
+				const connection = await pool.getConnection();
+				let ticketID;
+				try {
+					await connection.beginTransaction();
+
+					let visitorID = null;
+					if (visitorName != null) {
+						const [visitorResult] = await connection.query(
+							'INSERT INTO VISITOR (name) VALUES (?)',
+							[visitorName.trim()]
+						);
+						visitorID = visitorResult.insertId;
+					}
+
+					const [result] = await connection.query(
+						`INSERT INTO TICKET (visitor_ID, ticket_type, price, purchase_date, visit_date)
+						VALUES (?, ?, ?, CURRENT_DATE, ?)`,
+						[
+							visitorID,
+							ticketType,
+							price,
+							ticket.visit_date,
+						]
+					);
+
+					await connection.commit();
+					ticketID = result.insertId;
+				} catch (err) {
+					await connection.rollback();
+					throw err;
+				} finally {
+					connection.release();
+				}
+
+				res.statusCode = 201;
+				res.end(JSON.stringify({
+					message: 'Ticket purchased successfully',
+					ticket_ID: ticketID,
+				}));
+			} catch (err) {
+				res.statusCode = 500;
+				res.end(JSON.stringify({ error: err.message }));
+			}
+		});
+	}
 	else if (req.url === '/api/login' && req.method === 'POST') {
 		let body = '';
 		req.on('data', (chunk) => {
