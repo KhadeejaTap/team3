@@ -1,40 +1,44 @@
-import '.././App.css'
-import { useState, useEffect } from 'react';
-function EmpView() {
-	const [employees, setEmployees] = useState([])
+import '.././App.css';
+import MgrView from './manager_view';
+import AdminView from './admin_view';
+import EmpView from './employee_view';
 
-	useEffect(() => {
-		fetch('http://localhost:5000/api/employees').then((res) => res.json()).then((data) => setEmployees(data)).catch((err) => console.error('Error fetching employees:', err));
-	}, []);
+function ReturnDir({ role, userEmail }) {
+	if (!role) {
+		return (
+			<div>
+				<h2>Please Log In</h2>
+				<p>You must be logged in as zoo staff to access the employee directory.</p>
+			</div>
+		);
+	}
+
+	if (role === 'visitor') {
+		return (
+			<div>
+				<h2>Access Denied</h2>
+				<p>The employee directory is restricted to zoo staff and administration.</p>
+			</div>
+		);
+	}
+
+	if (role === 'manager') {
+		return <MgrView userEmail={userEmail} />;
+	}
+
+	if (role === 'admin') {
+		return <AdminView />;
+	}
+
+	if (role === 'employee') {
+		return <EmpView />;
+	}
 
 	return (
-		<>
-			<div>
-				<h2> Super Cool Employee View </h2>
-				<table border="1" cellPadding="8">
-					<thead>
-						<tr>
-							<th>Name</th>
-							<th>Department</th>
-							<th>Role</th>
-							<th>Email</th>
-							<th>Phone</th>
-						</tr>
-					</thead>
-					<tbody>
-						{employees.map((emp, index) => (
-							<tr key={index}>
-								<td>{emp.name}</td>
-								<td>{emp.department_name}</td>
-								<td>{emp.role}</td>
-								<td>{emp.email}</td>
-								<td>{emp.phone_number}</td>
-							</tr>
-						))}
-					</tbody>
-				</table>
-			</div>
-		</>
+		<div>
+			<p>Access Denied: Unrecognized role.</p>
+		</div>
 	);
 }
-export default EmpView;
+
+export default ReturnDir;

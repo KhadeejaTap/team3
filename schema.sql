@@ -74,7 +74,8 @@ CREATE TABLE DONATION (
 );
 CREATE TABLE donor (
     donor_ID  INT AUTO_INCREMENT PRIMARY KEY,
-    donor_name  VARCHAR(100) NOT NULL,
+    first_name VARCHAR(50) NOT NULL,
+    last_name VARCHAR(50) NOT NULL,
     donor_email  VARCHAR(100) NOT NULL,
     donor_phone  VARCHAR(20) NOT NULL
 );
@@ -97,6 +98,19 @@ CREATE TABLE EMPLOYEE(
 	hire_date DATE NOT NULL, -- YYYY-MM-DD
 	current BOOL NOT NULL,
 	hours INT
+);
+
+CREATE TABLE EMPLOYMENT_HISTORY (
+	history_ID INT AUTO_INCREMENT PRIMARY KEY,
+	employee_ID INT NOT NULL,
+	department_ID INT NOT NULL,
+	role VARCHAR(50) NOT NULL,
+	salary INT NOT NULL,
+	start_date DATE NOT NULL,
+	end_date DATE NULL,
+	status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'terminated')),
+	FOREIGN KEY (employee_ID) REFERENCES EMPLOYEE(employee_ID) ON DELETE CASCADE,
+	FOREIGN KEY (department_ID) REFERENCES DEPARTMENT(department_ID)
 );
 
 CREATE TABLE ENCLOSURE (
@@ -347,3 +361,48 @@ ALTER TABLE TICKET
 ALTER TABLE DEPARTMENT
 	ADD COLUMN head_employee_ID INT NULL,
 	ADD FOREIGN KEY (head_employee_ID) REFERENCES EMPLOYEE(employee_ID);
+
+-- added userID to donors for donations to be recorded or donated using guest account
+ALTER TABLE donor
+ADD COLUMN userID INT NULL,
+ADD CONSTRAINT fk_donor_users
+    FOREIGN KEY (userID)
+    REFERENCES users(userID)
+    ON DELETE SET NULL;
+
+-- Validating that donation transcation items reference existing donations
+DELIMITER $$
+
+CREATE TRIGGER validate_donation_item_insert
+BEFORE INSERT ON TRANSACTION_ITEM
+FOR EACH ROW
+BEGIN
+    IF NEW.item_type = 'donation'
+        AND NOT EXISTS (
+            SELECT 1
+            FROM DONATION
+            WHERE donation_ID = NEW.item_ID
+        )
+    THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Donation does not exist';
+    END IF;
+END$$
+
+CREATE TRIGGER validate_donation_item_update
+BEFORE UPDATE ON TRANSACTION_ITEM
+FOR EACH ROW
+BEGIN
+    IF NEW.item_type = 'donation'
+        AND NOT EXISTS (
+            SELECT 1
+            FROM DONATION
+            WHERE donation_ID = NEW.item_ID
+        )
+    THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Donation does not exist';
+    END IF;
+END$$
+
+DELIMITER ;
