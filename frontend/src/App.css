@@ -205,6 +205,143 @@ hr {
   margin: 20px 0;
 }
 
+/* Generic Product, Food Menu, and Info Cards */
+article {
+  background-color: #ffffff;
+  border: 1px solid #dce3db;
+  border-radius: 8px;
+  padding: 18px 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 4px rgba(32, 66, 40, 0.05);
+  box-sizing: border-box;
+  display: inline-block;
+  width: calc(33.333% - 16px);
+  margin-right: 16px;
+  vertical-align: top;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+article:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(32, 66, 40, 0.09);
+}
+
+@media (max-width: 960px) {
+  article {
+    width: calc(50% - 12px);
+    margin-right: 12px;
+  }
+}
+
+@media (max-width: 600px) {
+  article {
+    width: 100%;
+    margin-right: 0;
+  }
+}
+
+article h3 {
+  color: #204228;
+  margin: 0 0 8px;
+  font-size: 1.15rem;
+}
+
+article p {
+  margin: 4px 0;
+  font-size: 14px;
+  color: #4a574d;
+}
+
+/* Fieldsets & Legends (Daniel's Add Forms) */
+fieldset {
+  border: 1px solid #cbd5c8;
+  border-radius: 8px;
+  padding: 18px 22px;
+  background-color: #fafcf9;
+  margin-bottom: 16px;
+}
+
+legend {
+  font-weight: 600;
+  color: #204228;
+  padding: 0 8px;
+  font-size: 15px;
+}
+
+/* Login & Account Centering */
+.login-container {
+  max-width: 440px;
+  margin: 40px auto;
+  text-align: center;
+}
+
+.login-container form {
+  text-align: left;
+}
+
+/* Home Page Polish */
+.hero-banner {
+  background: linear-gradient(135deg, #204228 0%, #2d5a37 100%);
+  color: #ffffff;
+  padding: 36px 32px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 16px rgba(32, 66, 40, 0.12);
+  text-align: center;
+}
+
+.hero-banner h1 {
+  color: #ffffff;
+  font-size: 2.2rem;
+  margin-bottom: 10px;
+}
+
+.hero-banner p {
+  color: #e4ece3;
+  font-size: 1.05rem;
+  max-width: 680px;
+  margin: 0 auto;
+  line-height: 1.5;
+}
+
+.info-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  justify-content: space-around;
+  background: #ffffff;
+  border: 1px solid #dce3db;
+  border-radius: 8px;
+  padding: 14px 20px;
+  font-size: 14px;
+  color: #304d37;
+  box-shadow: 0 1px 4px rgba(32, 66, 40, 0.04);
+}
+
+.home-cards-grid {
+  margin-top: 16px;
+}
+
+.home-cards-grid article {
+  text-align: center;
+  width: calc(50% - 16px);
+  padding: 24px 20px;
+}
+
+@media (max-width: 768px) {
+  .home-cards-grid article {
+    width: 100%;
+    margin-right: 0;
+  }
+}
+
+/* Center and Bound Entry Forms */
+.animal-management,
+main form {
+  max-width: 680px;
+  margin: 20px auto;
+}
+
 .counter {
   font-size: 16px;
   padding: 5px 10px;
