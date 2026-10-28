@@ -6,6 +6,7 @@ const pool = require('./db');
 const handleFood = require('./food');
 const handleParking = require('./parking');
 const handleAccess = require('./access');
+const handleCheckout = require('./checkout');
 const { requireRoles } = require('./auth');
 
 const PORT = process.env.PORT || 5000;
@@ -60,7 +61,9 @@ const server = http.createServer(async (req, res) => {
     if (await handleAccess(req, res, pool, send, readBody)) {
       return;
     }
-
+        if (await handleCheckout(req, res, pool, send, readBody)) {
+      return;
+    }
     if (await handleFood(req, res, pool, send, readBody)) {
       return;
     }
