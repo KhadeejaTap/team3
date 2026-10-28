@@ -30,12 +30,13 @@ h2 {
 
 /* Main Content Area */
 .content {
-  max-width: 1100px;
+  max-width: 1400px;
   margin: 0 auto;
   padding: 24px 20px 60px;
   text-align: left;
   width: 100%;
   box-sizing: border-box;
+  overflow-x: auto;
 }
 
 /* Top Navigation Bar */
