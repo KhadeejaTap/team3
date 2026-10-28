@@ -336,6 +336,68 @@ const server = http.createServer(async (req, res) => {
       res.end(JSON.stringify({ error: err.message }));
     }
   } else if (
+    req.url.startsWith('/api/reports/species') &&
+    req.method === 'GET'
+  ) {
+    try {
+      const parsedUrl = new URL(req.url, 'http://localhost');
+      const email = parsedUrl.searchParams.get('email');
+      const statusFilter = parsedUrl.searchParams.get('status');
+      const sortBy = parsedUrl.searchParams.get('sort_by') || 'population_desc';
+
+      if (email) {
+        const [userRole] = await pool.query('SELECT role FROM users WHERE email = ?', [email]);
+        const isAdmin = userRole.length > 0 && userRole[0].role === 'admin';
+
+        if (!isAdmin) {
+          const [emp] = await pool.query('SELECT department_ID FROM EMPLOYEE WHERE email = ?', [email]);
+          const deptId = emp.length > 0 ? emp[0].department_ID : null;
+
+          if (deptId !== 2 && deptId !== 3) {
+            res.statusCode = 403;
+            res.end(JSON.stringify({ error: 'Access restricted to Zoo Administrators, Animal Care, and Veterinary personnel.' }));
+            return;
+          }
+        }
+      }
+
+      let query = `
+        SELECT 
+          s.species_ID,
+          s.common_name,
+          s.scientific_name,
+          COALESCE(s.endangered_status, 'Unknown') AS endangered_status,
+          COUNT(a.animal_ID) AS total_count,
+          COALESCE(ROUND(AVG(a.age), 1), 0) AS average_age,
+          COUNT(CASE WHEN a.breeding_status = 'Active' THEN 1 END) AS breeding_count
+        FROM SPECIES s
+        LEFT JOIN ANIMAL a ON s.species_ID = a.species_ID
+      `;
+      const params = [];
+
+      if (statusFilter && statusFilter !== 'all') {
+        query += ' WHERE s.endangered_status = ?';
+        params.push(statusFilter);
+      }
+
+      query += ' GROUP BY s.species_ID, s.common_name, s.scientific_name, s.endangered_status';
+
+      const sortColumns = {
+        population_desc: 'total_count DESC',
+        population_asc: 'total_count ASC',
+        avg_age: 'average_age DESC',
+        name: 's.common_name ASC'
+      };
+      const orderClause = sortColumns[sortBy] || 'total_count DESC';
+      query += ` ORDER BY ${orderClause}`;
+
+      const [rows] = await pool.query(query, params);
+      res.end(JSON.stringify(rows));
+    } catch (err) {
+      res.statusCode = 500;
+      res.end(JSON.stringify({ error: err.message }));
+    }
+  } else if (
     req.url === '/api/attractions' &&
     req.method === 'GET'
   ) {
