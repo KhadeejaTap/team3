@@ -1,4 +1,4 @@
-NSERT INTO ANIMAL
+INSERT INTO ANIMAL
     (species_ID, enclosure_ID, name, age, gender, weight,
      weight_unit, arrival_date, breeding_status)
 VALUES
