@@ -113,9 +113,6 @@ function App() {
               <li className="nav-item">
                 <Link to="/revenue-details">Revenue Details</Link>
               </li>
-              <li className="nav-item">
-                <Link to="/species-report">Species Report</Link>
-              </li>
             </>
           )}
 
