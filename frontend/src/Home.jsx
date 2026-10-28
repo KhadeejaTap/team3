@@ -4,7 +4,7 @@ function Home() {
 	return (
 		<>
 			<div>
-				<h2> Super Cool Zoo </h2>
+				<h2> Cougar Zoo </h2>
 			</div>
 		</>
 	);
