@@ -111,7 +111,7 @@ function RevenueDetails({ role }) {
 
 	return (
 		<div>
-			<h2>Report 2: Zoo Revenue & Fundraising Breakdown</h2>
+			<h2>Zoo Revenue & Fundraising Breakdown</h2>
 			<p>Aggregated financial breakdown of ticket admissions and fundraising donations.</p>
 
 			{/* Filter Parameters Form */}
