@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
+import SpeciesReport from './SpeciesReport';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
-function AnimalManagement() {
+function AnimalManagement({ role, userEmail }) {
+    const [currentTab, setCurrentTab] = useState('entry');
     const [formData, setFormData] = useState({
         name: '',
         species_ID: '',
@@ -83,8 +85,23 @@ function AnimalManagement() {
     }
     return (
         <div className="animal-management">
-            <h1>Animal Management</h1>
-            <p>Enter the animal's information below.</p>
+            <div>
+                <button type="button" onClick={() => setCurrentTab('entry')}>
+                    {currentTab === 'entry' ? <strong>Animal Entry Form</strong> : 'Animal Entry Form'}
+                </button>
+                &nbsp;&nbsp;
+                <button type="button" onClick={() => setCurrentTab('report')}>
+                    {currentTab === 'report' ? <strong>Species Population Report</strong> : 'Species Population Report'}
+                </button>
+            </div>
+            <hr />
+
+            {currentTab === 'report' ? (
+                <SpeciesReport role={role} userEmail={userEmail} />
+            ) : (
+                <>
+                    <h1>Animal Management</h1>
+                    <p>Enter the animal's information below.</p>
 
             <form onSubmit={handleSubmit}>
                 <label htmlFor="name">Animal Name:</label>
@@ -177,6 +194,8 @@ function AnimalManagement() {
                 <button type="submit">Save Animal</button>
             </form>
             {message && <p role="status">{message}</p>}
+                </>
+            )}
         </div>
     );
 }

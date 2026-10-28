@@ -14,13 +14,13 @@ function Home() {
 
 			<section className="info-bar">
 				<div>
-					<strong>📍 Location:</strong> Houston, TX
+					<strong>Location:</strong> Houston, TX
 				</div>
 				<div>
-					<strong>🕒 Hours:</strong> Open Daily 9:00 AM – 5:00 PM
+					<strong>Hours:</strong> Open Daily 9:00 AM – 5:00 PM
 				</div>
 				<div>
-					<strong>🅿️ Parking:</strong> Lots A, B & C Available
+					<strong>Parking:</strong> Visit the parking page to see rates
 				</div>
 			</section>
 
@@ -30,7 +30,7 @@ function Home() {
 				<h2>Plan Your Visit</h2>
 				<div className="home-cards-grid">
 					<article>
-						<h3>🎟️ Tickets & Admissions</h3>
+						<h3>Tickets & Admissions</h3>
 						<p>Book your zoo admission tickets online. Adult and child passes available daily.</p>
 						<br />
 						<Link to="/tickets">
@@ -39,7 +39,7 @@ function Home() {
 					</article>
 
 					<article>
-						<h3>🎁 Gift Shop</h3>
+						<h3>Gift Shop</h3>
 						<p>Browse official Cougar Zoo plushies, apparel, souvenirs, and guidebooks.</p>
 						<br />
 						<Link to="/gift-shop">
@@ -48,7 +48,7 @@ function Home() {
 					</article>
 
 					<article>
-						<h3>🍔 Food & Dining</h3>
+						<h3>Food & Dining</h3>
 						<p>Explore family-friendly snack bars, fresh lunches, and drinks across the park.</p>
 						<br />
 						<Link to="/food">
@@ -57,7 +57,7 @@ function Home() {
 					</article>
 
 					<article>
-						<h3>❤️ Support the Zoo</h3>
+						<h3>Support the Zoo</h3>
 						<p>Help fund animal nutrition, veterinary care, and wildlife rescue programs.</p>
 						<br />
 						<Link to="/donations">

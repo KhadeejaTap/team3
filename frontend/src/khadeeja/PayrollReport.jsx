@@ -98,7 +98,7 @@ function PayrollReport() {
 
 	return (
 		<div>
-			<h2>Report 1: Department Payroll & Headcount Summary</h2>
+			<h2>Department Payroll & Headcount Summary</h2>
 			<p>View aggregated payroll expense and active headcount grouped by department.</p>
 
 			{/* Filter Controls */}

@@ -13,6 +13,7 @@ import AnimalManagement from './animals/AnimalManagement';
 import AttractionManagement from './Attractions/attractionManagement';
 import Tickets from './Tickets/Tickets';
 import RevenueDetails from './khadeeja/RevenueDetails';
+import SpeciesReport from './animals/SpeciesReport';
 
 import {
   BrowserRouter as Router,
@@ -108,9 +109,14 @@ function App() {
           )}
 
           {role === 'admin' && (
-            <li className="nav-item">
-              <Link to="/revenue-details">Revenue Details</Link>
-            </li>
+            <>
+              <li className="nav-item">
+                <Link to="/revenue-details">Revenue Details</Link>
+              </li>
+              <li className="nav-item">
+                <Link to="/species-report">Species Report</Link>
+              </li>
+            </>
           )}
 
           <li className="nav-item">
@@ -200,7 +206,16 @@ function App() {
 
           <Route
             path="/animals"
-            element={<AnimalManagement />}
+            element={
+              <AnimalManagement role={role} userEmail={userEmail} />
+            }
+          />
+
+          <Route
+            path="/species-report"
+            element={
+              <SpeciesReport role={role} userEmail={userEmail} />
+            }
           />
 
           <Route
