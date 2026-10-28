@@ -12,6 +12,7 @@ import Parking from './Daniel/parking';
 import AnimalManagement from './animals/AnimalManagement';
 import AttractionManagement from './Attractions/attractionManagement';
 import Tickets from './Tickets/Tickets';
+import RevenueDetails from './khadeeja/RevenueDetails';
 
 import {
   BrowserRouter as Router,
@@ -98,6 +99,12 @@ function App() {
             </li>
           )}
 
+          {role === 'admin' && (
+            <li className="nav-item">
+              <Link to="/revenue-details">Revenue Details</Link>
+            </li>
+          )}
+
           <li className="nav-item">
             <Link to="/gift-shop">Gift Shop</Link>
           </li>
@@ -157,6 +164,11 @@ function App() {
             element={
               <ReturnDir role={role} userEmail={userEmail} />
             }
+          />
+
+          <Route
+            path="/revenue-details"
+            element={<RevenueDetails role={role} />}
           />
 
           <Route

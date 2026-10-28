@@ -207,6 +207,135 @@ const server = http.createServer(async (req, res) => {
       res.end(JSON.stringify({ error: err.message }));
     }
   } else if (
+    req.url.startsWith('/api/reports/payroll') &&
+    req.method === 'GET'
+  ) {
+    try {
+      const parsedUrl = new URL(req.url, 'http://localhost');
+      const departmentId = parsedUrl.searchParams.get('department_id');
+      const sortBy = parsedUrl.searchParams.get('sort_by') || 'payroll';
+
+      let query = `
+        SELECT 
+          d.department_ID,
+          d.department_name,
+          CONCAT_WS(' ', h.first_name, h.last_name) AS department_head,
+          COUNT(e.employee_ID) AS active_headcount,
+          COALESCE(SUM(e.salary), 0) AS total_payroll,
+          COALESCE(ROUND(AVG(e.salary), 2), 0) AS average_salary,
+          COALESCE(MIN(e.salary), 0) AS min_salary,
+          COALESCE(MAX(e.salary), 0) AS max_salary
+        FROM DEPARTMENT d
+        LEFT JOIN EMPLOYEE h ON d.head_employee_ID = h.employee_ID
+        LEFT JOIN EMPLOYEE e ON d.department_ID = e.department_ID AND e.current = 1
+      `;
+      const params = [];
+
+      if (departmentId && departmentId !== 'all') {
+        query += ' WHERE d.department_ID = ?';
+        params.push(departmentId);
+      }
+
+      query += ' GROUP BY d.department_ID, d.department_name, h.first_name, h.last_name';
+
+      const sortColumns = {
+        payroll: 'total_payroll DESC',
+        headcount: 'active_headcount DESC',
+        avg_salary: 'average_salary DESC',
+        name: 'd.department_name ASC'
+      };
+      const orderClause = sortColumns[sortBy] || 'total_payroll DESC';
+      query += ` ORDER BY ${orderClause}`;
+
+      const [rows] = await pool.query(query, params);
+      res.end(JSON.stringify(rows));
+    } catch (err) {
+      res.statusCode = 500;
+      res.end(JSON.stringify({ error: err.message }));
+    }
+  } else if (
+    req.url.startsWith('/api/reports/revenue') &&
+    req.method === 'GET'
+  ) {
+    try {
+      const parsedUrl = new URL(req.url, 'http://localhost');
+      const streamType = parsedUrl.searchParams.get('stream_type') || 'all';
+      const sortBy = parsedUrl.searchParams.get('sort_by') || 'revenue';
+
+      let query = '';
+
+      if (streamType === 'tickets') {
+        query = `
+          SELECT 
+            'Admissions' AS stream_category,
+            ticket_type AS stream_name,
+            COUNT(*) AS transaction_count,
+            COALESCE(SUM(price), 0) AS total_revenue,
+            COALESCE(ROUND(AVG(price), 2), 0) AS avg_amount,
+            COALESCE(MIN(price), 0) AS min_amount,
+            COALESCE(MAX(price), 0) AS max_amount
+          FROM TICKET
+          GROUP BY ticket_type
+        `;
+      } else if (streamType === 'donations') {
+        query = `
+          SELECT 
+            'Fundraising' AS stream_category,
+            purpose AS stream_name,
+            COUNT(*) AS transaction_count,
+            COALESCE(SUM(amount), 0) AS total_revenue,
+            COALESCE(ROUND(AVG(amount), 2), 0) AS avg_amount,
+            COALESCE(MIN(amount), 0) AS min_amount,
+            COALESCE(MAX(amount), 0) AS max_amount
+          FROM DONATION
+          GROUP BY purpose
+        `;
+      } else {
+        query = `
+          SELECT * FROM (
+            SELECT 
+              'Admissions' AS stream_category,
+              ticket_type AS stream_name,
+              COUNT(*) AS transaction_count,
+              COALESCE(SUM(price), 0) AS total_revenue,
+              COALESCE(ROUND(AVG(price), 2), 0) AS avg_amount,
+              COALESCE(MIN(price), 0) AS min_amount,
+              COALESCE(MAX(price), 0) AS max_amount
+            FROM TICKET
+            GROUP BY ticket_type
+
+            UNION ALL
+
+            SELECT 
+              'Fundraising' AS stream_category,
+              purpose AS stream_name,
+              COUNT(*) AS transaction_count,
+              COALESCE(SUM(amount), 0) AS total_revenue,
+              COALESCE(ROUND(AVG(amount), 2), 0) AS avg_amount,
+              COALESCE(MIN(amount), 0) AS min_amount,
+              COALESCE(MAX(amount), 0) AS max_amount
+            FROM DONATION
+            GROUP BY purpose
+          ) AS streams
+        `;
+      }
+
+      const sortColumns = {
+        revenue: 'total_revenue DESC',
+        count: 'transaction_count DESC',
+        avg: 'avg_amount DESC',
+        name: 'stream_name ASC'
+      };
+      const orderClause = sortColumns[sortBy] || 'total_revenue DESC';
+      query += ` ORDER BY ${orderClause}`;
+
+      const [rows] = await pool.query(query);
+      res.end(JSON.stringify(rows));
+    } catch (err) {
+      res.statusCode = 500;
+      res.end(JSON.stringify({ error: err.message }));
+    }
+  } else if (
     req.url === '/api/attractions' &&
     req.method === 'GET'
   ) {
