@@ -1,0 +1,126 @@
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    padding: 40px 20px;
+    font-family: Arial, Helvetica, sans-serif;
+    background-color: #f4f1e7;
+    color: #263b2b;
+}
+
+h1 {
+    text-align: center;
+    color: #254d35;
+    font-size: 2.3rem;
+    margin-bottom: 10px;
+}
+
+p {
+    text-align: center;
+    color: #687568;
+    font-size: 1rem;
+    margin-bottom: 30px;
+}
+
+#animalForm {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 32px;
+    background-color: #ffffff;
+    border: 1px solid #dce4d8;
+    border-top: 6px solid #47734f;
+    border-radius: 14px;
+    box-shadow: 0 8px 24px rgba(38, 59, 43, 0.10);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 24px;
+}
+
+label {
+    display: block;
+    margin-top: 8px;
+    margin-bottom: 8px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: #304d37;
+}
+
+input {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid #cbd5c8;
+    border-radius: 7px;
+    background-color: #fcfcf9;
+    color: #263b2b;
+    font-family: inherit;
+    font-size: 0.95rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+input:hover {
+    border-color: #86a18a;
+}
+
+input:focus {
+    outline: none;
+    border-color: #47734f;
+    box-shadow: 0 0 0 3px rgba(71, 115, 79, 0.15);
+    background-color: #ffffff;
+}
+
+input:required {
+    border-left: 3px solid #7b9a70;
+}
+
+button[type="submit"] {
+    grid-column: 1 / -1;
+    justify-self: center;
+    margin-top: 20px;
+    padding: 13px 32px;
+    min-width: 200px;
+    border: none;
+    border-radius: 8px;
+    background-color: #315d3d;
+    color: #ffffff;
+    font-size: 1rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.2s;
+}
+
+button[type="submit"]:hover {
+    background-color: #24482f;
+    transform: translateY(-2px);
+}
+
+button[type="submit"]:active {
+    transform: translateY(0);
+}
+
+button:focus-visible {
+    outline: 3px solid #91ad78;
+    outline-offset: 3px;
+}
+
+@media (max-width: 600px) {
+    body {
+        padding: 24px 14px;
+    }
+
+    h1 {
+        font-size: 1.8rem;
+    }
+
+    #animalForm {
+        grid-template-columns: 1fr;
+        padding: 22px;
+        gap: 8px;
+    }
+
+    button[type="submit"] {
+        width: 100%;
+        min-width: 0;
+    }
+}
