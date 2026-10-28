@@ -1,3 +1,209 @@
+/* ==========================================================================
+   GLOBAL ZOO DESIGN SYSTEM (Generic & Clean)
+   ========================================================================== */
+
+/* Page Background & Base Typography */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  background-color: #f8f9f7;
+  color: #243327;
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* Headings */
+h1, h2, h3, h4 {
+  color: #204228;
+  font-weight: 600;
+  margin-top: 0;
+}
+
+h1 {
+  font-size: 2rem;
+  margin-bottom: 8px;
+}
+
+h2 {
+  font-size: 1.5rem;
+  margin-bottom: 8px;
+}
+
+/* Main Content Area */
+.content {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px 20px 60px;
+  text-align: left;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Top Navigation Bar */
+.navbar {
+  background-color: #204228;
+  padding: 12px 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.nav-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-item a {
+  color: #f0f5ee;
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 14px;
+  padding: 6px 12px;
+  border-radius: 4px;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.nav-item a:hover {
+  background-color: #315d3d;
+  color: #ffffff;
+}
+
+.nav-item button {
+  background-color: #315d3d;
+  border: 1px solid #4a7554;
+  color: #ffffff;
+  padding: 6px 14px;
+  font-size: 13px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.nav-item button:hover {
+  background-color: #437851;
+}
+
+/* Generic Form Cards */
+form {
+  background-color: #ffffff;
+  border: 1px solid #dce3db;
+  border-radius: 8px;
+  padding: 20px;
+  margin: 16px 0;
+  box-shadow: 0 1px 4px rgba(32, 66, 40, 0.05);
+  box-sizing: border-box;
+}
+
+label {
+  display: inline-block;
+  font-weight: 600;
+  font-size: 14px;
+  color: #304d37;
+  margin-bottom: 4px;
+}
+
+/* Generic Form Inputs & Dropdowns */
+input, select, textarea {
+  font-family: inherit;
+  font-size: 14px;
+  padding: 8px 12px;
+  border: 1px solid #cbd5c8;
+  border-radius: 6px;
+  background-color: #ffffff;
+  color: #243327;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: #2d5a37;
+  box-shadow: 0 0 0 3px rgba(45, 90, 55, 0.15);
+}
+
+/* Generic Buttons */
+button {
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background-color: #2d5a37;
+  color: #ffffff;
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.1s ease;
+}
+
+button:hover {
+  background-color: #204228;
+}
+
+button:active {
+  transform: translateY(1px);
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Generic Professional Tables */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: #ffffff;
+  border: 1px solid #dce3db;
+  border-radius: 8px;
+  overflow: hidden;
+  margin: 16px 0;
+  box-shadow: 0 1px 4px rgba(32, 66, 40, 0.05);
+}
+
+th {
+  background-color: #eef3ed;
+  color: #204228;
+  font-weight: 600;
+  text-align: left;
+  padding: 12px 14px;
+  border-bottom: 2px solid #cbd5c8;
+  font-size: 14px;
+}
+
+td {
+  padding: 10px 14px;
+  border-bottom: 1px solid #eef2ed;
+  font-size: 14px;
+  color: #243327;
+}
+
+tr:nth-child(even) {
+  background-color: #fafcf9;
+}
+
+tr:hover {
+  background-color: #f0f5ee;
+}
+
+tfoot th, tfoot td {
+  background-color: #e4ece3;
+  color: #204228;
+  font-weight: 600;
+  border-top: 2px solid #cbd5c8;
+  border-bottom: none;
+}
+
+/* Divider */
+hr {
+  border: none;
+  border-top: 1px solid #dce3db;
+  margin: 20px 0;
+}
+
 .counter {
   font-size: 16px;
   padding: 5px 10px;
