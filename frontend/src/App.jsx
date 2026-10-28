@@ -94,9 +94,17 @@ function App() {
           </li>
 
           {['admin', 'manager', 'employee'].includes(role) && (
-            <li className="nav-item">
-              <Link to="/directory">Directory</Link>
-            </li>
+            <>
+              <li className="nav-item">
+                <Link to="/directory">Directory</Link>
+              </li>
+              <li className="nav-item">
+                <Link to="/animals">Animal Management</Link>
+              </li>
+              <li className="nav-item">
+                <Link to="/attractions">Attraction Management</Link>
+              </li>
+            </>
           )}
 
           {role === 'admin' && (
@@ -104,6 +112,14 @@ function App() {
               <Link to="/revenue-details">Revenue Details</Link>
             </li>
           )}
+
+          <li className="nav-item">
+            <Link to="/tickets">Purchase a Ticket</Link>
+          </li>
+
+          <li className="nav-item">
+            <Link to="/donations">Donations</Link>
+          </li>
 
           <li className="nav-item">
             <Link to="/gift-shop">Gift Shop</Link>
@@ -115,22 +131,6 @@ function App() {
 
           <li className="nav-item">
             <Link to="/parking">Parking</Link>
-          </li>
-
-          <li className="nav-item">
-            <Link to="/animals">Animal Management</Link>
-          </li>
-
-          <li className="nav-item">
-            <Link to="/attractions">Attraction Management</Link>
-          </li>
-
-          <li className="nav-item">
-            <Link to="/donations">Donations</Link>
-          </li>
-
-          <li className="nav-item">
-            <Link to="/tickets">Purchase a Ticket</Link>
           </li>
 
           {role ? (
