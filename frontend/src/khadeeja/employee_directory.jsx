@@ -50,7 +50,7 @@ function ReturnDir({ role, userEmail }) {
 			<hr />
 
 			{currentTab === 'report' ? (
-				<PayrollReport />
+				<PayrollReport role={role} userEmail={userEmail} />
 			) : role === 'manager' ? (
 				<MgrView userEmail={userEmail} />
 			) : (

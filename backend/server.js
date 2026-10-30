@@ -214,6 +214,7 @@ const server = http.createServer(async (req, res) => {
       const parsedUrl = new URL(req.url, 'http://localhost');
       const departmentId = parsedUrl.searchParams.get('department_id');
       const sortBy = parsedUrl.searchParams.get('sort_by') || 'payroll';
+      const email = parsedUrl.searchParams.get('email');
 
       let query = `
         SELECT 
@@ -224,14 +225,35 @@ const server = http.createServer(async (req, res) => {
           COALESCE(SUM(e.salary), 0) AS total_payroll,
           COALESCE(ROUND(AVG(e.salary), 2), 0) AS average_salary,
           COALESCE(MIN(e.salary), 0) AS min_salary,
-          COALESCE(MAX(e.salary), 0) AS max_salary
+          COALESCE(MAX(e.salary), 0) AS max_salary,
+          CASE d.department_ID
+            WHEN 1 THEN 200000
+            WHEN 2 THEN 300000
+            WHEN 3 THEN 280000
+            WHEN 6 THEN 100000
+            WHEN 7 THEN 110000
+            WHEN 8 THEN 95000
+            WHEN 9 THEN 180000
+            ELSE 150000
+          END AS allocated_budget
         FROM DEPARTMENT d
         LEFT JOIN EMPLOYEE h ON d.head_employee_ID = h.employee_ID
         LEFT JOIN EMPLOYEE e ON d.department_ID = e.department_ID AND e.current = 1
       `;
       const params = [];
 
-      if (departmentId && departmentId !== 'all') {
+      if (email) {
+        const [userRole] = await pool.query('SELECT role FROM users WHERE email = ?', [email]);
+        const isManager = userRole.length > 0 && userRole[0].role === 'manager';
+
+        if (isManager) {
+          query += ' WHERE d.department_ID = (SELECT department_ID FROM EMPLOYEE WHERE email = ?)';
+          params.push(email);
+        } else if (departmentId && departmentId !== 'all') {
+          query += ' WHERE d.department_ID = ?';
+          params.push(departmentId);
+        }
+      } else if (departmentId && departmentId !== 'all') {
         query += ' WHERE d.department_ID = ?';
         params.push(departmentId);
       }
@@ -242,6 +264,7 @@ const server = http.createServer(async (req, res) => {
         payroll: 'total_payroll DESC',
         headcount: 'active_headcount DESC',
         avg_salary: 'average_salary DESC',
+        budget: 'allocated_budget DESC',
         name: 'd.department_name ASC'
       };
       const orderClause = sortColumns[sortBy] || 'total_payroll DESC';
@@ -1035,9 +1058,16 @@ const server = http.createServer(async (req, res) => {
           ]
         );
 
+        const defaultPassword = `${data.first_name.trim().toLowerCase()}123`;
+        const userRole = (data.user_role && ['admin', 'manager', 'employee'].includes(data.user_role))
+          ? data.user_role
+          : (!data.manager_ID || (data.role && /(lead|director|chief|manager|supervisor)/i.test(data.role))
+            ? 'manager'
+            : 'employee');
+
         await connection.query(
           'INSERT INTO users (email, password, role) VALUES (?, ?, ?)',
-          [data.email.trim(), 'welcome123', 'employee']
+          [data.email.trim(), defaultPassword, userRole]
         );
 
         if (data.attr_ID) {
@@ -1053,8 +1083,9 @@ const server = http.createServer(async (req, res) => {
         res.end(
           JSON.stringify({
             message:
-              `Employee ${data.first_name} ${data.last_name} created successfully (ID: ${newEmployeeID}). Login generated with temporary password 'welcome123'.`,
-            employee_ID: newEmployeeID
+              `Employee ${data.first_name} ${data.last_name} created successfully (ID: ${newEmployeeID}). Login generated: ${data.email.trim()} with password '${defaultPassword}' (${userRole}).`,
+            employee_ID: newEmployeeID,
+            generatedPassword: defaultPassword
           })
         );
       } catch (err) {
@@ -1116,7 +1147,14 @@ const server = http.createServer(async (req, res) => {
           })
         );
       } catch (err) {
-        if (err.code === 'ER_DUP_ENTRY') {
+        if (err.sqlState === '45000') {
+          res.statusCode = 400;
+          res.end(
+            JSON.stringify({
+              error: err.sqlMessage || err.message
+            })
+          );
+        } else if (err.code === 'ER_DUP_ENTRY') {
           res.statusCode = 409;
           res.end(
             JSON.stringify({
