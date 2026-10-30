@@ -16,6 +16,9 @@ function MgrView({ userEmail }) {
 	const [editingId, setEditingId] = useState(null);
 	const [editFormData, setEditFormData] = useState({});
 
+	const managerDept = employees.length > 0 ? employees[0].department_name : '';
+	const isAttractionsDept = managerDept === 'Events & Attractions' || managerDept === 'Animal Care';
+
 	const fetchManagerData = () => {
 		const endpoint = userEmail
 			? `${API_URL}/api/manager?email=${encodeURIComponent(userEmail)}`
@@ -149,10 +152,8 @@ function MgrView({ userEmail }) {
 	};
 
 	const filteredEmployees = employees.filter((emp) => {
-		// 1. Department filter
-		const matchesDept = selectedDept === '' || emp.department_name === selectedDept;
+		const matchesDept = !managerDept || emp.department_name === managerDept;
 
-		// 2. Attraction filter
 		let matchesAttr = true;
 		if (selectedAttr === 'Unassigned') {
 			matchesAttr = !emp.attractions || emp.attractions === 'Unassigned';
@@ -160,7 +161,6 @@ function MgrView({ userEmail }) {
 			matchesAttr = emp.attractions && emp.attractions.includes(selectedAttr);
 		}
 
-		// 3. Search filter
 		const term = searchTerm.trim().toLowerCase();
 		const matchesSearch =
 			!term ||
@@ -174,7 +174,12 @@ function MgrView({ userEmail }) {
 	return (
 		<>
 			<div>
-				<h2> Manager View </h2>
+				<h2>{managerDept ? `${managerDept} Department Hub` : 'Department Manager Hub'}</h2>
+				<p style={{ color: '#555' }}>
+					{isAttractionsDept
+						? `Overseeing active staff, schedules, and exhibit attraction assignments for ${managerDept || 'your department'}.`
+						: `Overseeing active staff, schedules, and operations for ${managerDept || 'your department'}.`}
+				</p>
 
 				<div>
 					<button type="button" onClick={() => setActiveTab('team')}>
@@ -196,28 +201,29 @@ function MgrView({ userEmail }) {
 						{successMsg && <p style={{ color: 'green' }}><strong>Success: </strong>{successMsg}</p>}
 
 						<div>
-							<label><strong>Filter by Department: </strong></label>
-							<select value={selectedDept} onChange={(e) => setSelectedDept(e.target.value)}>
-								<option value="">All Departments</option>
-								<option value="HR">HR</option>
-								<option value="Animal Care">Animal Care</option>
-								<option value="Veterinary">Veterinary</option>
-								<option value="Maintenance">Maintenance</option>
-								<option value="Security">Security</option>
+							<label><strong>Department: </strong></label>
+							<select value={managerDept} disabled>
+								<option value={managerDept}>{managerDept || 'Loading department...'}</option>
 							</select>
+							<span style={{ marginLeft: '8px', fontSize: '0.9em', color: '#666' }}>
+								(Locked to your department)
+							</span>
 
-							&nbsp;&nbsp;&nbsp;
-
-							<label><strong>Filter by Attraction: </strong></label>
-							<select value={selectedAttr} onChange={(e) => setSelectedAttr(e.target.value)}>
-								<option value="">All Attractions</option>
-								<option value="Unassigned">Unassigned</option>
-								{attractionsList.map((a) => (
-									<option key={a.attr_ID} value={a.name}>
-										{a.name}
-									</option>
-								))}
-							</select>
+							{isAttractionsDept && (
+								<>
+									&nbsp;&nbsp;&nbsp;
+									<label><strong>Filter by Attraction: </strong></label>
+									<select value={selectedAttr} onChange={(e) => setSelectedAttr(e.target.value)}>
+										<option value="">All Attractions</option>
+										<option value="Unassigned">Unassigned</option>
+										{attractionsList.map((a) => (
+											<option key={a.attr_ID} value={a.name}>
+												{a.name}
+											</option>
+										))}
+									</select>
+								</>
+							)}
 						</div>
 
 						<br />
@@ -241,7 +247,7 @@ function MgrView({ userEmail }) {
 									<th>Department</th>
 									<th>Employee Name</th>
 									<th>Role</th>
-									<th>Assigned Attractions</th>
+									{isAttractionsDept && <th>Assigned Attractions</th>}
 									<th>Billing Address</th>
 									<th>Email</th>
 									<th>Phone</th>
@@ -269,7 +275,7 @@ function MgrView({ userEmail }) {
 													item.role
 												)}
 											</td>
-											<td><strong>{item.attractions}</strong></td>
+											{isAttractionsDept && <td><strong>{item.attractions}</strong></td>}
 											<td>{item.address}</td>
 											<td>{item.email}</td>
 											<td>
@@ -326,18 +332,22 @@ function MgrView({ userEmail }) {
 														<button type="button" onClick={() => handleDelete(item.employee_ID, item.name)}>
 															Delete
 														</button>
-														&nbsp;
-														<select
-															value=""
-															onChange={(e) => handleAssign(item.employee_ID, e.target.value)}
-														>
-															<option value="" disabled>+ Assign Attraction</option>
-															{attractionsList.map((a) => (
-																<option key={a.attr_ID} value={a.attr_ID}>
-																	{a.name}
-																</option>
-															))}
-														</select>
+														{isAttractionsDept && (
+															<>
+																&nbsp;
+																<select
+																	value=""
+																	onChange={(e) => handleAssign(item.employee_ID, e.target.value)}
+																>
+																	<option value="" disabled>+ Assign Attraction</option>
+																	{attractionsList.map((a) => (
+																		<option key={a.attr_ID} value={a.attr_ID}>
+																			{a.name}
+																		</option>
+																	))}
+																</select>
+															</>
+														)}
 													</>
 												)}
 											</td>
@@ -345,10 +355,16 @@ function MgrView({ userEmail }) {
 									))
 								) : (
 									<tr>
-										<td colSpan="12">
-											{error
-												? 'Could not load data due to an error.'
-												: 'No employees found matching the current filters.'}
+										<td colSpan={isAttractionsDept ? 12 : 11} style={{ textAlign: 'center', padding: '2rem' }}>
+											{error ? (
+												<span style={{ color: 'red' }}>Error loading data: {error}</span>
+											) : searchTerm.trim() ? (
+												<span>No team members found matching <strong>"{searchTerm}"</strong>. Check the spelling or employee ID.</span>
+											) : selectedAttr ? (
+												<span>No team members in {managerDept || 'your department'} currently assigned to <strong>"{selectedAttr}"</strong>.</span>
+											) : (
+												<span>No active employees currently found for {managerDept || 'your department'}.</span>
+											)}
 										</td>
 									</tr>
 								)}

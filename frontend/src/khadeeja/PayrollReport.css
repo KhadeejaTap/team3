@@ -1,0 +1,218 @@
+.payroll-report {
+	width: 100%;
+	max-width: 100%;
+	display: block;
+}
+
+.payroll-controls {
+	margin-bottom: 1.25rem;
+}
+
+.payroll-controls label {
+	margin-right: 4px;
+}
+
+.payroll-controls select {
+	padding: 4px 8px;
+}
+
+.scoped-note {
+	margin-left: 8px;
+	font-size: 0.88rem;
+	color: #555555;
+}
+
+.export-actions {
+	margin-bottom: 1.5rem;
+}
+
+.payroll-error {
+	color: #b91c1c;
+	font-weight: 500;
+}
+
+.payroll-visuals {
+	width: 100%;
+	display: block;
+	margin-bottom: 2.5rem;
+	box-sizing: border-box;
+}
+
+/* Donut Chart Card - Full Screen Width */
+.donut-card {
+	background-color: #f8fafc;
+	border: 1px solid #e2e8f0;
+	border-radius: 8px;
+	padding: 2rem 1.5rem;
+	margin-bottom: 2rem;
+	width: 100%;
+	box-sizing: border-box;
+	text-align: center;
+}
+
+.donut-title {
+	margin-top: 0;
+	margin-bottom: 1.25rem;
+	color: #204228;
+	font-size: 1.35rem;
+}
+
+.donut-chart-large {
+	width: 100%;
+	height: auto;
+	min-height: 520px;
+	max-height: 650px;
+	display: block;
+	margin: 0 auto;
+}
+
+/* Table (Grid) Styles - Clean Neutral Theme */
+.payroll-table {
+	width: 100%;
+	border-collapse: collapse;
+	background-color: #ffffff;
+	border: 1px solid #cbd5e1;
+	border-radius: 8px;
+	overflow: hidden;
+}
+
+.payroll-table th {
+	background-color: #f1f5f9;
+	color: #0f172a;
+	font-weight: 600;
+	text-align: left;
+	padding: 12px 14px;
+	border-bottom: 2px solid #cbd5e1;
+	border-top: none;
+	border-left: none;
+	border-right: none;
+	font-size: 14px;
+}
+
+.payroll-table td {
+	padding: 10px 14px;
+	border-bottom: 1px solid #e2e8f0;
+	border-top: none;
+	border-left: none;
+	border-right: none;
+	font-size: 14px;
+	color: #1e293b;
+}
+
+.payroll-table tbody tr:nth-child(even) {
+	background-color: #f8fafc;
+}
+
+.payroll-table tbody tr:hover {
+	background-color: #f1f5f9;
+}
+
+.payroll-table tfoot th,
+.payroll-table tfoot td {
+	background-color: #e2e8f0;
+	color: #0f172a;
+	font-weight: 600;
+	border-top: 2px solid #cbd5e1;
+	border-bottom: none;
+	border-left: none;
+	border-right: none;
+}
+
+.table-empty-cell {
+	text-align: center;
+	padding: 1.5rem;
+	color: #64748b;
+}
+
+.vacancy-open {
+	color: #b45309;
+	font-weight: 600;
+}
+
+.util-high {
+	color: #b91c1c;
+	font-weight: 600;
+}
+
+.util-normal {
+	color: #0f172a;
+	font-weight: 500;
+}
+
+.text-muted {
+	color: #94a3b8;
+}
+
+@media print {
+	@page {
+		size: landscape;
+		margin: 10mm 12mm;
+	}
+
+	* {
+		-webkit-print-color-adjust: exact !important;
+		print-color-adjust: exact !important;
+	}
+
+	.navbar,
+	.payroll-controls,
+	.export-actions,
+	button,
+	hr {
+		display: none !important;
+	}
+
+	body,
+	.content,
+	.payroll-report {
+		width: 100% !important;
+		max-width: 100% !important;
+		margin: 0 !important;
+		padding: 0 !important;
+		background: #ffffff !important;
+	}
+
+	.payroll-report h2 {
+		font-size: 1.35rem !important;
+		margin-top: 0 !important;
+		margin-bottom: 4px !important;
+	}
+
+	.payroll-report > p {
+		margin-top: 0 !important;
+		margin-bottom: 10px !important;
+		font-size: 0.85rem !important;
+	}
+
+	.payroll-visuals {
+		margin-bottom: 10px !important;
+	}
+
+	.donut-card {
+		border: none !important;
+		background: transparent !important;
+		padding: 0 !important;
+		margin-bottom: 8px !important;
+		break-inside: avoid;
+	}
+
+	.donut-chart-large {
+		min-height: 0 !important;
+		max-height: 250px !important;
+		height: 250px !important;
+	}
+
+	.payroll-table thead {
+		display: table-header-group;
+	}
+
+	.payroll-table tr {
+		break-inside: avoid;
+	}
+
+	.payroll-table th,
+	.payroll-table td {
+		padding: 6px 10px !important;
+		font-size: 12px !important;
+	}
+}

@@ -42,7 +42,10 @@ function EmpView() {
 	return (
 		<>
 			<div>
-				<h2> Super Cool Employee View </h2>
+				<h2>Staff Contact Directory</h2>
+				<p style={{ color: '#555' }}>
+					General contact directory for all active Cougar Zoo personnel.
+				</p>
 
 				{error && (
 					<div style={{
@@ -92,8 +95,14 @@ function EmpView() {
 							))
 						) : (
 							<tr>
-								<td colSpan="6" style={{ textAlign: 'center', padding: '15px' }}>
-									{error ? 'Could not load data due to an error.' : `No employees found matching "${searchTerm}". Try checking the spelling or entering an ID.`}
+								<td colSpan="6" style={{ textAlign: 'center', padding: '2rem' }}>
+									{error ? (
+										<span style={{ color: 'red' }}>Could not load directory data: {error}</span>
+									) : searchTerm.trim() ? (
+										<span>No employees found matching <strong>"{searchTerm}"</strong>. Try checking the spelling or entering a valid ID.</span>
+									) : (
+										<span>No employee records found in the zoo directory.</span>
+									)}
 								</td>
 							</tr>
 						)}
