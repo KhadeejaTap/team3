@@ -25,14 +25,44 @@ export default function POSRegister({
   // Categories list
   const categories = ['all', ...new Set(items.map(i => i.category).filter(Boolean))];
 
-  // Filter items
-  const filteredItems = items.filter(item => {
-    const matchesCat = selectedCategory === 'all' || item.category === selectedCategory;
+  // Track active variant per group: { [groupKey]: variantId }
+  const [selectedVariants, setSelectedVariants] = useState({});
+
+  // Group items by category and name to consolidate color variants into dropdowns
+  const groupedItems = Object.values(
+    items.reduce((acc, item) => {
+      const key = `${item.category}:::${item.name}`;
+      if (!acc[key]) {
+        acc[key] = {
+          name: item.name,
+          category: item.category,
+          variants: []
+        };
+      }
+      acc[key].variants.push(item);
+      return acc;
+    }, {})
+  );
+
+  function getActiveVariant(group) {
+    const chosenId = selectedVariants[group.name];
+    if (chosenId) {
+      const found = group.variants.find(v => (v.product_ID || v.item_ID) === chosenId);
+      if (found) return found;
+    }
+    return group.variants[0];
+  }
+
+  // Filter groups
+  const filteredGroups = groupedItems.filter(group => {
+    const matchesCat = selectedCategory === 'all' || group.category === selectedCategory;
     const q = searchQuery.trim().toLowerCase();
     const matchesSearch = !q ||
-      item.name.toLowerCase().includes(q) ||
-      (item.sku && item.sku.toLowerCase().includes(q)) ||
-      (item.color && item.color.toLowerCase().includes(q));
+      group.name.toLowerCase().includes(q) ||
+      group.variants.some(v =>
+        (v.sku && v.sku.toLowerCase().includes(q)) ||
+        (v.color && v.color.toLowerCase().includes(q))
+      );
     return matchesCat && matchesSearch;
   });
 
@@ -272,38 +302,88 @@ export default function POSRegister({
             ))}
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: '8px', maxHeight: '520px', overflowY: 'auto' }}>
-            {filteredItems.map(item => {
-              const id = item.product_ID || item.item_ID;
-              const isOut = item.quantity_in_stock !== undefined && item.quantity_in_stock <= 0;
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '8px', maxHeight: '520px', overflowY: 'auto' }}>
+            {filteredGroups.map(group => {
+              const active = getActiveVariant(group);
+              const activeId = active.product_ID || active.item_ID;
+              const isOut = active.quantity_in_stock !== undefined && active.quantity_in_stock <= 0;
+              const hasColors = group.variants.length > 1 && group.variants.some(v => v.color);
+
               return (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => addToTicket(item)}
-                  disabled={isOut}
+                <div
+                  key={group.name}
                   style={{
                     padding: '10px',
-                    textAlign: 'left',
                     border: '1px solid #ddd',
                     borderRadius: '4px',
                     backgroundColor: isOut ? '#f5f5f5' : '#fafafa',
-                    cursor: isOut ? 'not-allowed' : 'pointer'
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between'
                   }}
                 >
-                  <div style={{ fontSize: '0.8rem', color: '#666' }}>{item.category}</div>
-                  <div style={{ fontWeight: 'bold', margin: '4px 0', fontSize: '0.9rem' }}>
-                    {item.name} {item.color ? `(${item.color})` : ''}
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                    <strong>${Number(item.price).toFixed(2)}</strong>
-                    {item.quantity_in_stock !== undefined && (
-                      <span style={{ color: isOut ? '#c00' : '#204228' }}>
-                        {isOut ? 'Out' : `Stock: ${item.quantity_in_stock}`}
-                      </span>
+                  <div>
+                    <div style={{ fontSize: '0.8rem', color: '#666' }}>{group.category}</div>
+                    <div style={{ fontWeight: 'bold', margin: '4px 0', fontSize: '0.9rem' }}>
+                      {group.name}
+                    </div>
+
+                    {hasColors && (
+                      <div style={{ margin: '4px 0' }}>
+                        <select
+                          value={activeId}
+                          onChange={e => {
+                            const chosenId = Number(e.target.value);
+                            setSelectedVariants(prev => ({
+                              ...prev,
+                              [group.name]: chosenId
+                            }));
+                          }}
+                          style={{ width: '100%', padding: '3px', fontSize: '0.8rem' }}
+                        >
+                          {group.variants.map(v => {
+                            const vid = v.product_ID || v.item_ID;
+                            const vStock = v.quantity_in_stock !== undefined ? ` (${v.quantity_in_stock})` : '';
+                            return (
+                              <option key={vid} value={vid}>
+                                {v.color ? v.color.charAt(0).toUpperCase() + v.color.slice(1) : 'Default'}
+                                {v.quantity_in_stock !== undefined && v.quantity_in_stock <= 0 ? ' (Out)' : vStock}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </div>
                     )}
                   </div>
-                </button>
+
+                  <div style={{ marginTop: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '6px' }}>
+                      <strong>${Number(active.price).toFixed(2)}</strong>
+                      {active.quantity_in_stock !== undefined && (
+                        <span style={{ color: isOut ? '#c00' : '#204228' }}>
+                          {isOut ? 'Out' : `Stock: ${active.quantity_in_stock}`}
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => addToTicket(active)}
+                      disabled={isOut}
+                      style={{
+                        width: '100%',
+                        padding: '6px',
+                        backgroundColor: isOut ? '#ccc' : '#204228',
+                        color: isOut ? '#666' : '#fff',
+                        border: 'none',
+                        borderRadius: '3px',
+                        cursor: isOut ? 'not-allowed' : 'pointer',
+                        fontSize: '0.85rem'
+                      }}
+                    >
+                      {isOut ? 'Out of Stock' : '+ Add'}
+                    </button>
+                  </div>
+                </div>
               );
             })}
           </div>
