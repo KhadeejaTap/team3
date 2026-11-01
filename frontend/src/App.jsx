@@ -86,6 +86,15 @@ function App() {
     }
   }
 
+  const isStaff = ['admin', 'manager', 'employee'].includes(role);
+  const isAdmin = role === 'admin';
+  const isVisitor = !role || role === 'visitor';
+
+  // Department-specific staff checks (by known employee emails)
+  const isRetailStaff = userEmail === 'emma.watson@zoo.com' || userEmail === 'tom.hardy@zoo.com';
+  const isFoodStaff = userEmail === 'gordon.ramsay@zoo.com' || userEmail === 'mia.goth@zoo.com';
+  const isParkingStaff = userEmail === 'al.bundy@zoo.com' || userEmail === 'kevin.hart@zoo.com';
+
   return (
     <Router>
       <nav className="navbar">
@@ -94,7 +103,59 @@ function App() {
             <Link to="/">Home</Link>
           </li>
 
-          {['admin', 'manager', 'employee'].includes(role) && (
+          {/* 1. Admin: Executive & Financial Oversight */}
+          {isAdmin && (
+            <>
+              <li className="nav-item">
+                <Link to="/directory">Staff & Directory</Link>
+              </li>
+              <li className="nav-item">
+                <Link to="/revenue-details">Revenue Details</Link>
+              </li>
+              <li className="nav-item">
+                <Link to="/species-report">Species Report</Link>
+              </li>
+            </>
+          )}
+
+          {/* 2. Retail Staff (Tom Hardy, Emma Watson) */}
+          {isRetailStaff && (
+            <>
+              <li className="nav-item">
+                <Link to="/directory">Directory</Link>
+              </li>
+              <li className="nav-item">
+                <Link to="/gift-shop">Gift Shop Operations</Link>
+              </li>
+            </>
+          )}
+
+          {/* 3. Food Services Staff (Mia Goth, Gordon Ramsay) */}
+          {isFoodStaff && (
+            <>
+              <li className="nav-item">
+                <Link to="/directory">Directory</Link>
+              </li>
+              <li className="nav-item">
+                <Link to="/food">Food Operations</Link>
+              </li>
+            </>
+          )}
+
+          {/* 4. Parking Services Staff (Kevin Hart, Al Bundy) */}
+          {isParkingStaff && (
+            <>
+              <li className="nav-item">
+                <Link to="/directory">Directory</Link>
+              </li>
+              <li className="nav-item">
+                <Link to="/parking">Parking Operations</Link>
+              </li>
+            </>
+          )}
+
+          {/* 5. Animal Care, Veterinary, & General Staff */}
+          {isStaff && !isAdmin && !isRetailStaff && !isFoodStaff && !isParkingStaff && (
             <>
               <li className="nav-item">
                 <Link to="/directory">Directory</Link>
@@ -108,33 +169,26 @@ function App() {
             </>
           )}
 
-          {role === 'admin' && (
+          {/* 6. Public Visitors / Guests */}
+          {isVisitor && (
             <>
               <li className="nav-item">
-                <Link to="/revenue-details">Revenue Details</Link>
+                <Link to="/tickets">Purchase a Ticket</Link>
+              </li>
+              <li className="nav-item">
+                <Link to="/gift-shop">Gift Shop</Link>
+              </li>
+              <li className="nav-item">
+                <Link to="/food">Food & Dining</Link>
+              </li>
+              <li className="nav-item">
+                <Link to="/parking">Parking</Link>
+              </li>
+              <li className="nav-item">
+                <Link to="/donations">Donations</Link>
               </li>
             </>
           )}
-
-          <li className="nav-item">
-            <Link to="/tickets">Purchase a Ticket</Link>
-          </li>
-
-          <li className="nav-item">
-            <Link to="/donations">Donations</Link>
-          </li>
-
-          <li className="nav-item">
-            <Link to="/gift-shop">Gift Shop</Link>
-          </li>
-
-          <li className="nav-item">
-            <Link to="/food">Food</Link>
-          </li>
-
-          <li className="nav-item">
-            <Link to="/parking">Parking</Link>
-          </li>
 
           {role ? (
             <li className="nav-item">
