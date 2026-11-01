@@ -2,6 +2,7 @@ import { apiFetch as fetch } from '../api';
 import { useEffect, useState } from 'react';
 import CardCheckoutModal from '../components/CardCheckoutModal';
 import POSRegister from '../components/POSRegister';
+import RetailInventoryManagement from './RetailInventoryManagement';
 
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/+$/, '');
 const API = `${API_BASE}/api`;
@@ -102,18 +103,11 @@ export default function GiftShop({ role, userEmail }) {
 						onSaleComplete={loadProducts}
 					/>
 				) : (
-					<div id="dept-head-inventory-container" style={{ border: '1px solid #ccc', padding: '16px', borderRadius: '4px', background: '#fafafa' }}>
-						{/* --- USER IMPLEMENTATION AREA FOR DEPT HEAD INVENTORY --- */}
-						<h3>Retail Department Head Inventory Control</h3>
-						<p style={{ color: '#666' }}>
-							Insert your Department Head inventory management component here (Add Product, Update Price/Stock, Delete Product).
-						</p>
-						<p style={{ fontSize: '13px', color: '#888' }}>
-							Backend endpoints available:
-							<br />• <code>POST /api/products</code> (add product)
-							<br />• <code>PUT /api/products/:id</code> (update price, stock, reorder level, etc.)
-							<br />• <code>DELETE /api/products/:id</code> (delete product)
-						</p>
+					<div id="dept-head-inventory-container">
+						<RetailInventoryManagement
+							products={products}
+							onRefresh={loadProducts}
+						/>
 					</div>
 				)}
 			</div>
