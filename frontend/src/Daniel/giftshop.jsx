@@ -282,7 +282,7 @@ export default function GiftShop({ role, userEmail }) {
 										{group.variants.map(v => (
 											<option key={v.product_ID} value={v.product_ID}>
 												{v.color ? v.color.charAt(0).toUpperCase() + v.color.slice(1) : 'Default'}
-												{v.quantity_in_stock <= 0 ? ' (Out of stock)' : ` (${v.quantity_in_stock} in stock)`}
+												{v.quantity_in_stock <= 0 ? ' (Out of stock)' : ''}
 											</option>
 										))}
 									</select>
@@ -290,7 +290,12 @@ export default function GiftShop({ role, userEmail }) {
 							)}
 
 							<p style={{ margin: '8px 0' }}>
-								Price: ${Number(active.price).toFixed(2)} | Stock: {active.quantity_in_stock}
+								Price: ${Number(active.price).toFixed(2)}
+								{active.quantity_in_stock <= 0 && (
+									<span style={{ color: '#c00', marginLeft: '8px', fontSize: '13px' }}>
+										(Out of stock)
+									</span>
+								)}
 							</p>
 							<button
 								onClick={() => addToCart(active)}
