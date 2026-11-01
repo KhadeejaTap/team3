@@ -61,8 +61,8 @@ async function handleAccess(req, res, pool, send, readBody) {
   }
 
   const isProductWrite =
-    pathname === '/api/products' &&
-    req.method === 'POST';
+    (pathname === '/api/products' || pathname.startsWith('/api/products/')) &&
+    ['POST', 'PUT', 'DELETE'].includes(req.method);
 
   const isMenuWrite =
     pathname === '/api/menu-items' &&
