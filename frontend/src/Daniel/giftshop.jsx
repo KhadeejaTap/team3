@@ -121,7 +121,37 @@ export default function GiftShop({ role, userEmail }) {
 	}
 
 	// --- 3. PUBLIC VISITOR STOREFRONT (Visitors / Customers) ---
-	const filtered = selectedCategory === 'all' ? products : products.filter(p => p.category === selectedCategory);
+	const [selectedVariants, setSelectedVariants] = useState({});
+
+	// Group products by category and name so color variants collapse into a dropdown
+	const groupedProducts = Object.values(
+		products.reduce((acc, p) => {
+			const key = `${p.category}:::${p.name}`;
+			if (!acc[key]) {
+				acc[key] = {
+					name: p.name,
+					category: p.category,
+					variants: []
+				};
+			}
+			acc[key].variants.push(p);
+			return acc;
+		}, {})
+	);
+
+	const filteredGroups = selectedCategory === 'all'
+		? groupedProducts
+		: groupedProducts.filter(g => g.category === selectedCategory);
+
+	function getActiveVariant(group) {
+		const chosenId = selectedVariants[group.name];
+		if (chosenId) {
+			const found = group.variants.find(v => v.product_ID === chosenId);
+			if (found) return found;
+		}
+		return group.variants[0];
+	}
+
 	function addToCart(product) {
 		setCart(prevCart => {
 			const existing = prevCart.find(item => item.product_ID === product.product_ID);
@@ -225,19 +255,52 @@ export default function GiftShop({ role, userEmail }) {
 					loadProducts();
 				}}
 			/>
-			<div>
-				{filtered.map(p => (
-					<div key={p.product_ID}>
-						<h3>{p.name} {p.color ? `(${p.color})` : ''}</h3>
-						<p> Price: ${Number(p.price).toFixed(2)} | Stock: {p.quantity_in_stock}</p>
-						<button
-							onClick={() => addToCart(p)}
-							disabled={p.quantity_in_stock === 0}
-						>
-							{p.quantity_in_stock === 0 ? 'Out of Stock' : 'Add to Cart'}
-						</button>
-					</div>
-				))}
+			<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '16px', marginTop: '16px' }}>
+				{filteredGroups.map(group => {
+					const active = getActiveVariant(group);
+					const hasColorVariants = group.variants.length > 1 && group.variants.some(v => v.color);
+
+					return (
+						<div key={group.name} style={{ border: '1px solid #ccc', padding: '12px', borderRadius: '4px', background: '#fff' }}>
+							<h3 style={{ margin: '0 0 6px 0' }}>{group.name}</h3>
+							<div style={{ fontSize: '13px', color: '#666', marginBottom: '8px' }}>{group.category}</div>
+
+							{hasColorVariants && (
+								<div style={{ margin: '8px 0' }}>
+									<label style={{ fontSize: '13px', marginRight: '6px', fontWeight: 'bold' }}>Color:</label>
+									<select
+										value={active.product_ID}
+										onChange={e => {
+											const chosenId = Number(e.target.value);
+											setSelectedVariants(prev => ({
+												...prev,
+												[group.name]: chosenId
+											}));
+										}}
+										style={{ padding: '4px 8px' }}
+									>
+										{group.variants.map(v => (
+											<option key={v.product_ID} value={v.product_ID}>
+												{v.color ? v.color.charAt(0).toUpperCase() + v.color.slice(1) : 'Default'}
+												{v.quantity_in_stock <= 0 ? ' (Out of stock)' : ` (${v.quantity_in_stock} in stock)`}
+											</option>
+										))}
+									</select>
+								</div>
+							)}
+
+							<p style={{ margin: '8px 0' }}>
+								Price: ${Number(active.price).toFixed(2)} | Stock: {active.quantity_in_stock}
+							</p>
+							<button
+								onClick={() => addToCart(active)}
+								disabled={active.quantity_in_stock === 0}
+							>
+								{active.quantity_in_stock === 0 ? 'Out of Stock' : 'Add to Cart'}
+							</button>
+						</div>
+					);
+				})}
 			</div>
 		</div>
 	);
