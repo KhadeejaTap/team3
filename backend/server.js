@@ -71,13 +71,12 @@ const server = http.createServer(async (req, res) => {
 
     const getQueries = {
       '/api/products': `
-        SELECT p.*, s.name AS shop_name
-        FROM PRODUCT AS p
-        JOIN GIFT_SHOP AS s ON p.shop_ID = s.shop_ID
+        SELECT p.*
+        FROM product AS p
         ORDER BY p.product_ID
       `,
       '/api/gift-shops':
-        'SELECT shop_ID, name FROM GIFT_SHOP ORDER BY name'
+        'SELECT shop_ID, name, location FROM gift_shop ORDER BY name'
     };
 
     if (
@@ -97,50 +96,40 @@ const server = http.createServer(async (req, res) => {
         value.trim().length > 0 &&
         value.trim().length <= max;
 
+      const price = Number(data.price);
+      const costPrice = data.cost_price !== undefined ? Number(data.cost_price) : 0.00;
+      const stock = data.quantity_in_stock !== undefined ? parseInt(data.quantity_in_stock, 10) : 0;
+      const reorderLevel = data.reorder_level !== undefined ? parseInt(data.reorder_level, 10) : 5;
+
       if (
         !data ||
         !validText(data.name, 100) ||
         !validText(data.category, 50) ||
-        !validText(data.color, 50) ||
-        !validText(data.design, 100) ||
-        !/^\d{1,6}(\.\d{1,2})?$/.test(String(data.price)) ||
-        !Number.isInteger(data.quantity_in_stock) ||
-        data.quantity_in_stock < 0 ||
-        data.quantity_in_stock > 2147483647 ||
-        !Number.isInteger(data.shop_ID) ||
-        data.shop_ID <= 0
+        isNaN(price) || price < 0 ||
+        isNaN(costPrice) || costPrice < 0 ||
+        isNaN(stock) || stock < 0 ||
+        isNaN(reorderLevel) || reorderLevel < 0
       ) {
         send(res, 400, {
           error:
-            'Check all fields. Price and stock must be valid, nonnegative numbers.'
-        });
-        return;
-      }
-
-      const [shops] = await pool.execute(
-        'SELECT shop_ID FROM GIFT_SHOP WHERE shop_ID = ?',
-        [data.shop_ID]
-      );
-
-      if (shops.length === 0) {
-        send(res, 400, {
-          error: 'Select an existing gift shop.'
+            'Check all fields. Name, category, price (>= 0), cost price (>= 0), and stock (>= 0) must be valid.'
         });
         return;
       }
 
       const [result] = await pool.execute(
-        `INSERT INTO PRODUCT
-         (name, category, price, quantity_in_stock, color, design, shop_ID)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO product
+         (sku, name, category, color, cost_price, price, quantity_in_stock, reorder_level)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [
+          data.sku && typeof data.sku === 'string' ? data.sku.trim() : null,
           data.name.trim(),
           data.category.trim(),
-          data.price,
-          data.quantity_in_stock,
-          data.color.trim(),
-          data.design.trim(),
-          data.shop_ID
+          data.color && typeof data.color === 'string' ? data.color.trim() : null,
+          costPrice,
+          price,
+          stock,
+          reorderLevel
         ]
       );
 
@@ -149,6 +138,133 @@ const server = http.createServer(async (req, res) => {
         message: 'Product added successfully.'
       });
       return;
+    }
+
+    const putProductMatch = req.url.match(/^\/api\/products\/(\d+)$/);
+    if (putProductMatch && req.method === 'PUT') {
+      const productId = parseInt(putProductMatch[1], 10);
+      const data = await readBody(req);
+
+      if (!data || typeof data !== 'object') {
+        send(res, 400, { error: 'Request body required.' });
+        return;
+      }
+
+      const fields = [];
+      const params = [];
+
+      if (data.name !== undefined) {
+        if (typeof data.name !== 'string' || !data.name.trim()) {
+          send(res, 400, { error: 'Name must be a non-empty string.' });
+          return;
+        }
+        fields.push('name = ?');
+        params.push(data.name.trim());
+      }
+
+      if (data.category !== undefined) {
+        if (typeof data.category !== 'string' || !data.category.trim()) {
+          send(res, 400, { error: 'Category must be a non-empty string.' });
+          return;
+        }
+        fields.push('category = ?');
+        params.push(data.category.trim());
+      }
+
+      if (data.color !== undefined) {
+        fields.push('color = ?');
+        params.push(data.color && typeof data.color === 'string' ? data.color.trim() : null);
+      }
+
+      if (data.sku !== undefined) {
+        fields.push('sku = ?');
+        params.push(data.sku && typeof data.sku === 'string' ? data.sku.trim() : null);
+      }
+
+      if (data.price !== undefined) {
+        const p = Number(data.price);
+        if (isNaN(p) || p < 0) {
+          send(res, 400, { error: 'Price must be a non-negative number.' });
+          return;
+        }
+        fields.push('price = ?');
+        params.push(p);
+      }
+
+      if (data.cost_price !== undefined) {
+        const cp = Number(data.cost_price);
+        if (isNaN(cp) || cp < 0) {
+          send(res, 400, { error: 'Cost price must be a non-negative number.' });
+          return;
+        }
+        fields.push('cost_price = ?');
+        params.push(cp);
+      }
+
+      if (data.quantity_in_stock !== undefined) {
+        const qty = parseInt(data.quantity_in_stock, 10);
+        if (isNaN(qty) || qty < 0) {
+          send(res, 400, { error: 'Quantity in stock must be a non-negative integer.' });
+          return;
+        }
+        fields.push('quantity_in_stock = ?');
+        params.push(qty);
+      }
+
+      if (data.reorder_level !== undefined) {
+        const rl = parseInt(data.reorder_level, 10);
+        if (isNaN(rl) || rl < 0) {
+          send(res, 400, { error: 'Reorder level must be a non-negative integer.' });
+          return;
+        }
+        fields.push('reorder_level = ?');
+        params.push(rl);
+      }
+
+      if (fields.length === 0) {
+        send(res, 400, { error: 'No valid fields provided for update.' });
+        return;
+      }
+
+      params.push(productId);
+      const [updateResult] = await pool.execute(
+        `UPDATE product SET ${fields.join(', ')} WHERE product_ID = ?`,
+        params
+      );
+
+      if (updateResult.affectedRows === 0) {
+        send(res, 404, { error: 'Product not found.' });
+        return;
+      }
+
+      send(res, 200, { message: 'Product updated successfully.' });
+      return;
+    }
+
+    const delProductMatch = req.url.match(/^\/api\/products\/(\d+)$/);
+    if (delProductMatch && req.method === 'DELETE') {
+      const productId = parseInt(delProductMatch[1], 10);
+
+      try {
+        const [delResult] = await pool.execute(
+          'DELETE FROM product WHERE product_ID = ?',
+          [productId]
+        );
+
+        if (delResult.affectedRows === 0) {
+          send(res, 404, { error: 'Product not found.' });
+          return;
+        }
+
+        send(res, 200, { message: 'Product deleted successfully.' });
+        return;
+      } catch (delErr) {
+        if (delErr.code === 'ER_ROW_IS_REFERENCED_2') {
+          send(res, 409, { error: 'Cannot delete product because existing customer transactions reference it.' });
+          return;
+        }
+        throw delErr;
+      }
     }
   } catch (err) {
     console.error(err);
@@ -1461,6 +1577,105 @@ const server = http.createServer(async (req, res) => {
             error: 'Unable to save donation. Please try again.'
           })
         );
+      } finally {
+        if (connection) {
+          connection.release();
+        }
+      }
+    });
+  } else if (req.url === '/api/checkout' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk;
+    });
+
+    req.on('end', async () => {
+      let data;
+      try {
+        data = JSON.parse(body);
+      } catch {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: 'Invalid JSON request body.' }));
+        return;
+      }
+
+      if (!data || !Array.isArray(data.items) || data.items.length === 0) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: 'Your cart is empty. Please add items before checking out.' }));
+        return;
+      }
+
+      const itemType = data.item_type || 'product';
+      if (!['product', 'food', 'ticket'].includes(itemType)) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: 'Invalid item type.' }));
+        return;
+      }
+
+      for (const item of data.items) {
+        if (!item.item_ID || !item.quantity || item.quantity <= 0) {
+          res.statusCode = 400;
+          res.end(JSON.stringify({ error: 'Invalid item details in cart.' }));
+          return;
+        }
+      }
+
+      const subtotal = data.items.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 1), 0);
+      const tax = subtotal * 0.0825;
+      const totalAmount = data.total ? Number(data.total) : subtotal + tax;
+
+      const allowedMethods = ['credit', 'debit', 'digital_wallet', 'paypal'];
+      const paymentMethod = allowedMethods.includes(data.payment_method) ? data.payment_method : 'credit';
+
+      let connection;
+      try {
+        connection = await pool.getConnection();
+        await connection.beginTransaction();
+
+        const [transResult] = await connection.query(
+          `INSERT INTO CUST_TRANSACTION (visitor_ID, total, payment_method, transaction_date)
+           VALUES (?, ?, ?, NOW())`,
+          [data.visitor_ID || null, totalAmount.toFixed(2), paymentMethod]
+        );
+        const transactionID = transResult.insertId;
+
+        for (const item of data.items) {
+          await connection.query(
+            `INSERT INTO TRANSACTION_ITEM (transaction_ID, item_type, item_ID, quantity, price)
+             VALUES (?, ?, ?, ?, ?)`,
+            [transactionID, itemType, item.item_ID, item.quantity, Number(item.price).toFixed(2)]
+          );
+        }
+
+        await connection.commit();
+
+        res.statusCode = 201;
+        res.end(JSON.stringify({
+          success: true,
+          transaction_ID: transactionID,
+          total: totalAmount.toFixed(2),
+          subtotal: subtotal.toFixed(2),
+          tax: tax.toFixed(2),
+          date: new Date().toISOString(),
+          payment_method: data.payment_method || paymentMethod,
+          cash_tendered: data.cash_tendered || null,
+          change_due: data.change_due || null,
+          item_type: itemType,
+          item_count: data.items.reduce((sum, item) => sum + Number(item.quantity), 0),
+          message: 'Order processed successfully!'
+        }));
+      } catch (err) {
+        if (connection) {
+          await connection.rollback();
+        }
+        console.error('Checkout error:', err);
+        if (err.sqlState === '45000') {
+          res.statusCode = 400;
+          res.end(JSON.stringify({ error: err.sqlMessage || err.message }));
+        } else {
+          res.statusCode = 500;
+          res.end(JSON.stringify({ error: 'Checkout failed. ' + err.message }));
+        }
       } finally {
         if (connection) {
           connection.release();

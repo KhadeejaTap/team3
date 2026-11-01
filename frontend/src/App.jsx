@@ -191,7 +191,7 @@ function App() {
 
           <Route
             path="/gift-shop"
-            element={<GiftShop role={role} />}
+            element={<GiftShop role={role} userEmail={userEmail} />}
           />
 
           <Route
