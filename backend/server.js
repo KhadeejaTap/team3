@@ -1366,7 +1366,7 @@ const server = http.createServer(async (req, res) => {
   ) {
     try {
       const [rows] = await pool.query(
-        'SELECT species_ID, common_name FROM SPECIES ORDER BY common_name'
+        'SELECT species_ID, common_name, scientific_name, enclosure_ID FROM SPECIES ORDER BY common_name'
       );
       res.end(JSON.stringify(rows));
     } catch (error) {
