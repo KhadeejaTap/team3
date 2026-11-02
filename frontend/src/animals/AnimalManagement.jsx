@@ -21,6 +21,14 @@ function AnimalManagement({ role, userEmail }) {
     const [message, setMessage] = useState('');
     const [loadingSpecies, setLoadingSpecies] = useState(true);
 
+    const [showAddSpecies, setShowAddSpecies] = useState(false);
+    const [newSpecies, setNewSpecies] = useState({
+        common_name: '',
+        scientific_name: '',
+        endangered_status: '',
+        enclosure_ID: ''
+    });
+
     const [breedingAnimals, setBreedingAnimals] = useState([]);
     const [breedingLoading, setBreedingLoading] = useState(false);
     const [breedingError, setBreedingError] = useState('');
@@ -141,6 +149,63 @@ function AnimalManagement({ role, userEmail }) {
         }
     }
 
+    // Add a new species to the database
+    async function handleAddSpecies(event) {
+        event.preventDefault();
+        setMessage('');
+
+        try {
+            const response = await fetch(`${API_URL}/api/species`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    ...newSpecies,
+                    common_name: newSpecies.common_name.trim(),
+                    scientific_name: newSpecies.scientific_name.trim(),
+                    enclosure_ID: Number(newSpecies.enclosure_ID)
+                })
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.error || 'Could not add species.');
+            }
+
+            // Refresh the species dropdown
+            const speciesResponse = await fetch(`${API_URL}/api/species`);
+
+            if (!speciesResponse.ok) {
+                throw new Error('Species was added, but the dropdown could not refresh.');
+            }
+
+            const updatedSpecies = await speciesResponse.json();
+            setSpecies(updatedSpecies);
+
+            // Automatically select the newly added species
+            setFormData({
+                ...formData,
+                species_ID: String(result.species_ID),
+                enclosure_ID: newSpecies.enclosure_ID
+            });
+
+            setNewSpecies({
+                common_name: '',
+                scientific_name: '',
+                endangered_status: '',
+                enclosure_ID: ''
+            });
+
+            setShowAddSpecies(false);
+            setMessage('Species added successfully! It is now selected.');
+
+        } catch (error) {
+            setMessage(`Error: ${error.message}`);
+        }
+    }
+
     return (
         <div className="animal-management">
 
@@ -239,6 +304,69 @@ function AnimalManagement({ role, userEmail }) {
                     <h1>Animal Management</h1>
                     <p>Enter the animal's information below.</p>
 
+                    {/* Add New Species Form */}
+                    {showAddSpecies && (
+                        <form onSubmit={handleAddSpecies}>
+                            <h2>Add New Species</h2>
+
+                            <label htmlFor="common_name">Common Name:</label>
+                            <input
+                                id="common_name"
+                                value={newSpecies.common_name}
+                                onChange={(e) => setNewSpecies({
+                                    ...newSpecies,
+                                    common_name: e.target.value
+                                })}
+                                maxLength="100"
+                                required
+                            />
+
+                            <label htmlFor="scientific_name">Scientific Name:</label>
+                            <input
+                                id="scientific_name"
+                                value={newSpecies.scientific_name}
+                                onChange={(e) => setNewSpecies({
+                                    ...newSpecies,
+                                    scientific_name: e.target.value
+                                })}
+                                maxLength="100"
+                                required
+                            />
+
+                            <label htmlFor="endangered_status">Endangered Status:</label>
+                            <input
+                                id="endangered_status"
+                                value={newSpecies.endangered_status}
+                                onChange={(e) => setNewSpecies({
+                                    ...newSpecies,
+                                    endangered_status: e.target.value
+                                })}
+                            />
+
+                            <label htmlFor="new_enclosure_ID">Enclosure ID:</label>
+                            <input
+                                id="new_enclosure_ID"
+                                type="number"
+                                min="1"
+                                value={newSpecies.enclosure_ID}
+                                onChange={(e) => setNewSpecies({
+                                    ...newSpecies,
+                                    enclosure_ID: e.target.value
+                                })}
+                                required
+                            />
+
+                            <button type="submit">Save Species</button>
+
+                            <button
+                                type="button"
+                                onClick={() => setShowAddSpecies(false)}
+                            >
+                                Cancel
+                            </button>
+                        </form>
+                    )}
+
                     <form onSubmit={handleSubmit}>
 
                         <label htmlFor="name">Animal Name:</label>
@@ -274,6 +402,13 @@ function AnimalManagement({ role, userEmail }) {
                                 </option>
                             ))}
                         </select>
+
+                        <button
+                            type="button"
+                            onClick={() => setShowAddSpecies(!showAddSpecies)}
+                        >
+                            {showAddSpecies ? 'Cancel' : 'Add New Species'}
+                        </button>
 
                         <label htmlFor="enclosure_ID">Assigned Enclosure ID:</label>
                         <input
