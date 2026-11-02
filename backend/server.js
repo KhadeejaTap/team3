@@ -511,7 +511,7 @@ const server = http.createServer(async (req, res) => {
           COALESCE(s.endangered_status, 'Unknown') AS endangered_status,
           COUNT(a.animal_ID) AS total_count,
           COALESCE(ROUND(AVG(a.age), 1), 0) AS average_age,
-          COUNT(CASE WHEN a.breeding_status = 'Active' THEN 1 END) AS breeding_count
+          COUNT(CASE WHEN a.breeding_status = 'Breeding' THEN 1 END) AS breeding_count
         FROM SPECIES s
         LEFT JOIN ANIMAL a ON s.species_ID = a.species_ID
       `;
