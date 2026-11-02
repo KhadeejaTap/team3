@@ -1378,6 +1378,44 @@ const server = http.createServer(async (req, res) => {
         })
       );
     }
+      } else if (
+    req.url === '/api/species' &&
+    req.method === 'POST'
+  ) {
+    try {
+      const data = await readBody(req);
+
+      if (!data.common_name || !data.scientific_name) {
+        send(res, 400, {
+          error: 'Common name and scientific name are required.'
+        });
+        return;
+      }
+
+      const [result] = await pool.query(
+        `INSERT INTO SPECIES
+         (common_name, scientific_name, endangered_status, enclosure_ID)
+         VALUES (?, ?, ?, ?)`,
+        [
+          data.common_name.trim(),
+          data.scientific_name.trim(),
+          data.endangered_status || null,
+          data.enclosure_ID || null
+        ]
+      );
+
+      send(res, 201, {
+        message: 'Species added successfully.',
+        species_ID: result.insertId
+      });
+      return;
+    } catch (error) {
+      console.error('Error adding species:', error);
+      send(res, 500, {
+        error: 'Failed to add species.'
+      });
+      return;
+    }
   } else if (
     req.url === '/api/donations/history' &&
     req.method === 'GET'
