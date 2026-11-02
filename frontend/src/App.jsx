@@ -115,6 +115,9 @@ function App() {
               <li className="nav-item">
                 <Link to="/species-report">Species Report</Link>
               </li>
+              <li className="nav-item">
+                <Link to="/animals">Animal Management</Link>
+              </li>
             </>
           )}
 
