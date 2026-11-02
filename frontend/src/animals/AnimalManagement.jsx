@@ -75,11 +75,26 @@ function AnimalManagement({ role, userEmail }) {
     }, [currentTab]);
 
     // Handle form input changes
+    // Automatically populate enclosure when species is selected
     function handleChange(event) {
-        setFormData({
-            ...formData,
-            [event.target.name]: event.target.value
-        });
+        const { name, value } = event.target;
+
+        if (name === 'species_ID') {
+            const selectedSpecies = species.find(
+                (item) => Number(item.species_ID) === Number(value)
+            );
+
+            setFormData({
+                ...formData,
+                species_ID: value,
+                enclosure_ID: selectedSpecies?.enclosure_ID ?? ''
+            });
+        } else {
+            setFormData({
+                ...formData,
+                [name]: value
+            });
+        }
     }
 
     // Submit new animal
@@ -260,15 +275,14 @@ function AnimalManagement({ role, userEmail }) {
                             ))}
                         </select>
 
-                        <label htmlFor="enclosure_ID">Enclosure ID:</label>
+                        <label htmlFor="enclosure_ID">Assigned Enclosure ID:</label>
                         <input
                             id="enclosure_ID"
                             name="enclosure_ID"
                             type="number"
-                            min="1"
                             value={formData.enclosure_ID}
-                            onChange={handleChange}
-                            required
+                            readOnly
+                            placeholder="Automatically assigned"
                         />
 
                         <label htmlFor="age">Age:</label>
