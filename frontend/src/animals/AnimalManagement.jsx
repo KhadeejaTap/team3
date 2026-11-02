@@ -18,6 +18,9 @@ function AnimalManagement({ role, userEmail }) {
     const [species, setSpecies] = useState([]);
     const [message, setMessage] = useState('');
     const [loadingSpecies, setLoadingSpecies] = useState(true);
+    const [breedingAnimals, setBreedingAnimals] = useState([]);
+    const [breedingLoading, setBreedingLoading] = useState(false);
+    const [breedingError, setBreedingError] = useState('');
 
     useEffect(() => {
         async function fetchSpecies() {
@@ -89,6 +92,12 @@ function AnimalManagement({ role, userEmail }) {
                 <button type="button" onClick={() => setCurrentTab('entry')}>
                     {currentTab === 'entry' ? <strong>Animal Entry Form</strong> : 'Animal Entry Form'}
                 </button>
+                <button
+                    type="button"
+                    onClick={() => setCurrentTab('breeding')}
+                >
+                    {currentTab === 'breeding' ? <strong>Breeding Program</strong> : 'Breeding Program'}
+            </button>
                 &nbsp;&nbsp;
                 <button type="button" onClick={() => setCurrentTab('report')}>
                     {currentTab === 'report' ? <strong>Species Population Report</strong> : 'Species Population Report'}
