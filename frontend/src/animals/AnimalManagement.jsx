@@ -282,13 +282,17 @@ function AnimalManagement({ role, userEmail }) {
                         />
 
                         <label htmlFor="gender">Gender:</label>
-                        <input
+                        <select
                             id="gender"
                             name="gender"
                             value={formData.gender}
                             onChange={handleChange}
-                            maxLength="20"
-                        />
+                            required
+                        >
+                            <option value="">Select Gender</option>
+                            <option value="M">M</option>
+                            <option value="F">F</option>
+                        </select>
 
                         <label htmlFor="weight">Weight:</label>
                         <input
