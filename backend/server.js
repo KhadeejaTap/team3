@@ -788,6 +788,32 @@ const server = http.createServer(async (req, res) => {
         }
       }
     });
+      } else if (
+    req.url === '/api/breeding-program' &&
+    req.method === 'GET'
+  ) {
+    try {
+      const [rows] = await pool.query(`
+        SELECT
+          a.animal_ID,
+          a.name,
+          s.common_name,
+          a.age,
+          a.gender,
+          e.name AS enclosure_name,
+          a.breeding_status
+        FROM ANIMAL a
+        JOIN SPECIES s ON a.species_ID = s.species_ID
+        JOIN ENCLOSURE e ON a.enclosure_ID = e.enclosure_ID
+        WHERE a.breeding_status = 'Breeding'
+        ORDER BY s.common_name, a.name
+      `);
+
+      res.end(JSON.stringify(rows));
+    } catch (err) {
+      res.statusCode = 500;
+      res.end(JSON.stringify({ error: err.message }));
+    }
   } else if (
     req.url === '/api/animals' &&
     req.method === 'GET'
