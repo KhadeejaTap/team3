@@ -1,3 +1,4 @@
+
 import './App.css';
 import { useState } from 'react';
 import { apiFetch } from './api';
@@ -25,11 +26,15 @@ import {
 
 function App() {
   const [role, setRole] = useState(() =>
-    localStorage.getItem('user_token') ? localStorage.getItem('user_role') : null
+    localStorage.getItem('user_token')
+      ? localStorage.getItem('user_role')
+      : null
   );
 
   const [userEmail, setUserEmail] = useState(() =>
-    localStorage.getItem('user_token') ? localStorage.getItem('user_email') : null
+    localStorage.getItem('user_token')
+      ? localStorage.getItem('user_email')
+      : null
   );
 
   const [loggingOut, setLoggingOut] = useState(false);
@@ -42,8 +47,12 @@ function App() {
 
     if (newRole) {
       localStorage.setItem('user_role', newRole);
-      if (newEmail) localStorage.setItem('user_email', newEmail);
-      else localStorage.removeItem('user_email');
+
+      if (newEmail) {
+        localStorage.setItem('user_email', newEmail);
+      } else {
+        localStorage.removeItem('user_email');
+      }
     } else {
       localStorage.removeItem('user_token');
       localStorage.removeItem('user_role');
@@ -53,17 +62,27 @@ function App() {
 
   async function handleLogout() {
     if (loggingOut) return;
+
     setLoggingOut(true);
     setAuthError('');
 
     try {
       if (localStorage.getItem('user_token')) {
-        const response = await apiFetch('http://localhost:5000/api/logout', { method: 'POST' });
-        if (!response.ok) throw new Error('Could not log out. Please try again.');
+        const response = await apiFetch(
+          'http://localhost:5000/api/logout',
+          { method: 'POST' }
+        );
+
+        if (!response.ok) {
+          throw new Error('Could not log out. Please try again.');
+        }
       }
+
       handleLogin(null, null);
     } catch (err) {
-      setAuthError(err.message || 'Could not reach the server to log out.');
+      setAuthError(
+        err.message || 'Could not reach the server to log out.'
+      );
     } finally {
       setLoggingOut(false);
     }
@@ -73,73 +92,139 @@ function App() {
   const isAdmin = role === 'admin';
   const isVisitor = !role || role === 'visitor';
 
-  const isRetailStaff = userEmail === 'emma.watson@zoo.com' || userEmail === 'tom.hardy@zoo.com';
-  const isFoodStaff = userEmail === 'gordon.ramsay@zoo.com' || userEmail === 'mia.goth@zoo.com';
-  const isParkingStaff = userEmail === 'al.bundy@zoo.com' || userEmail === 'kevin.hart@zoo.com';
+  const isRetailStaff =
+    userEmail === 'emma.watson@zoo.com' ||
+    userEmail === 'tom.hardy@zoo.com';
+
+  const isFoodStaff =
+    userEmail === 'gordon.ramsay@zoo.com' ||
+    userEmail === 'mia.goth@zoo.com';
+
+  const isParkingStaff =
+    userEmail === 'al.bundy@zoo.com' ||
+    userEmail === 'kevin.hart@zoo.com';
 
   return (
     <Router>
       <nav className="navbar">
         <ul className="nav-list">
-          <li className="nav-item"><Link to="/">Home</Link></li>
+          <li className="nav-item">
+            <Link to="/">Home</Link>
+          </li>
 
+          {/* Admin */}
           {isAdmin && (
             <>
-              <li className="nav-item"><Link to="/directory">Staff & Directory</Link></li>
-              <li className="nav-item"><Link to="/revenue-details">Revenue Details</Link></li>
-              <li className="nav-item"><Link to="/species-report">Species Report</Link></li>
-              <li className="nav-item"><Link to="/animals">Animal Management</Link></li>
+              <li className="nav-item">
+                <Link to="/directory">Staff & Directory</Link>
+              </li>
+              <li className="nav-item">
+                <Link to="/revenue-details">Revenue Details</Link>
+              </li>
+              <li className="nav-item">
+                <Link to="/species-report">Species Report</Link>
+              </li>
+              <li className="nav-item">
+                <Link to="/animals">Animal Management</Link>
+              </li>
             </>
           )}
 
+          {/* Retail Staff */}
           {isRetailStaff && (
             <>
-              <li className="nav-item"><Link to="/directory">Directory</Link></li>
-              <li className="nav-item"><Link to="/gift-shop">Gift Shop Operations</Link></li>
+              <li className="nav-item">
+                <Link to="/directory">Directory</Link>
+              </li>
+              <li className="nav-item">
+                <Link to="/gift-shop">Gift Shop Operations</Link>
+              </li>
             </>
           )}
 
+          {/* Food Services Staff */}
           {isFoodStaff && (
             <>
-              <li className="nav-item"><Link to="/directory">Directory</Link></li>
-              <li className="nav-item"><Link to="/food">Food Operations</Link></li>
+              <li className="nav-item">
+                <Link to="/directory">Directory</Link>
+              </li>
+              <li className="nav-item">
+                <Link to="/food">Food Operations</Link>
+              </li>
             </>
           )}
 
+          {/* Parking Services Staff */}
           {isParkingStaff && (
             <>
-              <li className="nav-item"><Link to="/directory">Directory</Link></li>
-              <li className="nav-item"><Link to="/parking">Parking Operations</Link></li>
+              <li className="nav-item">
+                <Link to="/directory">Directory</Link>
+              </li>
+              <li className="nav-item">
+                <Link to="/parking">Parking Operations</Link>
+              </li>
             </>
           )}
 
-          {isStaff && !isAdmin && !isRetailStaff && !isFoodStaff && !isParkingStaff && (
-            <>
-              <li className="nav-item"><Link to="/directory">Directory</Link></li>
-              <li className="nav-item"><Link to="/animals">Animal Management</Link></li>
-              <li className="nav-item"><Link to="/attractions">Attraction Management</Link></li>
-            </>
-          )}
+          {/* Other Staff */}
+          {isStaff &&
+            !isAdmin &&
+            !isRetailStaff &&
+            !isFoodStaff &&
+            !isParkingStaff && (
+              <>
+                <li className="nav-item">
+                  <Link to="/directory">Directory</Link>
+                </li>
+                <li className="nav-item">
+                  <Link to="/animals">Animal Management</Link>
+                </li>
+                <li className="nav-item">
+                  <Link to="/attractions">Attraction Management</Link>
+                </li>
+              </>
+            )}
 
+          {/* Public Visitors */}
           {isVisitor && (
             <>
-              <li className="nav-item"><Link to="/animal-directory">Meet the Animals</Link></li>
-              <li className="nav-item"><Link to="/tickets">Purchase a Ticket</Link></li>
-              <li className="nav-item"><Link to="/gift-shop">Gift Shop</Link></li>
-              <li className="nav-item"><Link to="/food">Food & Dining</Link></li>
-              <li className="nav-item"><Link to="/parking">Parking</Link></li>
-              <li className="nav-item"><Link to="/donations">Donations</Link></li>
+              <li className="nav-item">
+                <Link to="/animal-directory">Meet the Animals</Link>
+              </li>
+              <li className="nav-item">
+                <Link to="/tickets">Purchase a Ticket</Link>
+              </li>
+              <li className="nav-item">
+                <Link to="/gift-shop">Gift Shop</Link>
+              </li>
+              <li className="nav-item">
+                <Link to="/food">Food & Dining</Link>
+              </li>
+              <li className="nav-item">
+                <Link to="/parking">Parking</Link>
+              </li>
+              <li className="nav-item">
+                <Link to="/donations">Donations</Link>
+              </li>
             </>
           )}
 
           {role ? (
             <li className="nav-item">
-              <button type="button" onClick={handleLogout} disabled={loggingOut}>
-                {loggingOut ? 'Logging out...' : `Log Out (${role})`}
+              <button
+                type="button"
+                onClick={handleLogout}
+                disabled={loggingOut}
+              >
+                {loggingOut
+                  ? 'Logging out...'
+                  : `Log Out (${role})`}
               </button>
             </li>
           ) : (
-            <li className="nav-item"><Link to="/login">Login or Sign Up</Link></li>
+            <li className="nav-item">
+              <Link to="/login">Login or Sign Up</Link>
+            </li>
           )}
         </ul>
       </nav>
@@ -149,19 +234,87 @@ function App() {
       <div className="content">
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/animal-directory" element={<VisitorAnimalDirectory />} />
-          <Route path="/directory" element={<ReturnDir role={role} userEmail={userEmail} />} />
-          <Route path="/revenue-details" element={<RevenueDetails role={role} />} />
-          <Route path="/employees" element={<ReturnDir role={role} userEmail={userEmail} />} />
-          <Route path="/login" element={<LoginPage onLogin={handleLogin} />} />
-          <Route path="/gift-shop" element={<GiftShop role={role} userEmail={userEmail} />} />
-          <Route path="/food" element={<Food role={role} />} />
-          <Route path="/parking" element={<Parking role={role} />} />
-          <Route path="/animals" element={<AnimalManagement role={role} userEmail={userEmail} />} />
-          <Route path="/species-report" element={<SpeciesReport role={role} userEmail={userEmail} />} />
-          <Route path="/attractions" element={<AttractionManagement />} />
-          <Route path="/donations" element={<Donations role={role} userEmail={userEmail} token={localStorage.getItem('user_token')} />} />
-          <Route path="/tickets" element={<Tickets />} />
+
+          {/* Public Visitor Animal Directory */}
+          <Route
+            path="/animal-directory"
+            element={<VisitorAnimalDirectory />}
+          />
+
+          <Route
+            path="/directory"
+            element={
+              <ReturnDir role={role} userEmail={userEmail} />
+            }
+          />
+
+          <Route
+            path="/revenue-details"
+            element={<RevenueDetails role={role} />}
+          />
+
+          <Route
+            path="/employees"
+            element={
+              <ReturnDir role={role} userEmail={userEmail} />
+            }
+          />
+
+          <Route
+            path="/login"
+            element={<LoginPage onLogin={handleLogin} />}
+          />
+
+          <Route
+            path="/gift-shop"
+            element={<GiftShop role={role} userEmail={userEmail} />}
+          />
+
+          <Route
+            path="/food"
+            element={<Food role={role} />}
+          />
+
+          <Route
+            path="/parking"
+            element={<Parking role={role} />}
+          />
+
+          {/* Staff Animal Management */}
+          <Route
+            path="/animals"
+            element={
+              <AnimalManagement role={role} userEmail={userEmail} />
+            }
+          />
+
+          <Route
+            path="/species-report"
+            element={
+              <SpeciesReport role={role} userEmail={userEmail} />
+            }
+          />
+
+          <Route
+            path="/attractions"
+            element={<AttractionManagement />}
+          />
+
+          <Route
+            path="/donations"
+            element={
+              <Donations
+                role={role}
+                userEmail={userEmail}
+                token={localStorage.getItem('user_token')}
+              />
+            }
+          />
+
+          <Route
+            path="/tickets"
+            element={<Tickets />}
+          />
         </Routes>
       </div>
     </Router>
