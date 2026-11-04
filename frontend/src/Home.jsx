@@ -1,7 +1,9 @@
 import { Link } from 'react-router-dom';
 import './App.css';
 
-function Home() {
+function Home({ role }) {
+  const isAdmin = role === 'admin';
+
   return (
     <div className="home-container">
       <section className="hero-banner">
@@ -57,6 +59,15 @@ function Home() {
             <br />
             <Link to="/donations"><button type="button">Make a Donation</button></Link>
           </article>
+
+          {isAdmin && (
+            <article>
+              <h3>Enclosure Management</h3>
+              <p>Review enclosure conditions, temperatures, amenities, occupancy, and maintenance records.</p>
+              <br />
+              <Link to="/enclosures"><button type="button">Manage Enclosures</button></Link>
+            </article>
+          )}
         </div>
       </section>
     </div>
