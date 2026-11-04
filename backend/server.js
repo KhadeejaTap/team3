@@ -789,6 +789,113 @@ const server = http.createServer(async (req, res) => {
       }
     });
       } else if (
+    req.url === '/api/medical-records/animals' &&
+    req.method === 'GET'
+  ) {
+    try {
+      const [rows] = await pool.query(`
+        SELECT a.animal_ID, a.name, a.age, a.gender, s.common_name,
+               (SELECT mr.follow_up FROM MEDICAL_RECORD mr
+                WHERE mr.animal_ID = a.animal_ID
+                ORDER BY mr.record_ID DESC LIMIT 1) AS next_appointment
+        FROM ANIMAL a
+        LEFT JOIN SPECIES s ON s.species_ID = a.species_ID
+        ORDER BY a.name
+      `);
+      send(res, 200, rows);
+      return;
+    } catch (err) {
+      console.error('Error loading animals for medical records:', err);
+      send(res, 500, { error: 'Could not load animals for medical records.' });
+      return;
+    }
+  } else if (
+    req.url.startsWith('/api/medical-records?') &&
+    req.method === 'GET'
+  ) {
+    const parsedUrl = new URL(req.url, 'http://localhost');
+    const animalID = Number(parsedUrl.searchParams.get('animal_ID'));
+    if (!Number.isInteger(animalID) || animalID <= 0) {
+      send(res, 400, { error: 'A valid animal ID is required.' });
+      return;
+    }
+    try {
+      const [rows] = await pool.query(
+        `SELECT record_ID, animal_ID, date, diagnosis, treatment, notes,
+                vet_ID, follow_up, is_sick
+         FROM MEDICAL_RECORD
+         WHERE animal_ID = ?
+         ORDER BY date DESC, record_ID DESC`,
+        [animalID]
+      );
+      send(res, 200, rows);
+      return;
+    } catch (err) {
+      console.error('Error loading medical history:', err);
+      send(res, 500, { error: 'Could not load medical history.' });
+      return;
+    }
+  } else if (
+    req.url === '/api/medical-records' &&
+    req.method === 'POST'
+  ) {
+    let record;
+    try {
+      record = await readBody(req);
+    } catch (err) {
+      send(res, err.status || 400, { error: err.message });
+      return;
+    }
+    const animalID = Number(record?.animal_ID);
+    if (!Number.isInteger(animalID) || animalID <= 0 ||
+        !record?.diagnosis?.trim() || !record?.treatment?.trim()) {
+      send(res, 400, { error: 'Select an animal and enter a diagnosis and treatment.' });
+      return;
+    }
+    const isSick = record.is_sick === true;
+    let followUp = null;
+    if (!isSick && record.follow_up) {
+      const value = String(record.follow_up).replace('T', ' ');
+      if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/.test(value)) {
+        send(res, 400, { error: 'Enter a valid follow-up date and time.' });
+        return;
+      }
+      followUp = value.length === 16 ? `${value}:00` : value;
+    }
+    try {
+      const [animalRows] = await pool.query(
+        'SELECT animal_ID FROM ANIMAL WHERE animal_ID = ?', [animalID]
+      );
+      if (animalRows.length === 0) {
+        send(res, 404, { error: 'Animal not found.' });
+        return;
+      }
+      const [result] = await pool.execute(
+        `INSERT INTO MEDICAL_RECORD
+         (animal_ID, date, diagnosis, treatment, notes, vet_ID, follow_up, is_sick)
+         VALUES (?, CURDATE(), ?, ?, ?, ?,
+                 CASE WHEN ? = 1
+                   THEN DATE_ADD(CURDATE(), INTERVAL 1 DAY) + INTERVAL 9 HOUR
+                   ELSE ? END,
+                 ?)`,
+        [animalID, record.diagnosis.trim(), record.treatment.trim(),
+         record.notes?.trim() || null,
+         record.vet_ID ? Number(record.vet_ID) : null,
+         isSick ? 1 : 0, followUp, isSick ? 1 : 0]
+      );
+      send(res, 201, {
+        message: isSick
+          ? 'Medical record saved. Follow-up scheduled for tomorrow at 9:00 AM.'
+          : 'Medical record saved successfully.',
+        record_ID: result.insertId
+      });
+      return;
+    } catch (err) {
+      console.error('Error saving medical record:', err);
+      send(res, 500, { error: 'Could not save medical record. Check that the MEDICAL_RECORD columns and foreign keys match the schema.' });
+      return;
+    }
+  } else if (
     req.url === '/api/breeding-program' &&
     req.method === 'GET'
   ) {
