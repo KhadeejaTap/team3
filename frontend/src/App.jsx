@@ -10,6 +10,8 @@ import GiftShop from './Daniel/giftshop';
 import Food from './Daniel/food';
 import Parking from './Daniel/parking';
 import AnimalManagement from './animals/AnimalManagement';
+import EnclosureManagement from './animals/EnclosureManagement';
+import VisitorAnimalDirectory from './VisitorAnimalDirectory';
 import AttractionManagement from './Attractions/attractionManagement';
 import Tickets from './Tickets/Tickets';
 import RevenueDetails from './khadeeja/RevenueDetails';
@@ -19,7 +21,8 @@ import {
   BrowserRouter as Router,
   Routes,
   Route,
-  Link
+  Link,
+  Navigate
 } from 'react-router-dom';
 
 function App() {
@@ -86,6 +89,22 @@ function App() {
     }
   }
 
+  const isStaff = ['admin', 'manager', 'employee'].includes(role);
+  const isAdmin = role === 'admin';
+  const isVisitor = !role || role === 'visitor';
+
+  const isRetailStaff =
+    userEmail === 'emma.watson@zoo.com' ||
+    userEmail === 'tom.hardy@zoo.com';
+
+  const isFoodStaff =
+    userEmail === 'gordon.ramsay@zoo.com' ||
+    userEmail === 'mia.goth@zoo.com';
+
+  const isParkingStaff =
+    userEmail === 'al.bundy@zoo.com' ||
+    userEmail === 'kevin.hart@zoo.com';
+
   return (
     <Router>
       <nav className="navbar">
@@ -94,50 +113,105 @@ function App() {
             <Link to="/">Home</Link>
           </li>
 
-          {['admin', 'manager', 'employee'].includes(role) && (
+          {/* Admin */}
+          {isAdmin && (
             <>
               <li className="nav-item">
-                <Link to="/directory">Directory</Link>
+                <Link to="/directory">Staff & Directory</Link>
               </li>
-              <li className="nav-item">
-                <Link to="/animals">Animal Management</Link>
-              </li>
-              <li className="nav-item">
-                <Link to="/attractions">Attraction Management</Link>
-              </li>
-            </>
-          )}
-
-          {role === 'admin' && (
-            <>
               <li className="nav-item">
                 <Link to="/revenue-details">Revenue Details</Link>
               </li>
               <li className="nav-item">
                 <Link to="/species-report">Species Report</Link>
               </li>
+              <li className="nav-item">
+                <Link to="/animals">Animal Management</Link>
+              </li>
+              <li className="nav-item">
+                <Link to="/enclosures">Enclosure Management</Link>
+              </li>
             </>
           )}
 
-          <li className="nav-item">
-            <Link to="/tickets">Purchase a Ticket</Link>
-          </li>
+          {/* Retail Staff */}
+          {isRetailStaff && (
+            <>
+              <li className="nav-item">
+                <Link to="/directory">Directory</Link>
+              </li>
+              <li className="nav-item">
+                <Link to="/gift-shop">Gift Shop Operations</Link>
+              </li>
+            </>
+          )}
 
-          <li className="nav-item">
-            <Link to="/donations">Donations</Link>
-          </li>
+          {/* Food Services Staff */}
+          {isFoodStaff && (
+            <>
+              <li className="nav-item">
+                <Link to="/directory">Directory</Link>
+              </li>
+              <li className="nav-item">
+                <Link to="/food">Food Operations</Link>
+              </li>
+            </>
+          )}
 
-          <li className="nav-item">
-            <Link to="/gift-shop">Gift Shop</Link>
-          </li>
+          {/* Parking Services Staff */}
+          {isParkingStaff && (
+            <>
+              <li className="nav-item">
+                <Link to="/directory">Directory</Link>
+              </li>
+              <li className="nav-item">
+                <Link to="/parking">Parking Operations</Link>
+              </li>
+            </>
+          )}
 
-          <li className="nav-item">
-            <Link to="/food">Food</Link>
-          </li>
+          {/* Other Staff */}
+          {isStaff &&
+            !isAdmin &&
+            !isRetailStaff &&
+            !isFoodStaff &&
+            !isParkingStaff && (
+              <>
+                <li className="nav-item">
+                  <Link to="/directory">Directory</Link>
+                </li>
+                <li className="nav-item">
+                  <Link to="/animals">Animal Management</Link>
+                </li>
+                <li className="nav-item">
+                  <Link to="/attractions">Attraction Management</Link>
+                </li>
+              </>
+            )}
 
-          <li className="nav-item">
-            <Link to="/parking">Parking</Link>
-          </li>
+          {/* Public Visitors */}
+          {isVisitor && (
+            <>
+              <li className="nav-item">
+                <Link to="/animal-directory">Meet the Animals</Link>
+              </li>
+              <li className="nav-item">
+                <Link to="/tickets">Purchase a Ticket</Link>
+              </li>
+              <li className="nav-item">
+                <Link to="/gift-shop">Gift Shop</Link>
+              </li>
+              <li className="nav-item">
+                <Link to="/food">Food & Dining</Link>
+              </li>
+              <li className="nav-item">
+                <Link to="/parking">Parking</Link>
+              </li>
+              <li className="nav-item">
+                <Link to="/donations">Donations</Link>
+              </li>
+            </>
+          )}
 
           {role ? (
             <li className="nav-item">
@@ -163,7 +237,13 @@ function App() {
 
       <div className="content">
         <Routes>
-          <Route path="/" element={<Home />} />
+          <Route path="/" element={<Home role={role} />} />
+
+          {/* Public Visitor Animal Directory */}
+          <Route
+            path="/animal-directory"
+            element={<VisitorAnimalDirectory />}
+          />
 
           <Route
             path="/directory"
@@ -191,7 +271,7 @@ function App() {
 
           <Route
             path="/gift-shop"
-            element={<GiftShop role={role} />}
+            element={<GiftShop role={role} userEmail={userEmail} />}
           />
 
           <Route
@@ -204,10 +284,21 @@ function App() {
             element={<Parking role={role} />}
           />
 
+          {/* Staff Animal Management */}
           <Route
             path="/animals"
             element={
               <AnimalManagement role={role} userEmail={userEmail} />
+            }
+          />
+
+          {/* Admin-only Enclosure Management */}
+          <Route
+            path="/enclosures"
+            element={
+              isAdmin
+                ? <EnclosureManagement />
+                : <Navigate to="/" replace />
             }
           />
 

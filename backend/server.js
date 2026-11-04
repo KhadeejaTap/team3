@@ -6,6 +6,7 @@ const pool = require('./db');
 const handleFood = require('./food');
 const handleParking = require('./parking');
 const handleAccess = require('./access');
+const handleCheckout = require('./checkout');
 const { requireRoles } = require('./auth');
 
 const PORT = process.env.PORT || 5000;
@@ -60,7 +61,9 @@ const server = http.createServer(async (req, res) => {
     if (await handleAccess(req, res, pool, send, readBody)) {
       return;
     }
-
+        if (await handleCheckout(req, res, pool, send, readBody)) {
+      return;
+    }
     if (await handleFood(req, res, pool, send, readBody)) {
       return;
     }
@@ -71,13 +74,12 @@ const server = http.createServer(async (req, res) => {
 
     const getQueries = {
       '/api/products': `
-        SELECT p.*, s.name AS shop_name
-        FROM PRODUCT AS p
-        JOIN GIFT_SHOP AS s ON p.shop_ID = s.shop_ID
+        SELECT p.*
+        FROM product AS p
         ORDER BY p.product_ID
       `,
       '/api/gift-shops':
-        'SELECT shop_ID, name FROM GIFT_SHOP ORDER BY name'
+        'SELECT shop_ID, name, location FROM gift_shop ORDER BY name'
     };
 
     if (
@@ -97,50 +99,40 @@ const server = http.createServer(async (req, res) => {
         value.trim().length > 0 &&
         value.trim().length <= max;
 
+      const price = Number(data.price);
+      const costPrice = data.cost_price !== undefined ? Number(data.cost_price) : 0.00;
+      const stock = data.quantity_in_stock !== undefined ? parseInt(data.quantity_in_stock, 10) : 0;
+      const reorderLevel = data.reorder_level !== undefined ? parseInt(data.reorder_level, 10) : 5;
+
       if (
         !data ||
         !validText(data.name, 100) ||
         !validText(data.category, 50) ||
-        !validText(data.color, 50) ||
-        !validText(data.design, 100) ||
-        !/^\d{1,6}(\.\d{1,2})?$/.test(String(data.price)) ||
-        !Number.isInteger(data.quantity_in_stock) ||
-        data.quantity_in_stock < 0 ||
-        data.quantity_in_stock > 2147483647 ||
-        !Number.isInteger(data.shop_ID) ||
-        data.shop_ID <= 0
+        isNaN(price) || price < 0 ||
+        isNaN(costPrice) || costPrice < 0 ||
+        isNaN(stock) || stock < 0 ||
+        isNaN(reorderLevel) || reorderLevel < 0
       ) {
         send(res, 400, {
           error:
-            'Check all fields. Price and stock must be valid, nonnegative numbers.'
-        });
-        return;
-      }
-
-      const [shops] = await pool.execute(
-        'SELECT shop_ID FROM GIFT_SHOP WHERE shop_ID = ?',
-        [data.shop_ID]
-      );
-
-      if (shops.length === 0) {
-        send(res, 400, {
-          error: 'Select an existing gift shop.'
+            'Check all fields. Name, category, price (>= 0), cost price (>= 0), and stock (>= 0) must be valid.'
         });
         return;
       }
 
       const [result] = await pool.execute(
-        `INSERT INTO PRODUCT
-         (name, category, price, quantity_in_stock, color, design, shop_ID)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO product
+         (sku, name, category, color, cost_price, price, quantity_in_stock, reorder_level)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [
+          data.sku && typeof data.sku === 'string' ? data.sku.trim() : null,
           data.name.trim(),
           data.category.trim(),
-          data.price,
-          data.quantity_in_stock,
-          data.color.trim(),
-          data.design.trim(),
-          data.shop_ID
+          data.color && typeof data.color === 'string' ? data.color.trim() : null,
+          costPrice,
+          price,
+          stock,
+          reorderLevel
         ]
       );
 
@@ -149,6 +141,133 @@ const server = http.createServer(async (req, res) => {
         message: 'Product added successfully.'
       });
       return;
+    }
+
+    const putProductMatch = req.url.match(/^\/api\/products\/(\d+)$/);
+    if (putProductMatch && req.method === 'PUT') {
+      const productId = parseInt(putProductMatch[1], 10);
+      const data = await readBody(req);
+
+      if (!data || typeof data !== 'object') {
+        send(res, 400, { error: 'Request body required.' });
+        return;
+      }
+
+      const fields = [];
+      const params = [];
+
+      if (data.name !== undefined) {
+        if (typeof data.name !== 'string' || !data.name.trim()) {
+          send(res, 400, { error: 'Name must be a non-empty string.' });
+          return;
+        }
+        fields.push('name = ?');
+        params.push(data.name.trim());
+      }
+
+      if (data.category !== undefined) {
+        if (typeof data.category !== 'string' || !data.category.trim()) {
+          send(res, 400, { error: 'Category must be a non-empty string.' });
+          return;
+        }
+        fields.push('category = ?');
+        params.push(data.category.trim());
+      }
+
+      if (data.color !== undefined) {
+        fields.push('color = ?');
+        params.push(data.color && typeof data.color === 'string' ? data.color.trim() : null);
+      }
+
+      if (data.sku !== undefined) {
+        fields.push('sku = ?');
+        params.push(data.sku && typeof data.sku === 'string' ? data.sku.trim() : null);
+      }
+
+      if (data.price !== undefined) {
+        const p = Number(data.price);
+        if (isNaN(p) || p < 0) {
+          send(res, 400, { error: 'Price must be a non-negative number.' });
+          return;
+        }
+        fields.push('price = ?');
+        params.push(p);
+      }
+
+      if (data.cost_price !== undefined) {
+        const cp = Number(data.cost_price);
+        if (isNaN(cp) || cp < 0) {
+          send(res, 400, { error: 'Cost price must be a non-negative number.' });
+          return;
+        }
+        fields.push('cost_price = ?');
+        params.push(cp);
+      }
+
+      if (data.quantity_in_stock !== undefined) {
+        const qty = parseInt(data.quantity_in_stock, 10);
+        if (isNaN(qty) || qty < 0) {
+          send(res, 400, { error: 'Quantity in stock must be a non-negative integer.' });
+          return;
+        }
+        fields.push('quantity_in_stock = ?');
+        params.push(qty);
+      }
+
+      if (data.reorder_level !== undefined) {
+        const rl = parseInt(data.reorder_level, 10);
+        if (isNaN(rl) || rl < 0) {
+          send(res, 400, { error: 'Reorder level must be a non-negative integer.' });
+          return;
+        }
+        fields.push('reorder_level = ?');
+        params.push(rl);
+      }
+
+      if (fields.length === 0) {
+        send(res, 400, { error: 'No valid fields provided for update.' });
+        return;
+      }
+
+      params.push(productId);
+      const [updateResult] = await pool.execute(
+        `UPDATE product SET ${fields.join(', ')} WHERE product_ID = ?`,
+        params
+      );
+
+      if (updateResult.affectedRows === 0) {
+        send(res, 404, { error: 'Product not found.' });
+        return;
+      }
+
+      send(res, 200, { message: 'Product updated successfully.' });
+      return;
+    }
+
+    const delProductMatch = req.url.match(/^\/api\/products\/(\d+)$/);
+    if (delProductMatch && req.method === 'DELETE') {
+      const productId = parseInt(delProductMatch[1], 10);
+
+      try {
+        const [delResult] = await pool.execute(
+          'DELETE FROM product WHERE product_ID = ?',
+          [productId]
+        );
+
+        if (delResult.affectedRows === 0) {
+          send(res, 404, { error: 'Product not found.' });
+          return;
+        }
+
+        send(res, 200, { message: 'Product deleted successfully.' });
+        return;
+      } catch (delErr) {
+        if (delErr.code === 'ER_ROW_IS_REFERENCED_2') {
+          send(res, 409, { error: 'Cannot delete product because existing customer transactions reference it.' });
+          return;
+        }
+        throw delErr;
+      }
     }
   } catch (err) {
     console.error(err);
@@ -214,6 +333,7 @@ const server = http.createServer(async (req, res) => {
       const parsedUrl = new URL(req.url, 'http://localhost');
       const departmentId = parsedUrl.searchParams.get('department_id');
       const sortBy = parsedUrl.searchParams.get('sort_by') || 'payroll';
+      const email = parsedUrl.searchParams.get('email');
 
       let query = `
         SELECT 
@@ -224,14 +344,35 @@ const server = http.createServer(async (req, res) => {
           COALESCE(SUM(e.salary), 0) AS total_payroll,
           COALESCE(ROUND(AVG(e.salary), 2), 0) AS average_salary,
           COALESCE(MIN(e.salary), 0) AS min_salary,
-          COALESCE(MAX(e.salary), 0) AS max_salary
+          COALESCE(MAX(e.salary), 0) AS max_salary,
+          CASE d.department_ID
+            WHEN 1 THEN 200000
+            WHEN 2 THEN 300000
+            WHEN 3 THEN 280000
+            WHEN 6 THEN 100000
+            WHEN 7 THEN 110000
+            WHEN 8 THEN 95000
+            WHEN 9 THEN 180000
+            ELSE 150000
+          END AS allocated_budget
         FROM DEPARTMENT d
         LEFT JOIN EMPLOYEE h ON d.head_employee_ID = h.employee_ID
         LEFT JOIN EMPLOYEE e ON d.department_ID = e.department_ID AND e.current = 1
       `;
       const params = [];
 
-      if (departmentId && departmentId !== 'all') {
+      if (email) {
+        const [userRole] = await pool.query('SELECT role FROM users WHERE email = ?', [email]);
+        const isManager = userRole.length > 0 && userRole[0].role === 'manager';
+
+        if (isManager) {
+          query += ' WHERE d.department_ID = (SELECT department_ID FROM EMPLOYEE WHERE email = ?)';
+          params.push(email);
+        } else if (departmentId && departmentId !== 'all') {
+          query += ' WHERE d.department_ID = ?';
+          params.push(departmentId);
+        }
+      } else if (departmentId && departmentId !== 'all') {
         query += ' WHERE d.department_ID = ?';
         params.push(departmentId);
       }
@@ -242,6 +383,7 @@ const server = http.createServer(async (req, res) => {
         payroll: 'total_payroll DESC',
         headcount: 'active_headcount DESC',
         avg_salary: 'average_salary DESC',
+        budget: 'allocated_budget DESC',
         name: 'd.department_name ASC'
       };
       const orderClause = sortColumns[sortBy] || 'total_payroll DESC';
@@ -369,7 +511,7 @@ const server = http.createServer(async (req, res) => {
           COALESCE(s.endangered_status, 'Unknown') AS endangered_status,
           COUNT(a.animal_ID) AS total_count,
           COALESCE(ROUND(AVG(a.age), 1), 0) AS average_age,
-          COUNT(CASE WHEN a.breeding_status = 'Active' THEN 1 END) AS breeding_count
+          COUNT(CASE WHEN a.breeding_status = 'Breeding' THEN 1 END) AS breeding_count
         FROM SPECIES s
         LEFT JOIN ANIMAL a ON s.species_ID = a.species_ID
       `;
@@ -646,60 +788,294 @@ const server = http.createServer(async (req, res) => {
         }
       }
     });
-  } else if (
-    req.url === '/api/animals' &&
+      } else if (
+    req.url === '/api/medical-records/animals' &&
     req.method === 'GET'
   ) {
     try {
-      const [rows] = await pool.query('SELECT * FROM ANIMAL');
+      const [rows] = await pool.query(`
+        SELECT a.animal_ID, a.name, a.age, a.gender, s.common_name,
+               (SELECT mr.follow_up FROM MEDICAL_RECORD mr
+                WHERE mr.animal_ID = a.animal_ID
+                ORDER BY mr.record_ID DESC LIMIT 1) AS next_appointment
+        FROM ANIMAL a
+        LEFT JOIN SPECIES s ON s.species_ID = a.species_ID
+        ORDER BY a.name
+      `);
+      send(res, 200, rows);
+      return;
+    } catch (err) {
+      console.error('Error loading animals for medical records:', err);
+      send(res, 500, { error: 'Could not load animals for medical records.' });
+      return;
+    }
+  } else if (
+    req.url.startsWith('/api/medical-records?') &&
+    req.method === 'GET'
+  ) {
+    const parsedUrl = new URL(req.url, 'http://localhost');
+    const animalID = Number(parsedUrl.searchParams.get('animal_ID'));
+    if (!Number.isInteger(animalID) || animalID <= 0) {
+      send(res, 400, { error: 'A valid animal ID is required.' });
+      return;
+    }
+    try {
+      const [rows] = await pool.query(
+        `SELECT record_ID, animal_ID, date, diagnosis, treatment, notes,
+                vet_ID, follow_up, is_sick
+         FROM MEDICAL_RECORD
+         WHERE animal_ID = ?
+         ORDER BY date DESC, record_ID DESC`,
+        [animalID]
+      );
+      send(res, 200, rows);
+      return;
+    } catch (err) {
+      console.error('Error loading medical history:', err);
+      send(res, 500, { error: 'Could not load medical history.' });
+      return;
+    }
+  } else if (
+    req.url === '/api/medical-records' &&
+    req.method === 'POST'
+  ) {
+    let record;
+    try {
+      record = await readBody(req);
+    } catch (err) {
+      send(res, err.status || 400, { error: err.message });
+      return;
+    }
+    const animalID = Number(record?.animal_ID);
+    if (!Number.isInteger(animalID) || animalID <= 0 ||
+        !record?.diagnosis?.trim() || !record?.treatment?.trim()) {
+      send(res, 400, { error: 'Select an animal and enter a diagnosis and treatment.' });
+      return;
+    }
+    const isSick = record.is_sick === true;
+    let followUp = null;
+    if (!isSick && record.follow_up) {
+      const value = String(record.follow_up).replace('T', ' ');
+      if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/.test(value)) {
+        send(res, 400, { error: 'Enter a valid follow-up date and time.' });
+        return;
+      }
+      followUp = value.length === 16 ? `${value}:00` : value;
+    }
+    try {
+      const [animalRows] = await pool.query(
+        'SELECT animal_ID FROM ANIMAL WHERE animal_ID = ?', [animalID]
+      );
+      if (animalRows.length === 0) {
+        send(res, 404, { error: 'Animal not found.' });
+        return;
+      }
+      const [result] = await pool.execute(
+        `INSERT INTO MEDICAL_RECORD
+         (animal_ID, date, diagnosis, treatment, notes, vet_ID, follow_up, is_sick)
+         VALUES (?, CURDATE(), ?, ?, ?, ?,
+                 CASE WHEN ? = 1
+                   THEN DATE_ADD(CURDATE(), INTERVAL 1 DAY) + INTERVAL 9 HOUR
+                   ELSE ? END,
+                 ?)`,
+        [animalID, record.diagnosis.trim(), record.treatment.trim(),
+         record.notes?.trim() || null,
+         record.vet_ID ? Number(record.vet_ID) : null,
+         isSick ? 1 : 0, followUp, isSick ? 1 : 0]
+      );
+      send(res, 201, {
+        message: isSick
+          ? 'Medical record saved. Follow-up scheduled for tomorrow at 9:00 AM.'
+          : 'Medical record saved successfully.',
+        record_ID: result.insertId
+      });
+      return;
+    } catch (err) {
+      console.error('Error saving medical record:', err);
+      send(res, 500, { error: 'Could not save medical record. Check that the MEDICAL_RECORD columns and foreign keys match the schema.' });
+      return;
+    }
+  } else if (
+    req.url === '/api/breeding-program' &&
+    req.method === 'GET'
+  ) {
+    try {
+      const [rows] = await pool.query(`
+        SELECT
+          a.animal_ID,
+          a.name,
+          s.common_name,
+          a.age,
+          a.gender,
+          e.name AS enclosure_name,
+          a.breeding_status
+        FROM ANIMAL a
+        JOIN SPECIES s ON a.species_ID = s.species_ID
+        JOIN ENCLOSURE e ON a.enclosure_ID = e.enclosure_ID
+        WHERE a.breeding_status = 'Breeding'
+        ORDER BY s.common_name, a.name
+      `);
+
       res.end(JSON.stringify(rows));
     } catch (err) {
       res.statusCode = 500;
       res.end(JSON.stringify({ error: err.message }));
     }
   } else if (
+    req.url === '/api/public/animals' &&
+    req.method === 'GET'
+  ) {
+    // Public, read-only animal directory. Deliberately excludes breeding_status.
+    try {
+      const [rows] = await pool.query(
+        `SELECT
+           a.animal_ID,
+           a.name,
+           a.age,
+           a.arrival_date,
+           a.gender,
+           COALESCE(s.endangered_status, 'Unknown') AS endangered_status,
+           a.weight,
+           a.weight_unit
+         FROM ANIMAL a
+         LEFT JOIN SPECIES s ON a.species_ID = s.species_ID
+         ORDER BY a.name`
+      );
+      send(res, 200, rows);
+    } catch (err) {
+      console.error('Error fetching public animal directory:', err);
+      send(res, 500, { error: 'Could not load the animal directory.' });
+      return;
+    }
+  } else if (
+    req.url === '/api/animals' &&
+    req.method === 'GET'
+  ) {
+    try {
+      const [rows] = await pool.query('SELECT * FROM ANIMAL ORDER BY animal_ID');
+      send(res, 200, rows);
+    } catch (err) {
+      console.error('Error fetching animals:', err);
+      send(res, 500, { error: 'Could not load animals.' });
+      return;
+    }
+  } else if (
     req.url === '/api/animals' &&
     req.method === 'POST'
   ) {
-    let body = '';
+    const animal = await readBody(req);
 
-    req.on('data', chunk => {
-      body += chunk;
-    });
+    const validAnimal = animal &&
+      typeof animal.name === 'string' &&
+      animal.name.trim() !== '' &&
+      Number.isInteger(Number(animal.species_ID)) &&
+      Number(animal.species_ID) > 0 &&
+      Number.isInteger(Number(animal.enclosure_ID)) &&
+      Number(animal.enclosure_ID) > 0 &&
+      (animal.age === '' || animal.age == null ||
+        (Number.isFinite(Number(animal.age)) && Number(animal.age) >= 0)) &&
+      (animal.weight === '' || animal.weight == null ||
+        (Number.isFinite(Number(animal.weight)) && Number(animal.weight) >= 0)) &&
+      ['lbs', 'oz', 'kg', 'g'].includes(animal.weight_unit) &&
+      ['Breeding', 'Not Breeding'].includes(animal.breeding_status);
 
-    req.on('end', async () => {
-      try {
-        const animal = JSON.parse(body);
+    if (!validAnimal) {
+      send(res, 400, { error: 'Please provide valid animal details, including weight unit and breeding status.' });
+      return;
+    }
 
-        const [result] = await pool.query(
-          `INSERT INTO ANIMAL
-           (name, species_ID, enclosure_ID, age, gender, weight,
-            arrival_date, breeding_status)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            animal.name || null,
-            animal.species_ID,
-            animal.enclosure_ID,
-            animal.age || null,
-            animal.gender || null,
-            animal.weight || null,
-            animal.arrival_date || null,
-            animal.breeding_status || null
-          ]
-        );
+    try {
+      const [result] = await pool.execute(
+        `INSERT INTO ANIMAL
+         (name, species_ID, enclosure_ID, age, gender, weight, weight_unit,
+          arrival_date, breeding_status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          animal.name.trim(),
+          Number(animal.species_ID),
+          Number(animal.enclosure_ID),
+          animal.age === '' || animal.age == null ? null : Number(animal.age),
+          animal.gender || null,
+          animal.weight === '' || animal.weight == null ? null : Number(animal.weight),
+          animal.weight_unit,
+          animal.arrival_date || null,
+          animal.breeding_status
+        ]
+      );
 
-        res.statusCode = 201;
-        res.end(
-          JSON.stringify({
-            message: 'Animal saved successfully',
-            animal_ID: result.insertId
-          })
-        );
-      } catch (err) {
-        res.statusCode = 500;
-        res.end(JSON.stringify({ error: err.message }));
+      send(res, 201, {
+        message: 'Animal saved successfully.',
+        animal_ID: result.insertId
+      });
+      return;
+    } catch (err) {
+      console.error('Error saving animal:', err);
+      send(res, 500, { error: 'Could not save animal. Check that the selected species and enclosure exist and that the ANIMAL table has a weight_unit column.' });
+      return;
+    }
+  } else if (
+    req.method === 'PUT' &&
+    /^\/api\/animals\/\d+$/.test(req.url)
+  ) {
+    const animalID = Number(req.url.split('/')[3]);
+    const animal = await readBody(req);
+
+    const validAnimal = animal &&
+      typeof animal.name === 'string' &&
+      animal.name.trim() !== '' &&
+      Number.isInteger(Number(animal.species_ID)) &&
+      Number(animal.species_ID) > 0 &&
+      Number.isInteger(Number(animal.enclosure_ID)) &&
+      Number(animal.enclosure_ID) > 0 &&
+      (animal.age === '' || animal.age == null ||
+        (Number.isFinite(Number(animal.age)) && Number(animal.age) >= 0)) &&
+      (animal.weight === '' || animal.weight == null ||
+        (Number.isFinite(Number(animal.weight)) && Number(animal.weight) >= 0)) &&
+      ['lbs', 'oz', 'kg', 'g'].includes(animal.weight_unit) &&
+      ['Breeding', 'Not Breeding'].includes(animal.breeding_status);
+
+    if (!validAnimal) {
+      send(res, 400, { error: 'Please provide valid animal details, including weight unit and breeding status.' });
+      return;
+    }
+
+    try {
+      const [existing] = await pool.execute(
+        'SELECT animal_ID FROM ANIMAL WHERE animal_ID = ?',
+        [animalID]
+      );
+
+      if (existing.length === 0) {
+        send(res, 404, { error: 'Animal not found.' });
+        return;
       }
-    });
+
+      await pool.execute(
+        `UPDATE ANIMAL
+         SET name = ?, species_ID = ?, enclosure_ID = ?, age = ?, gender = ?,
+             weight = ?, weight_unit = ?, arrival_date = ?, breeding_status = ?
+         WHERE animal_ID = ?`,
+        [
+          animal.name.trim(),
+          Number(animal.species_ID),
+          Number(animal.enclosure_ID),
+          animal.age === '' || animal.age == null ? null : Number(animal.age),
+          animal.gender || null,
+          animal.weight === '' || animal.weight == null ? null : Number(animal.weight),
+          animal.weight_unit,
+          animal.arrival_date || null,
+          animal.breeding_status,
+          animalID
+        ]
+      );
+
+      send(res, 200, { message: 'Animal record updated successfully.', animal_ID: animalID });
+      return;
+    } catch (err) {
+      console.error('Error updating animal:', err);
+      send(res, 500, { error: 'Could not update animal. Check that the selected species and enclosure exist and that the ANIMAL table has a weight_unit column.' });
+      return;
+    }
   } else if (
     req.method === 'DELETE' &&
     req.url.startsWith('/api/employees/')
@@ -1035,9 +1411,16 @@ const server = http.createServer(async (req, res) => {
           ]
         );
 
+        const defaultPassword = `${data.first_name.trim().toLowerCase()}123`;
+        const userRole = (data.user_role && ['admin', 'manager', 'employee'].includes(data.user_role))
+          ? data.user_role
+          : (!data.manager_ID || (data.role && /(lead|director|chief|manager|supervisor)/i.test(data.role))
+            ? 'manager'
+            : 'employee');
+
         await connection.query(
           'INSERT INTO users (email, password, role) VALUES (?, ?, ?)',
-          [data.email.trim(), 'welcome123', 'employee']
+          [data.email.trim(), defaultPassword, userRole]
         );
 
         if (data.attr_ID) {
@@ -1053,8 +1436,9 @@ const server = http.createServer(async (req, res) => {
         res.end(
           JSON.stringify({
             message:
-              `Employee ${data.first_name} ${data.last_name} created successfully (ID: ${newEmployeeID}). Login generated with temporary password 'welcome123'.`,
-            employee_ID: newEmployeeID
+              `Employee ${data.first_name} ${data.last_name} created successfully (ID: ${newEmployeeID}). Login generated: ${data.email.trim()} with password '${defaultPassword}' (${userRole}).`,
+            employee_ID: newEmployeeID,
+            generatedPassword: defaultPassword
           })
         );
       } catch (err) {
@@ -1116,7 +1500,14 @@ const server = http.createServer(async (req, res) => {
           })
         );
       } catch (err) {
-        if (err.code === 'ER_DUP_ENTRY') {
+        if (err.sqlState === '45000') {
+          res.statusCode = 400;
+          res.end(
+            JSON.stringify({
+              error: err.sqlMessage || err.message
+            })
+          );
+        } else if (err.code === 'ER_DUP_ENTRY') {
           res.statusCode = 409;
           res.end(
             JSON.stringify({
@@ -1183,7 +1574,7 @@ const server = http.createServer(async (req, res) => {
   ) {
     try {
       const [rows] = await pool.query(
-        'SELECT species_ID, common_name FROM SPECIES ORDER BY common_name'
+        'SELECT species_ID, common_name, scientific_name, enclosure_ID FROM SPECIES ORDER BY common_name'
       );
       res.end(JSON.stringify(rows));
     } catch (error) {
@@ -1194,6 +1585,44 @@ const server = http.createServer(async (req, res) => {
           error: 'Failed to fetch species.'
         })
       );
+    }
+      } else if (
+    req.url === '/api/species' &&
+    req.method === 'POST'
+  ) {
+    try {
+      const data = await readBody(req);
+
+      if (!data.common_name || !data.scientific_name) {
+        send(res, 400, {
+          error: 'Common name and scientific name are required.'
+        });
+        return;
+      }
+
+      const [result] = await pool.query(
+        `INSERT INTO SPECIES
+         (common_name, scientific_name, endangered_status, enclosure_ID)
+         VALUES (?, ?, ?, ?)`,
+        [
+          data.common_name.trim(),
+          data.scientific_name.trim(),
+          data.endangered_status || null,
+          data.enclosure_ID || null
+        ]
+      );
+
+      send(res, 201, {
+        message: 'Species added successfully.',
+        species_ID: result.insertId
+      });
+      return;
+    } catch (error) {
+      console.error('Error adding species:', error);
+      send(res, 500, {
+        error: 'Failed to add species.'
+      });
+      return;
     }
   } else if (
     req.url === '/api/donations/history' &&
@@ -1429,6 +1858,302 @@ const server = http.createServer(async (req, res) => {
         }
       }
     });
+  } else if (req.url === '/api/checkout' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk;
+    });
+
+    req.on('end', async () => {
+      let data;
+      try {
+        data = JSON.parse(body);
+      } catch {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: 'Invalid JSON request body.' }));
+        return;
+      }
+
+      if (!data || !Array.isArray(data.items) || data.items.length === 0) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: 'Your cart is empty. Please add items before checking out.' }));
+        return;
+      }
+
+      const itemType = data.item_type || 'product';
+      if (!['product', 'food', 'ticket'].includes(itemType)) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: 'Invalid item type.' }));
+        return;
+      }
+
+      for (const item of data.items) {
+        if (!item.item_ID || !item.quantity || item.quantity <= 0) {
+          res.statusCode = 400;
+          res.end(JSON.stringify({ error: 'Invalid item details in cart.' }));
+          return;
+        }
+      }
+
+      const subtotal = data.items.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 1), 0);
+      const tax = subtotal * 0.0825;
+      const totalAmount = data.total ? Number(data.total) : subtotal + tax;
+
+      const allowedMethods = ['credit', 'debit', 'digital_wallet', 'paypal'];
+      const paymentMethod = allowedMethods.includes(data.payment_method) ? data.payment_method : 'credit';
+
+      let connection;
+      try {
+        connection = await pool.getConnection();
+        await connection.beginTransaction();
+
+        const [transResult] = await connection.query(
+          `INSERT INTO CUST_TRANSACTION (visitor_ID, total, payment_method, transaction_date)
+           VALUES (?, ?, ?, NOW())`,
+          [data.visitor_ID || null, totalAmount.toFixed(2), paymentMethod]
+        );
+        const transactionID = transResult.insertId;
+
+        for (const item of data.items) {
+          await connection.query(
+            `INSERT INTO TRANSACTION_ITEM (transaction_ID, item_type, item_ID, quantity, price)
+             VALUES (?, ?, ?, ?, ?)`,
+            [transactionID, itemType, item.item_ID, item.quantity, Number(item.price).toFixed(2)]
+          );
+        }
+
+        await connection.commit();
+
+        res.statusCode = 201;
+        res.end(JSON.stringify({
+          success: true,
+          transaction_ID: transactionID,
+          total: totalAmount.toFixed(2),
+          subtotal: subtotal.toFixed(2),
+          tax: tax.toFixed(2),
+          date: new Date().toISOString(),
+          payment_method: data.payment_method || paymentMethod,
+          cash_tendered: data.cash_tendered || null,
+          change_due: data.change_due || null,
+          item_type: itemType,
+          item_count: data.items.reduce((sum, item) => sum + Number(item.quantity), 0),
+          message: 'Order processed successfully!'
+        }));
+      } catch (err) {
+        if (connection) {
+          await connection.rollback();
+        }
+        console.error('Checkout error:', err);
+        if (err.sqlState === '45000') {
+          res.statusCode = 400;
+          res.end(JSON.stringify({ error: err.sqlMessage || err.message }));
+        } else {
+          res.statusCode = 500;
+          res.end(JSON.stringify({ error: 'Checkout failed. ' + err.message }));
+        }
+      } finally {
+        if (connection) {
+          connection.release();
+        }
+      }
+    });
+  } else if (
+    req.url === '/api/enclosures' &&
+    req.method === 'GET'
+  ) {
+    try {
+      const allowed = await requireRoles(req, res, pool, send, ['admin']);
+      if (!allowed) return;
+
+      const [rows] = await pool.query(`
+        SELECT
+          e.enclosure_ID,
+          e.name,
+          e.location,
+          e.capacity,
+          e.indoor_outdoor,
+          e.size,
+          e.department_ID,
+          e.condition_status,
+          e.temperature,
+          e.amenities,
+          e.notes,
+          COUNT(a.animal_ID) AS animal_count,
+          CASE
+            WHEN e.capacity > 0
+              THEN ROUND(COUNT(a.animal_ID) / e.capacity * 100, 1)
+            ELSE NULL
+          END AS occupancy_percent,
+          CASE
+            WHEN e.capacity > 0
+              AND COUNT(a.animal_ID) / e.capacity > 0.75
+              THEN 1
+            ELSE 0
+          END AS crowding_flag
+        FROM ENCLOSURE e
+        LEFT JOIN ANIMAL a ON a.enclosure_ID = e.enclosure_ID
+        GROUP BY
+          e.enclosure_ID, e.name, e.location, e.capacity,
+          e.indoor_outdoor, e.size, e.department_ID,
+          e.condition_status, e.temperature, e.amenities, e.notes
+        ORDER BY e.name
+      `);
+
+      send(res, 200, rows);
+      return;
+    } catch (err) {
+      console.error('Error loading enclosures:', err);
+      send(res, 500, { error: 'Could not load enclosure details.' });
+      return;
+    }
+  } else if (
+    req.method === 'PUT' &&
+    /^\/api\/enclosures\/\d+$/.test(req.url)
+  ) {
+    try {
+      const allowed = await requireRoles(req, res, pool, send, ['admin']);
+      if (!allowed) return;
+
+      const enclosureID = Number(req.url.split('/')[3]);
+      const data = await readBody(req);
+
+      const capacity = Number(data.capacity);
+      const temperature =
+        data.temperature === '' || data.temperature == null
+          ? null
+          : Number(data.temperature);
+
+      if (
+        !data ||
+        typeof data.name !== 'string' ||
+        !data.name.trim() ||
+        !Number.isInteger(capacity) ||
+        capacity < 1 ||
+        (temperature !== null && !Number.isFinite(temperature)) ||
+        !['Good', 'Fair', 'Poor', 'Under Maintenance'].includes(data.condition_status) ||
+        typeof data.amenities !== 'string' ||
+        typeof data.notes !== 'string'
+      ) {
+        send(res, 400, { error: 'Enter a name, valid capacity, valid temperature, condition, amenities, and notes.' });
+        return;
+      }
+
+      const [result] = await pool.execute(
+        `UPDATE ENCLOSURE
+         SET name = ?, capacity = ?, condition_status = ?,
+             temperature = ?, amenities = ?, notes = ?
+         WHERE enclosure_ID = ?`,
+        [
+          data.name.trim(),
+          capacity,
+          data.condition_status,
+          temperature,
+          data.amenities.trim() || null,
+          data.notes.trim() || null,
+          enclosureID
+        ]
+      );
+
+      if (result.affectedRows === 0) {
+        send(res, 404, { error: 'Enclosure not found.' });
+        return;
+      }
+
+      send(res, 200, { message: 'Enclosure details updated successfully.' });
+      return;
+    } catch (err) {
+      console.error('Error updating enclosure:', err);
+      send(res, 500, { error: 'Could not update enclosure details.' });
+      return;
+    }
+  } else if (
+    req.method === 'GET' &&
+    /^\/api\/enclosures\/\d+\/maintenance$/.test(req.url)
+  ) {
+    try {
+      const allowed = await requireRoles(req, res, pool, send, ['admin']);
+      if (!allowed) return;
+
+      const enclosureID = Number(req.url.split('/')[3]);
+      const [rows] = await pool.query(
+        `SELECT maintenance_ID, enclosure_ID, maintenance_date,
+                maintenance_type, description, status, notes
+         FROM ENCLOSURE_MAINTENANCE
+         WHERE enclosure_ID = ?
+         ORDER BY maintenance_date DESC, maintenance_ID DESC`,
+        [enclosureID]
+      );
+
+      send(res, 200, rows);
+      return;
+    } catch (err) {
+      console.error('Error loading enclosure maintenance:', err);
+      send(res, 500, { error: 'Could not load maintenance history.' });
+      return;
+    }
+  } else if (
+    req.method === 'POST' &&
+    /^\/api\/enclosures\/\d+\/maintenance$/.test(req.url)
+  ) {
+    try {
+      const allowed = await requireRoles(req, res, pool, send, ['admin']);
+      if (!allowed) return;
+
+      const enclosureID = Number(req.url.split('/')[3]);
+      const data = await readBody(req);
+      const validDate =
+        typeof data.maintenance_date === 'string' &&
+        /^\d{4}-\d{2}-\d{2}$/.test(data.maintenance_date) &&
+        !Number.isNaN(Date.parse(data.maintenance_date));
+
+      if (
+        !data ||
+        !validDate ||
+        typeof data.maintenance_type !== 'string' ||
+        !data.maintenance_type.trim() ||
+        typeof data.description !== 'string' ||
+        !data.description.trim() ||
+        !['Scheduled', 'In Progress', 'Completed', 'Needs Attention'].includes(data.status)
+      ) {
+        send(res, 400, { error: 'Enter a valid date, maintenance type, description, and status.' });
+        return;
+      }
+
+      const [enclosures] = await pool.query(
+        'SELECT enclosure_ID FROM ENCLOSURE WHERE enclosure_ID = ?',
+        [enclosureID]
+      );
+
+      if (enclosures.length === 0) {
+        send(res, 404, { error: 'Enclosure not found.' });
+        return;
+      }
+
+      const [result] = await pool.execute(
+        `INSERT INTO ENCLOSURE_MAINTENANCE
+         (enclosure_ID, maintenance_date, maintenance_type,
+          description, status, notes)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          enclosureID,
+          data.maintenance_date,
+          data.maintenance_type.trim(),
+          data.description.trim(),
+          data.status,
+          typeof data.notes === 'string' ? data.notes.trim() || null : null
+        ]
+      );
+
+      send(res, 201, {
+        message: 'Maintenance record added successfully.',
+        maintenance_ID: result.insertId
+      });
+      return;
+    } catch (err) {
+      console.error('Error saving enclosure maintenance:', err);
+      send(res, 500, { error: 'Could not save the maintenance record.' });
+      return;
+    }
   } else {
     res.statusCode = 404;
     res.end(JSON.stringify({ message: 'Not Found' }));
