@@ -3,20 +3,21 @@ import SpeciesReport from './SpeciesReport';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
+const EMPTY_FORM = {
+    name: '',
+    species_ID: '',
+    enclosure_ID: '',
+    age: '',
+    gender: '',
+    weight: '',
+    weight_unit: 'lbs',
+    arrival_date: '',
+    breeding_status: 'Not Breeding'
+};
+
 function AnimalManagement({ role, userEmail }) {
     const [currentTab, setCurrentTab] = useState('entry');
-
-    const [formData, setFormData] = useState({
-        name: '',
-        species_ID: '',
-        enclosure_ID: '',
-        age: '',
-        gender: '',
-        weight: '',
-        arrival_date: '',
-        breeding_status: ''
-    });
-
+    const [formData, setFormData] = useState(EMPTY_FORM);
     const [species, setSpecies] = useState([]);
     const [message, setMessage] = useState('');
     const [loadingSpecies, setLoadingSpecies] = useState(true);
@@ -33,57 +34,67 @@ function AnimalManagement({ role, userEmail }) {
     const [breedingLoading, setBreedingLoading] = useState(false);
     const [breedingError, setBreedingError] = useState('');
 
-    // Fetch species for the Animal Entry Form
+    // Add/update mode and existing-animal selection
+    const [isEditing, setIsEditing] = useState(false);
+    const [animals, setAnimals] = useState([]);
+    const [loadingAnimals, setLoadingAnimals] = useState(false);
+    const [selectedAnimalID, setSelectedAnimalID] = useState('');
+
     useEffect(() => {
         async function fetchSpecies() {
             try {
                 const response = await fetch(`${API_URL}/api/species`);
-
-                if (!response.ok) {
-                    throw new Error('Could not load species.');
-                }
-
-                const result = await response.json();
-                setSpecies(result);
+                if (!response.ok) throw new Error('Could not load species.');
+                setSpecies(await response.json());
             } catch (error) {
                 setMessage(`Error: ${error.message}`);
             } finally {
                 setLoadingSpecies(false);
             }
         }
-
         fetchSpecies();
     }, []);
 
-    // Fetch animals in the Breeding Program
     useEffect(() => {
         if (currentTab !== 'breeding') return;
 
         async function fetchBreedingAnimals() {
             setBreedingLoading(true);
             setBreedingError('');
-
             try {
                 const response = await fetch(`${API_URL}/api/breeding-program`);
-
-                if (!response.ok) {
-                    throw new Error('Could not load breeding animals.');
-                }
-
-                const result = await response.json();
-                setBreedingAnimals(result);
+                if (!response.ok) throw new Error('Could not load breeding animals.');
+                setBreedingAnimals(await response.json());
             } catch (error) {
                 setBreedingError(error.message);
             } finally {
                 setBreedingLoading(false);
             }
         }
-
         fetchBreedingAnimals();
     }, [currentTab]);
 
-    // Handle form input changes
-    // Automatically populate enclosure when species is selected
+    // Load existing records when the user chooses update mode.
+    useEffect(() => {
+        if (!isEditing) return;
+
+        async function fetchAnimals() {
+            setLoadingAnimals(true);
+            setMessage('');
+            try {
+                const response = await fetch(`${API_URL}/api/animals`);
+                if (!response.ok) throw new Error('Could not load existing animals.');
+                const result = await response.json();
+                setAnimals(result);
+            } catch (error) {
+                setMessage(`Error: ${error.message}`);
+            } finally {
+                setLoadingAnimals(false);
+            }
+        }
+        fetchAnimals();
+    }, [isEditing]);
+
     function handleChange(event) {
         const { name, value } = event.target;
 
@@ -91,65 +102,102 @@ function AnimalManagement({ role, userEmail }) {
             const selectedSpecies = species.find(
                 (item) => Number(item.species_ID) === Number(value)
             );
-
-            setFormData({
-                ...formData,
+            setFormData((previous) => ({
+                ...previous,
                 species_ID: value,
                 enclosure_ID: selectedSpecies?.enclosure_ID ?? ''
-            });
+            }));
         } else {
-            setFormData({
-                ...formData,
-                [name]: value
-            });
+            setFormData((previous) => ({ ...previous, [name]: value }));
         }
     }
 
-    // Submit new animal
+    function handleAnimalSelection(event) {
+        const animalID = event.target.value;
+        setSelectedAnimalID(animalID);
+
+        if (!animalID) {
+            setFormData(EMPTY_FORM);
+            return;
+        }
+
+        const animal = animals.find(
+            (item) => String(item.animal_ID) === String(animalID)
+        );
+
+        if (!animal) return;
+
+        setFormData({
+            name: animal.name ?? '',
+            species_ID: String(animal.species_ID ?? ''),
+            enclosure_ID: String(animal.enclosure_ID ?? ''),
+            age: animal.age ?? '',
+            gender: animal.gender ?? '',
+            weight: animal.weight ?? '',
+            weight_unit: animal.weight_unit ?? 'lbs',
+            arrival_date: animal.arrival_date
+                ? String(animal.arrival_date).slice(0, 10)
+                : '',
+            breeding_status:
+                String(animal.breeding_status).toLowerCase() === 'breeding'
+                    ? 'Breeding'
+                    : 'Not Breeding'
+        });
+        setMessage(`Loaded ${animal.name}. Make your changes and select Update Animal Record.`);
+    }
+
     async function handleSubmit(event) {
         event.preventDefault();
         setMessage('');
 
+        if (isEditing && !selectedAnimalID) {
+            setMessage('Please select an existing animal to update.');
+            return;
+        }
+
+        const payload = {
+            ...formData,
+            species_ID: Number(formData.species_ID),
+            enclosure_ID: Number(formData.enclosure_ID),
+            age: formData.age === '' ? null : Number(formData.age),
+            weight: formData.weight === '' ? null : Number(formData.weight)
+        };
+
         try {
-            const response = await fetch(`${API_URL}/api/animals`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    ...formData,
-                    species_ID: Number(formData.species_ID),
-                    enclosure_ID: Number(formData.enclosure_ID),
-                    age: formData.age === '' ? null : Number(formData.age),
-                    weight: formData.weight === '' ? null : Number(formData.weight)
-                })
-            });
+            const response = await fetch(
+                isEditing
+                    ? `${API_URL}/api/animals/${selectedAnimalID}`
+                    : `${API_URL}/api/animals`,
+                {
+                    method: isEditing ? 'PUT' : 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                }
+            );
 
             const result = await response.json();
-
             if (!response.ok) {
-                throw new Error(result.error || 'Could not save animal.');
+                throw new Error(result.error || (isEditing
+                    ? 'Could not update animal.'
+                    : 'Could not save animal.'));
             }
 
-            setMessage(`Animal saved successfully! ID: ${result.animal_ID}`);
+            setMessage(isEditing
+                ? 'Animal record updated successfully!'
+                : `Animal saved successfully! ID: ${result.animal_ID}`);
 
-            setFormData({
-                name: '',
-                species_ID: '',
-                enclosure_ID: '',
-                age: '',
-                gender: '',
-                weight: '',
-                arrival_date: '',
-                breeding_status: ''
-            });
-
+            if (isEditing) {
+                // Refresh the list so the selected record reflects its latest values.
+                const refreshResponse = await fetch(`${API_URL}/api/animals`);
+                if (refreshResponse.ok) setAnimals(await refreshResponse.json());
+            } else {
+                setFormData(EMPTY_FORM);
+            }
         } catch (error) {
             setMessage(`Error: ${error.message}`);
         }
     }
 
-    // Add a new species to the database
     async function handleAddSpecies(event) {
         event.preventDefault();
         setMessage('');
@@ -157,9 +205,7 @@ function AnimalManagement({ role, userEmail }) {
         try {
             const response = await fetch(`${API_URL}/api/species`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     ...newSpecies,
                     common_name: newSpecies.common_name.trim(),
@@ -169,154 +215,139 @@ function AnimalManagement({ role, userEmail }) {
             });
 
             const result = await response.json();
-
             if (!response.ok) {
                 throw new Error(result.error || 'Could not add species.');
             }
 
-            // Refresh the species dropdown
             const speciesResponse = await fetch(`${API_URL}/api/species`);
-
             if (!speciesResponse.ok) {
                 throw new Error('Species was added, but the dropdown could not refresh.');
             }
 
-            const updatedSpecies = await speciesResponse.json();
-            setSpecies(updatedSpecies);
-
-            // Automatically select the newly added species
-            setFormData({
-                ...formData,
+            setSpecies(await speciesResponse.json());
+            setFormData((previous) => ({
+                ...previous,
                 species_ID: String(result.species_ID),
                 enclosure_ID: newSpecies.enclosure_ID
-            });
-
+            }));
             setNewSpecies({
                 common_name: '',
                 scientific_name: '',
                 endangered_status: '',
                 enclosure_ID: ''
             });
-
             setShowAddSpecies(false);
             setMessage('Species added successfully! It is now selected.');
-
         } catch (error) {
             setMessage(`Error: ${error.message}`);
         }
     }
 
+    function switchMode(nextIsEditing) {
+        setIsEditing(nextIsEditing);
+        setSelectedAnimalID('');
+        setFormData(EMPTY_FORM);
+        setMessage('');
+    }
+
     return (
         <div className="animal-management">
-
-            {/* Navigation Tabs */}
             <div>
-                <button
-                    type="button"
-                    onClick={() => setCurrentTab('entry')}
-                >
-                    {currentTab === 'entry'
-                        ? <strong>Animal Entry Form</strong>
-                        : 'Animal Entry Form'}
+                <button type="button" onClick={() => setCurrentTab('entry')}>
+                    {currentTab === 'entry' ? <strong>Animal Management</strong> : 'Animal Management'}
                 </button>
-
-                <button
-                    type="button"
-                    onClick={() => setCurrentTab('breeding')}
-                >
-                    {currentTab === 'breeding'
-                        ? <strong>Breeding Program</strong>
-                        : 'Breeding Program'}
+                <button type="button" onClick={() => setCurrentTab('breeding')}>
+                    {currentTab === 'breeding' ? <strong>Breeding Program</strong> : 'Breeding Program'}
                 </button>
-
-                &nbsp;&nbsp;
-
-                <button
-                    type="button"
-                    onClick={() => setCurrentTab('report')}
-                >
-                    {currentTab === 'report'
-                        ? <strong>Species Population Report</strong>
-                        : 'Species Population Report'}
+                <button type="button" onClick={() => setCurrentTab('report')}>
+                    {currentTab === 'report' ? <strong>Species Population Report</strong> : 'Species Population Report'}
                 </button>
             </div>
 
             <hr />
 
-            {/* Species Population Report */}
             {currentTab === 'report' ? (
                 <SpeciesReport role={role} userEmail={userEmail} />
-
             ) : currentTab === 'breeding' ? (
-
-                /* Breeding Program */
                 <>
                     <h1>Breeding Program</h1>
                     <p>Animals currently participating in the breeding program.</p>
-
-                    {breedingLoading && (
-                        <p>Loading breeding animals...</p>
-                    )}
-
-                    {breedingError && (
-                        <p>Error: {breedingError}</p>
-                    )}
-
+                    {breedingLoading && <p>Loading breeding animals...</p>}
+                    {breedingError && <p>Error: {breedingError}</p>}
                     {!breedingLoading && !breedingError && (
-                        <>
-                            {breedingAnimals.length === 0 ? (
-                                <p>No animals are currently in the breeding program.</p>
-                            ) : (
-                                <table>
-                                    <thead>
-                                        <tr>
-                                            <th>Animal</th>
-                                            <th>Species</th>
-                                            <th>Age</th>
-                                            <th>Gender</th>
-                                            <th>Enclosure</th>
-                                            <th>Status</th>
+                        breedingAnimals.length === 0 ? (
+                            <p>No animals are currently in the breeding program.</p>
+                        ) : (
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Animal</th>
+                                        <th>Species</th>
+                                        <th>Age</th>
+                                        <th>Gender</th>
+                                        <th>Enclosure</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {breedingAnimals.map((animal) => (
+                                        <tr key={animal.animal_ID}>
+                                            <td>{animal.name}</td>
+                                            <td>{animal.common_name}</td>
+                                            <td>{animal.age}</td>
+                                            <td>{animal.gender}</td>
+                                            <td>{animal.enclosure_name}</td>
+                                            <td>{animal.breeding_status}</td>
                                         </tr>
-                                    </thead>
-
-                                    <tbody>
-                                        {breedingAnimals.map((animal) => (
-                                            <tr key={animal.animal_ID}>
-                                                <td>{animal.name}</td>
-                                                <td>{animal.common_name}</td>
-                                                <td>{animal.age}</td>
-                                                <td>{animal.gender}</td>
-                                                <td>{animal.enclosure_name}</td>
-                                                <td>{animal.breeding_status}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            )}
-                        </>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )
                     )}
                 </>
-
             ) : (
-
-                /* Animal Entry Form */
                 <>
                     <h1>Animal Management</h1>
-                    <p>Enter the animal's information below.</p>
+                    <p>Add a new animal or update an existing animal record.</p>
 
-                    {/* Add New Species Form */}
+                    <div>
+                        <button type="button" onClick={() => switchMode(false)}>
+                            Add New Animal
+                        </button>
+                        <button type="button" onClick={() => switchMode(true)}>
+                            Update Existing Animal Record
+                        </button>
+                    </div>
+
+                    {isEditing && (
+                        <>
+                            <label htmlFor="existingAnimal">Select Animal to Update:</label>
+                            <select
+                                id="existingAnimal"
+                                value={selectedAnimalID}
+                                onChange={handleAnimalSelection}
+                                disabled={loadingAnimals}
+                            >
+                                <option value="">
+                                    {loadingAnimals ? 'Loading animals...' : 'Select an animal'}
+                                </option>
+                                {animals.map((animal) => (
+                                    <option key={animal.animal_ID} value={animal.animal_ID}>
+                                        {animal.name} (ID: {animal.animal_ID})
+                                    </option>
+                                ))}
+                            </select>
+                        </>
+                    )}
+
                     {showAddSpecies && (
                         <form onSubmit={handleAddSpecies}>
                             <h2>Add New Species</h2>
-
                             <label htmlFor="common_name">Common Name:</label>
                             <input
                                 id="common_name"
                                 value={newSpecies.common_name}
-                                onChange={(e) => setNewSpecies({
-                                    ...newSpecies,
-                                    common_name: e.target.value
-                                })}
+                                onChange={(e) => setNewSpecies({ ...newSpecies, common_name: e.target.value })}
                                 maxLength="100"
                                 required
                             />
@@ -325,10 +356,7 @@ function AnimalManagement({ role, userEmail }) {
                             <input
                                 id="scientific_name"
                                 value={newSpecies.scientific_name}
-                                onChange={(e) => setNewSpecies({
-                                    ...newSpecies,
-                                    scientific_name: e.target.value
-                                })}
+                                onChange={(e) => setNewSpecies({ ...newSpecies, scientific_name: e.target.value })}
                                 maxLength="100"
                                 required
                             />
@@ -337,10 +365,7 @@ function AnimalManagement({ role, userEmail }) {
                             <input
                                 id="endangered_status"
                                 value={newSpecies.endangered_status}
-                                onChange={(e) => setNewSpecies({
-                                    ...newSpecies,
-                                    endangered_status: e.target.value
-                                })}
+                                onChange={(e) => setNewSpecies({ ...newSpecies, endangered_status: e.target.value })}
                             />
 
                             <label htmlFor="new_enclosure_ID">Enclosure ID:</label>
@@ -349,26 +374,16 @@ function AnimalManagement({ role, userEmail }) {
                                 type="number"
                                 min="1"
                                 value={newSpecies.enclosure_ID}
-                                onChange={(e) => setNewSpecies({
-                                    ...newSpecies,
-                                    enclosure_ID: e.target.value
-                                })}
+                                onChange={(e) => setNewSpecies({ ...newSpecies, enclosure_ID: e.target.value })}
                                 required
                             />
 
                             <button type="submit">Save Species</button>
-
-                            <button
-                                type="button"
-                                onClick={() => setShowAddSpecies(false)}
-                            >
-                                Cancel
-                            </button>
+                            <button type="button" onClick={() => setShowAddSpecies(false)}>Cancel</button>
                         </form>
                     )}
 
                     <form onSubmit={handleSubmit}>
-
                         <label htmlFor="name">Animal Name:</label>
                         <input
                             id="name"
@@ -376,6 +391,7 @@ function AnimalManagement({ role, userEmail }) {
                             value={formData.name}
                             onChange={handleChange}
                             maxLength="100"
+                            required
                         />
 
                         <label htmlFor="species_ID">Species:</label>
@@ -388,25 +404,16 @@ function AnimalManagement({ role, userEmail }) {
                             disabled={loadingSpecies || species.length === 0}
                         >
                             <option value="">
-                                {loadingSpecies
-                                    ? 'Loading species...'
-                                    : 'Select a species'}
+                                {loadingSpecies ? 'Loading species...' : 'Select a species'}
                             </option>
-
                             {species.map((item) => (
-                                <option
-                                    key={item.species_ID}
-                                    value={item.species_ID}
-                                >
+                                <option key={item.species_ID} value={item.species_ID}>
                                     {item.common_name}
                                 </option>
                             ))}
                         </select>
 
-                        <button
-                            type="button"
-                            onClick={() => setShowAddSpecies(!showAddSpecies)}
-                        >
+                        <button type="button" onClick={() => setShowAddSpecies(!showAddSpecies)}>
                             {showAddSpecies ? 'Cancel' : 'Add New Species'}
                         </button>
 
@@ -454,6 +461,20 @@ function AnimalManagement({ role, userEmail }) {
                             onChange={handleChange}
                         />
 
+                        <label htmlFor="weight_unit">Weight Unit:</label>
+                        <select
+                            id="weight_unit"
+                            name="weight_unit"
+                            value={formData.weight_unit}
+                            onChange={handleChange}
+                            required
+                        >
+                            <option value="lbs">Pounds (lbs)</option>
+                            <option value="oz">Ounces (oz)</option>
+                            <option value="kg">Kilograms (kg)</option>
+                            <option value="g">Grams (g)</option>
+                        </select>
+
                         <label htmlFor="arrival_date">Arrival Date:</label>
                         <input
                             id="arrival_date"
@@ -464,24 +485,25 @@ function AnimalManagement({ role, userEmail }) {
                         />
 
                         <label htmlFor="breeding_status">Breeding Status:</label>
-                        <input
+                        <select
                             id="breeding_status"
                             name="breeding_status"
                             value={formData.breeding_status}
                             onChange={handleChange}
-                            maxLength="50"
-                        />
+                            required
+                        >
+                            <option value="Breeding">Breeding</option>
+                            <option value="Not Breeding">Not Breeding</option>
+                        </select>
 
-                        <button type="submit">Save Animal</button>
-
+                        <button type="submit">
+                            {isEditing ? 'Update Animal Record' : 'Save Animal'}
+                        </button>
                     </form>
 
-                    {message && (
-                        <p role="status">{message}</p>
-                    )}
+                    {message && <p role="status">{message}</p>}
                 </>
             )}
-
         </div>
     );
 }
