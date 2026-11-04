@@ -1,4 +1,3 @@
-
 import './App.css';
 import { useState } from 'react';
 import { apiFetch } from './api';
@@ -11,6 +10,7 @@ import GiftShop from './Daniel/giftshop';
 import Food from './Daniel/food';
 import Parking from './Daniel/parking';
 import AnimalManagement from './animals/AnimalManagement';
+import EnclosureManagement from './animals/EnclosureManagement';
 import VisitorAnimalDirectory from './VisitorAnimalDirectory';
 import AttractionManagement from './Attractions/attractionManagement';
 import Tickets from './Tickets/Tickets';
@@ -21,7 +21,8 @@ import {
   BrowserRouter as Router,
   Routes,
   Route,
-  Link
+  Link,
+  Navigate
 } from 'react-router-dom';
 
 function App() {
@@ -126,6 +127,9 @@ function App() {
               </li>
               <li className="nav-item">
                 <Link to="/animals">Animal Management</Link>
+              </li>
+              <li className="nav-item">
+                <Link to="/enclosures">Enclosure Management</Link>
               </li>
             </>
           )}
@@ -233,7 +237,7 @@ function App() {
 
       <div className="content">
         <Routes>
-          <Route path="/" element={<Home />} />
+          <Route path="/" element={<Home role={role} />} />
 
           {/* Public Visitor Animal Directory */}
           <Route
@@ -285,6 +289,16 @@ function App() {
             path="/animals"
             element={
               <AnimalManagement role={role} userEmail={userEmail} />
+            }
+          />
+
+          {/* Admin-only Enclosure Management */}
+          <Route
+            path="/enclosures"
+            element={
+              isAdmin
+                ? <EnclosureManagement />
+                : <Navigate to="/" replace />
             }
           />
 
