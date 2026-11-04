@@ -1,3 +1,112 @@
+
+
+Pasted text(20261104-162210).txt
+Document
+so when i added them to the website via animal management form, i noticed they don't allow me to change the weight unit.
+
+So i'd like to make the following changes.
+include a "weight unit" dropdown menu to populate the weight unit for the database
+Change the "breeding status" to a dropdown menu that is simply breeding/not breeding
+Introduce a button to "update existing animal record" rather than purely only add new animals
+
+This is my current animal management form file:
+
+Absolutely. I reviewed your current AnimalManagement.jsx file, and we can make all three changes while keeping your existing Species Report, Breeding Program, and Add New Species functionality intact.
+
+We'll add a weight-unit dropdown (lbs, oz, kg, g), a breeding-status dropdown (Breeding, Not Breeding), and an update mode that lets you select an existing animal and save changes to its record.
+
+Download the updated AnimalManagement.jsx
+
+Important: The frontend also requires a backend PUT /api/animals/:id route and support for saving weight_unit; otherwise, adding will work but updating records won't. Send me your current server.js, and I'll make the corresponding backend changes.
+
+
+AnimalManagement_updated.jsx
+Code
+
+Convert to PDF
+first can I have the corrected animal managent code
+Of course! Here's the corrected version of your AnimalManagement.jsx file with all three requested changes:
+
+Weight Unit: Dropdown for lbs, oz, kg, and g.
+
+Breeding Status: Dropdown limited to Breeding and Not Breeding.
+
+Update Existing Animal Record: Select an existing animal, load its information, edit the fields, and save the changes.
+
+Download the complete corrected AnimalManagement.jsx
+
+Replace your existing file with this one. The update functionality will also require the corresponding backend route in server.js, which we can handle next.
+
+
+AnimalManagement_updated.jsx
+Code
+
+Convert to PDF
+
+Pasted text(20261104-162445).txt
+Document
+and then here is server.js
+
+Worked for 29s
+
+
+
+I reviewed your server.js. The good news is that you already have GET /api/animals and POST /api/animals, so we don't need to rebuild your animal management API.
+
+There are two changes needed: update the existing INSERT statement to save weight_unit, and add a PUT /api/animals/:id endpoint so the website can update existing records.
+
+I've updated your complete server.js while preserving your existing employee, payroll, donations, checkout, species, and other API functionality.
+
+Download the corrected server.js
+
+The changes include:
+
+POST /api/animals now saves the weight unit.
+
+PUT /api/animals/:id updates existing animal records.
+
+GET /api/animals retrieves existing records for the update dropdown.
+
+Validation for weight units and breeding status.
+
+Before testing: Replace your existing server.js with this version and restart your backend. The file also passed a JavaScript syntax check.
+
+Next, we'll test adding an animal and updating an existing animal through your website.
+
+
+server_updated.js
+Code
+
+Convert to PDF
+could you send it again
+Of course! Here is your updated backend file:
+
+Download corrected server.js
+
+This includes the weight-unit support and the new endpoint for updating existing animal records.
+
+
+server_updated.js
+Code
+
+Convert to PDF
+it wont open
+Sorry about that! Let's try a plain-text version instead:
+
+Download server.js as a TXT file
+
+Try the JavaScript file again
+
+If neither opens, I can paste the entire corrected code directly here so you can copy it into VS Code.
+
+
+server_updated.txt
+Document
+
+server_updated.js
+Code
+
+Convert to PDF
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
@@ -819,55 +928,130 @@ const server = http.createServer(async (req, res) => {
     req.method === 'GET'
   ) {
     try {
-      const [rows] = await pool.query('SELECT * FROM ANIMAL');
-      res.end(JSON.stringify(rows));
+      const [rows] = await pool.query('SELECT * FROM ANIMAL ORDER BY animal_ID');
+      send(res, 200, rows);
     } catch (err) {
-      res.statusCode = 500;
-      res.end(JSON.stringify({ error: err.message }));
+      console.error('Error fetching animals:', err);
+      send(res, 500, { error: 'Could not load animals.' });
+      return;
     }
   } else if (
     req.url === '/api/animals' &&
     req.method === 'POST'
   ) {
-    let body = '';
+    const animal = await readBody(req);
 
-    req.on('data', chunk => {
-      body += chunk;
-    });
+    const validAnimal = animal &&
+      typeof animal.name === 'string' &&
+      animal.name.trim() !== '' &&
+      Number.isInteger(Number(animal.species_ID)) &&
+      Number(animal.species_ID) > 0 &&
+      Number.isInteger(Number(animal.enclosure_ID)) &&
+      Number(animal.enclosure_ID) > 0 &&
+      (animal.age === '' || animal.age == null ||
+        (Number.isFinite(Number(animal.age)) && Number(animal.age) >= 0)) &&
+      (animal.weight === '' || animal.weight == null ||
+        (Number.isFinite(Number(animal.weight)) && Number(animal.weight) >= 0)) &&
+      ['lbs', 'oz', 'kg', 'g'].includes(animal.weight_unit) &&
+      ['Breeding', 'Not Breeding'].includes(animal.breeding_status);
 
-    req.on('end', async () => {
-      try {
-        const animal = JSON.parse(body);
+    if (!validAnimal) {
+      send(res, 400, { error: 'Please provide valid animal details, including weight unit and breeding status.' });
+      return;
+    }
 
-        const [result] = await pool.query(
-          `INSERT INTO ANIMAL
-           (name, species_ID, enclosure_ID, age, gender, weight,
-            arrival_date, breeding_status)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            animal.name || null,
-            animal.species_ID,
-            animal.enclosure_ID,
-            animal.age || null,
-            animal.gender || null,
-            animal.weight || null,
-            animal.arrival_date || null,
-            animal.breeding_status || null
-          ]
-        );
+    try {
+      const [result] = await pool.execute(
+        `INSERT INTO ANIMAL
+         (name, species_ID, enclosure_ID, age, gender, weight, weight_unit,
+          arrival_date, breeding_status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          animal.name.trim(),
+          Number(animal.species_ID),
+          Number(animal.enclosure_ID),
+          animal.age === '' || animal.age == null ? null : Number(animal.age),
+          animal.gender || null,
+          animal.weight === '' || animal.weight == null ? null : Number(animal.weight),
+          animal.weight_unit,
+          animal.arrival_date || null,
+          animal.breeding_status
+        ]
+      );
 
-        res.statusCode = 201;
-        res.end(
-          JSON.stringify({
-            message: 'Animal saved successfully',
-            animal_ID: result.insertId
-          })
-        );
-      } catch (err) {
-        res.statusCode = 500;
-        res.end(JSON.stringify({ error: err.message }));
+      send(res, 201, {
+        message: 'Animal saved successfully.',
+        animal_ID: result.insertId
+      });
+      return;
+    } catch (err) {
+      console.error('Error saving animal:', err);
+      send(res, 500, { error: 'Could not save animal. Check that the selected species and enclosure exist and that the ANIMAL table has a weight_unit column.' });
+      return;
+    }
+  } else if (
+    req.method === 'PUT' &&
+    /^\/api\/animals\/\d+$/.test(req.url)
+  ) {
+    const animalID = Number(req.url.split('/')[3]);
+    const animal = await readBody(req);
+
+    const validAnimal = animal &&
+      typeof animal.name === 'string' &&
+      animal.name.trim() !== '' &&
+      Number.isInteger(Number(animal.species_ID)) &&
+      Number(animal.species_ID) > 0 &&
+      Number.isInteger(Number(animal.enclosure_ID)) &&
+      Number(animal.enclosure_ID) > 0 &&
+      (animal.age === '' || animal.age == null ||
+        (Number.isFinite(Number(animal.age)) && Number(animal.age) >= 0)) &&
+      (animal.weight === '' || animal.weight == null ||
+        (Number.isFinite(Number(animal.weight)) && Number(animal.weight) >= 0)) &&
+      ['lbs', 'oz', 'kg', 'g'].includes(animal.weight_unit) &&
+      ['Breeding', 'Not Breeding'].includes(animal.breeding_status);
+
+    if (!validAnimal) {
+      send(res, 400, { error: 'Please provide valid animal details, including weight unit and breeding status.' });
+      return;
+    }
+
+    try {
+      const [existing] = await pool.execute(
+        'SELECT animal_ID FROM ANIMAL WHERE animal_ID = ?',
+        [animalID]
+      );
+
+      if (existing.length === 0) {
+        send(res, 404, { error: 'Animal not found.' });
+        return;
       }
-    });
+
+      await pool.execute(
+        `UPDATE ANIMAL
+         SET name = ?, species_ID = ?, enclosure_ID = ?, age = ?, gender = ?,
+             weight = ?, weight_unit = ?, arrival_date = ?, breeding_status = ?
+         WHERE animal_ID = ?`,
+        [
+          animal.name.trim(),
+          Number(animal.species_ID),
+          Number(animal.enclosure_ID),
+          animal.age === '' || animal.age == null ? null : Number(animal.age),
+          animal.gender || null,
+          animal.weight === '' || animal.weight == null ? null : Number(animal.weight),
+          animal.weight_unit,
+          animal.arrival_date || null,
+          animal.breeding_status,
+          animalID
+        ]
+      );
+
+      send(res, 200, { message: 'Animal record updated successfully.', animal_ID: animalID });
+      return;
+    } catch (err) {
+      console.error('Error updating animal:', err);
+      send(res, 500, { error: 'Could not update animal. Check that the selected species and enclosure exist and that the ANIMAL table has a weight_unit column.' });
+      return;
+    }
   } else if (
     req.method === 'DELETE' &&
     req.url.startsWith('/api/employees/')
