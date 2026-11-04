@@ -1,0 +1,59 @@
+.visitor-animals {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 32px 20px;
+}
+
+.visitor-animals-header {
+  margin-bottom: 28px;
+  text-align: center;
+}
+
+.visitor-animals-header h1 {
+  margin-bottom: 8px;
+}
+
+.visitor-animal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 20px;
+}
+
+.visitor-animal-card {
+  padding: 20px;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.visitor-animal-card h2 {
+  margin: 0 0 16px;
+}
+
+.visitor-animal-card dl,
+.visitor-animal-card dl div {
+  margin: 0;
+}
+
+.visitor-animal-card dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid #eee;
+}
+
+.visitor-animal-card dt {
+  font-weight: 600;
+}
+
+.visitor-animal-card dd {
+  margin: 0;
+  text-align: right;
+}
+
+.visitor-animals-error {
+  color: #b00020;
+  text-align: center;
+}
