@@ -1,139 +1,109 @@
-
-import { useEffect, useState } from 'react';
-import { apiFetch } from './api';
-import './VisitorAnimalDirectory.css';
-
-const API_URL = 'http://localhost:5000';
-
-function formatDate(value) {
-  if (!value) return 'Not available';
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return String(value).slice(0, 10);
-  }
-
-  return date.toLocaleDateString();
+.visitor-animals {
+  width: 100%;
+  max-width: 1250px;
+  margin: 0 auto;
+  padding: 45px 30px;
+  box-sizing: border-box;
 }
 
-function VisitorAnimalDirectory() {
-  const [animals, setAnimals] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadAnimals() {
-      try {
-        const response = await apiFetch(
-          `${API_URL}/api/public/animals`
-        );
-
-        if (!response.ok) {
-          throw new Error(
-            `Unable to load animals. Server returned ${response.status}.`
-          );
-        }
-
-        const data = await response.json();
-
-        if (!cancelled) {
-          setAnimals(Array.isArray(data) ? data : []);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err.message || 'Unable to connect to the server.');
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    }
-
-    loadAnimals();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  if (loading) {
-    return (
-      <main className="visitor-animals">
-        <p>Loading animals...</p>
-      </main>
-    );
-  }
-
-  if (error) {
-    return (
-      <main className="visitor-animals">
-        <p className="visitor-animals-error" role="alert">
-          {error}
-        </p>
-      </main>
-    );
-  }
-
-  return (
-    <main className="visitor-animals">
-      <header className="visitor-animals-header">
-        <h1>Meet the Animals</h1>
-        <p>
-          Get to know the animals who call Cougar Zoo home.
-        </p>
-      </header>
-
-      {animals.length === 0 ? (
-        <p>No animal records are available right now.</p>
-      ) : (
-        <div className="visitor-animal-grid">
-          {animals.map((animal) => (
-            <article
-              className="visitor-animal-card"
-              key={animal.animal_ID}
-            >
-              <h2>{animal.name}</h2>
-
-              <dl>
-                <div>
-                  <dt>Age</dt>
-                  <dd>{animal.age ?? 'Not available'}</dd>
-                </div>
-
-                <div>
-                  <dt>Arrival date</dt>
-                  <dd>{formatDate(animal.arrival_date)}</dd>
-                </div>
-
-                <div>
-                  <dt>Gender</dt>
-                  <dd>{animal.gender || 'Not available'}</dd>
-                </div>
-
-                <div>
-                  <dt>Conservation status</dt>
-                  <dd>{animal.endangered_status || 'Unknown'}</dd>
-                </div>
-
-                <div>
-                  <dt>Weight</dt>
-                  <dd>
-                    {animal.weight == null
-                      ? 'Not available'
-                      : `${animal.weight} ${animal.weight_unit || ''}`.trim()}
-                  </dd>
-                </div>
-              </dl>
-            </article>
-          ))}
-        </div>
-      )}
-    </main>
-  );
+.visitor-animals .visitor-animals-header {
+  text-align: center;
+  margin-bottom: 45px;
 }
 
-export default VisitorAnimalDirectory;
+.visitor-animals .visitor-animals-header h1 {
+  font-size: 2.5rem;
+  color: #234c43;
+  margin-bottom: 12px;
+}
+
+.visitor-animals .visitor-animals-header p {
+  font-size: 1.1rem;
+  color: #666;
+}
+
+.visitor-animals .visitor-animal-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
+  gap: 25px;
+  width: 100%;
+  align-items: stretch;
+}
+
+.visitor-animals .visitor-animal-card {
+  display: block;
+  width: auto !important;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 25px;
+  background: #ffffff;
+  border: 1px solid #e1e8e4;
+  border-radius: 14px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.07);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.visitor-animals .visitor-animal-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+}
+
+.visitor-animals .visitor-animal-card h2 {
+  font-size: 1.5rem;
+  color: #285849;
+  margin: 0 0 20px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #e8eee9;
+  overflow-wrap: anywhere;
+}
+
+.visitor-animals .visitor-animal-card dl {
+  margin: 0;
+}
+
+.visitor-animals .visitor-animal-card dl div {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 15px;
+  padding: 12px 0;
+  border-bottom: 1px solid #eeeeee;
+}
+
+.visitor-animals .visitor-animal-card dl div:last-child {
+  border-bottom: none;
+}
+
+.visitor-animals .visitor-animal-card dt {
+  font-weight: 600;
+  color: #555;
+  flex: 1;
+}
+
+.visitor-animals .visitor-animal-card dd {
+  margin: 0;
+  color: #333;
+  text-align: right;
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+
+.visitor-animals .visitor-animals-error {
+  color: #b00020;
+  text-align: center;
+  font-weight: 600;
+}
+
+@media (max-width: 650px) {
+  .visitor-animals {
+    padding: 30px 16px;
+  }
+
+  .visitor-animals .visitor-animals-header h1 {
+    font-size: 2rem;
+  }
+
+  .visitor-animals .visitor-animal-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
