@@ -10,7 +10,7 @@ import GiftShop from './Daniel/giftshop';
 import Food from './Daniel/food';
 import Parking from './Daniel/parking';
 import AnimalManagement from './animals/AnimalManagement';
-import VisitorAnimalDirectory from './animals/VisitorAnimalDirectory';
+import VisitorAnimalDirectory from './VisitorAnimalDirectory';
 import AttractionManagement from './Attractions/attractionManagement';
 import Tickets from './Tickets/Tickets';
 import RevenueDetails from './khadeeja/RevenueDetails';
