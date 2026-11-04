@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+mport { useCallback, useEffect, useState } from 'react';
 import { apiFetch } from '../api';
+
+const API_ORIGIN = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/+$/, '');
 
 const EMPTY_MAINTENANCE = {
   maintenance_date: new Date().toISOString().slice(0, 10),
@@ -49,7 +51,7 @@ function EnclosureManagement() {
     setLoading(true);
     setError('');
     try {
-      const response = await apiFetch('/api/enclosures');
+      const response = await apiFetch(`${API_ORIGIN}/api/enclosures`);
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Could not load enclosures.');
       setEnclosures(data);
@@ -77,7 +79,7 @@ function EnclosureManagement() {
       return;
     }
     try {
-      const response = await apiFetch(`/api/enclosures/${enclosureID}/maintenance`);
+      const response = await apiFetch(`${API_ORIGIN}/api/enclosures/${enclosureID}/maintenance`);
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Could not load maintenance history.');
       setMaintenance(data);
@@ -121,7 +123,7 @@ function EnclosureManagement() {
     setMessage('');
     setError('');
     try {
-      const response = await apiFetch(`/api/enclosures/${selectedID}`, {
+      const response = await apiFetch(`${API_ORIGIN}/api/enclosures/${selectedID}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form)
@@ -149,7 +151,7 @@ function EnclosureManagement() {
     setMessage('');
     setError('');
     try {
-      const response = await apiFetch(`/api/enclosures/${selectedID}/maintenance`, {
+      const response = await apiFetch(`${API_ORIGIN}/api/enclosures/${selectedID}/maintenance`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(maintenanceForm)
