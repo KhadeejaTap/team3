@@ -15,6 +15,132 @@ const EMPTY_FORM = {
     breeding_status: 'Not Breeding'
 };
 
+function MedicalRecords() {
+    const [animals, setAnimals] = useState([]);
+    const [search, setSearch] = useState('');
+    const [selectedAnimalID, setSelectedAnimalID] = useState('');
+    const [records, setRecords] = useState([]);
+    const [isSick, setIsSick] = useState(false);
+    const [form, setForm] = useState({ diagnosis: '', treatment: '', notes: '', vet_ID: '', follow_up: '' });
+    const [message, setMessage] = useState('');
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+
+    async function loadAnimals() {
+        setLoading(true);
+        try {
+            const response = await fetch(`${API_URL}/api/medical-records/animals`);
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Could not load animals.');
+            setAnimals(data);
+        } catch (error) {
+            setMessage(`Error: ${error.message}`);
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    async function loadRecords(animalID) {
+        if (!animalID) { setRecords([]); return; }
+        try {
+            const response = await fetch(`${API_URL}/api/medical-records?animal_ID=${animalID}`);
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Could not load medical history.');
+            setRecords(data);
+        } catch (error) {
+            setMessage(`Error: ${error.message}`);
+        }
+    }
+
+    useEffect(() => { loadAnimals(); }, []);
+    useEffect(() => { loadRecords(selectedAnimalID); }, [selectedAnimalID]);
+
+    async function handleSubmit(event) {
+        event.preventDefault();
+        if (!selectedAnimalID) { setMessage('Please select an animal first.'); return; }
+        setSaving(true);
+        setMessage('');
+        try {
+            const response = await fetch(`${API_URL}/api/medical-records`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    animal_ID: Number(selectedAnimalID),
+                    ...form,
+                    is_sick: isSick,
+                    follow_up: isSick ? null : form.follow_up
+                })
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error || 'Could not save medical record.');
+            setMessage(result.message);
+            setForm({ diagnosis: '', treatment: '', notes: '', vet_ID: '', follow_up: '' });
+            setIsSick(false);
+            await loadRecords(selectedAnimalID);
+            await loadAnimals();
+        } catch (error) {
+            setMessage(`Error: ${error.message}`);
+        } finally {
+            setSaving(false);
+        }
+    }
+
+    const filteredAnimals = animals.filter((animal) =>
+        `${animal.name} ${animal.common_name || ''} ${animal.animal_ID}`.toLowerCase().includes(search.toLowerCase())
+    );
+    const selectedAnimal = animals.find((animal) => String(animal.animal_ID) === String(selectedAnimalID));
+
+    return (
+        <section>
+            <h1>Medical Records</h1>
+            <p>Search for an animal to view its medical history or add a new record.</p>
+            <label htmlFor="medicalSearch">Search animals:</label>
+            <input id="medicalSearch" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name, species, or ID" />
+            <label htmlFor="medicalAnimal">Select Animal:</label>
+            <select id="medicalAnimal" value={selectedAnimalID} onChange={(e) => setSelectedAnimalID(e.target.value)} disabled={loading}>
+                <option value="">{loading ? 'Loading animals...' : 'Select an animal'}</option>
+                {filteredAnimals.map((animal) => (
+                    <option key={animal.animal_ID} value={animal.animal_ID}>
+                        {animal.name} — {animal.common_name || 'Unknown species'} (ID: {animal.animal_ID})
+                    </option>
+                ))}
+            </select>
+            {selectedAnimal && <h2>{selectedAnimal.name} — Medical History</h2>}
+            {selectedAnimalID && (records.length === 0 ? <p>No medical records found for this animal.</p> : (
+                <table>
+                    <thead><tr><th>Date</th><th>Diagnosis</th><th>Treatment</th><th>Notes</th><th>Sick?</th><th>Follow-up</th></tr></thead>
+                    <tbody>{records.map((record) => (
+                        <tr key={record.record_ID}>
+                            <td>{record.date ? String(record.date).slice(0, 10) : ''}</td>
+                            <td>{record.diagnosis}</td><td>{record.treatment}</td><td>{record.notes || '—'}</td>
+                            <td>{record.is_sick ? 'Yes' : 'No'}</td>
+                            <td>{record.follow_up ? String(record.follow_up).replace('T', ' ').slice(0, 16) : 'Not scheduled'}</td>
+                        </tr>
+                    ))}</tbody>
+                </table>
+            ))}
+            <h2>Add Medical Record</h2>
+            <form onSubmit={handleSubmit}>
+                <label htmlFor="medicalDiagnosis">Diagnosis:</label>
+                <input id="medicalDiagnosis" value={form.diagnosis} onChange={(e) => setForm({ ...form, diagnosis: e.target.value })} maxLength="255" required />
+                <label htmlFor="medicalTreatment">Treatment:</label>
+                <input id="medicalTreatment" value={form.treatment} onChange={(e) => setForm({ ...form, treatment: e.target.value })} maxLength="255" required />
+                <label htmlFor="medicalNotes">Notes:</label>
+                <textarea id="medicalNotes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} maxLength="255" />
+                <label htmlFor="medicalVet">Veterinarian Employee ID (optional):</label>
+                <input id="medicalVet" type="number" min="1" value={form.vet_ID} onChange={(e) => setForm({ ...form, vet_ID: e.target.value })} />
+                <label><input type="checkbox" checked={isSick} onChange={(e) => setIsSick(e.target.checked)} /> Mark animal as sick (automatically schedule tomorrow at 9:00 AM)</label>
+                {!isSick && <>
+                    <label htmlFor="medicalFollowUp">Follow-up appointment (optional):</label>
+                    <input id="medicalFollowUp" type="datetime-local" value={form.follow_up} onChange={(e) => setForm({ ...form, follow_up: e.target.value })} />
+                </>}
+                <button type="submit" disabled={saving || !selectedAnimalID}>{saving ? 'Saving...' : 'Save Medical Record'}</button>
+            </form>
+            {message && <p role="status">{message}</p>}
+        </section>
+    );
+}
+
 function AnimalManagement({ role, userEmail }) {
     const [currentTab, setCurrentTab] = useState('entry');
     const [formData, setFormData] = useState(EMPTY_FORM);
@@ -262,11 +388,16 @@ function AnimalManagement({ role, userEmail }) {
                 <button type="button" onClick={() => setCurrentTab('report')}>
                     {currentTab === 'report' ? <strong>Species Population Report</strong> : 'Species Population Report'}
                 </button>
+                <button type="button" onClick={() => setCurrentTab('medical')}>
+                    {currentTab === 'medical' ? <strong>Medical Records</strong> : 'Medical Records'}
+                </button>
             </div>
 
             <hr />
 
-            {currentTab === 'report' ? (
+            {currentTab === 'medical' ? (
+                <MedicalRecords />
+            ) : currentTab === 'report' ? (
                 <SpeciesReport role={role} userEmail={userEmail} />
             ) : currentTab === 'breeding' ? (
                 <>
