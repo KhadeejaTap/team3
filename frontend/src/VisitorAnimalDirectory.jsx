@@ -137,8 +137,3 @@ function VisitorAnimalDirectory() {
 }
 
 export default VisitorAnimalDirectory;
-
-  );
-}
-
-export default VisitorAnimalDirectory;
