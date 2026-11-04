@@ -815,6 +815,32 @@ const server = http.createServer(async (req, res) => {
       res.end(JSON.stringify({ error: err.message }));
     }
   } else if (
+    req.url === '/api/public/animals' &&
+    req.method === 'GET'
+  ) {
+    // Public, read-only animal directory. Deliberately excludes breeding_status.
+    try {
+      const [rows] = await pool.query(
+        `SELECT
+           a.animal_ID,
+           a.name,
+           a.age,
+           a.arrival_date,
+           a.gender,
+           COALESCE(s.endangered_status, 'Unknown') AS endangered_status,
+           a.weight,
+           a.weight_unit
+         FROM ANIMAL a
+         LEFT JOIN SPECIES s ON a.species_ID = s.species_ID
+         ORDER BY a.name`
+      );
+      send(res, 200, rows);
+    } catch (err) {
+      console.error('Error fetching public animal directory:', err);
+      send(res, 500, { error: 'Could not load the animal directory.' });
+      return;
+    }
+  } else if (
     req.url === '/api/animals' &&
     req.method === 'GET'
   ) {
