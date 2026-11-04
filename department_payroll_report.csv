@@ -1,0 +1,10 @@
+Department ID,Department Name,Department Head,Active Headcount,Total Payroll ($),Average Salary ($),Min Salary ($),Max Salary ($)
+2,"Animal Care","Dwayne Efron",5,248500,49700.00,44000,58000
+3,"Veterinary","Morgan Lawrence",4,242000,60500.00,38000,98000
+4,"Maintenance","Ben Reynolds",4,178000,44500.00,36000,55000
+1,"HR","Taylor Hemsworth",3,162000,54000.00,46000,68000
+9,"Events & Attractions","Rachel Green",3,148000,49333.33,38000,68000
+5,"Security","Arnold Gosling",3,136000,45333.33,41000,52000
+7,"Food Services","Gordon Ramsay",2,87000,43500.00,31000,56000
+6,"Retail","Emma Watson",2,80000,40000.00,32000,48000
+8,"Parking","Vin Diesel",2,78000,39000.00,33000,45000

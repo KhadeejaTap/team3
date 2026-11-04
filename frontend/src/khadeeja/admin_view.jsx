@@ -20,7 +20,8 @@ const initialFormData = {
 	hire_date: '',
 	hours: '',
 	manager_ID: '',
-	attr_ID: ''
+	attr_ID: '',
+	user_role: 'employee'
 };
 
 function AdminView() {
@@ -130,7 +131,7 @@ function AdminView() {
 				);
 				fetchAdminData();
 				handleCancelForm();
-				setTimeout(() => setSuccessMsg(''), 4000);
+				setTimeout(() => setSuccessMsg(''), 8000);
 			} else {
 				setError(`Failed to save employee: ${data.error || `Server responded with status ${res.status}`}`);
 			}
@@ -154,7 +155,7 @@ function AdminView() {
 				fetchAdminData();
 				setSuccessMsg(data.message || `Successfully terminated ${employeeName}. Status updated to past.`);
 				setError('');
-				setTimeout(() => setSuccessMsg(''), 4000);
+				setTimeout(() => setSuccessMsg(''), 8000);
 			} else {
 				setError(`Failed to delete employee: ${data.error || `Server responded with status ${res.status}`}`);
 			}
@@ -175,7 +176,10 @@ function AdminView() {
 	return (
 		<>
 			<div>
-				<h2> Admin View </h2>
+				<h2>Executive Administration — Staff Directory</h2>
+				<p style={{ color: '#555' }}>
+					Manage personnel records, department assignments, compensations, and new staff onboarding across all 8 zoo departments.
+				</p>
 
 				{error && <p style={{ color: 'red' }}><strong>Error: </strong>{error}</p>}
 				{successMsg && <p style={{ color: 'green' }}><strong>Success: </strong>{successMsg}</p>}
@@ -250,8 +254,10 @@ function AdminView() {
 									<option value="1">1 - HR</option>
 									<option value="2">2 - Animal Care</option>
 									<option value="3">3 - Veterinary</option>
-									<option value="4">4 - Maintenance</option>
-									<option value="5">5 - Security</option>
+									<option value="6">6 - Retail</option>
+									<option value="7">7 - Food Services</option>
+									<option value="8">8 - Parking</option>
+									<option value="9">9 - Events & Attractions</option>
 								</select>
 							</div>
 							<div>
@@ -282,17 +288,38 @@ function AdminView() {
 								<input type="number" name="manager_ID" placeholder="Optional" value={formData.manager_ID} onChange={handleChange} />
 							</div>
 							{!editingEmployeeId && (
-								<div>
-									<label>Staffed at Attraction: </label>
-									<select name="attr_ID" value={formData.attr_ID} onChange={handleChange}>
-										<option value="">-- Unassigned --</option>
-										{attractionsList.map((a) => (
-											<option key={a.attr_ID} value={a.attr_ID}>
-												{a.name}
-											</option>
-										))}
-									</select>
-								</div>
+								<>
+									{['2', '9'].includes(String(formData.department_ID)) ? (
+										<div>
+											<label>Staffed at Attraction: </label>
+											<select name="attr_ID" value={formData.attr_ID} onChange={handleChange}>
+												<option value="">-- Unassigned --</option>
+												{attractionsList.map((a) => (
+													<option key={a.attr_ID} value={a.attr_ID}>
+														{a.name}
+													</option>
+												))}
+											</select>
+										</div>
+									) : (
+										<p style={{ fontSize: '0.88rem', color: '#666', margin: '4px 0 10px 0' }}>
+											<em>(Attraction assignment only applies to Events & Attractions and Animal Care staff)</em>
+										</p>
+									)}
+
+									<div>
+										<label>Portal Access Role: </label>
+										<select name="user_role" value={formData.user_role || 'employee'} onChange={handleChange}>
+											<option value="employee">Employee (Directory only — No Payroll)</option>
+											<option value="manager">Manager (Department Lead & Payroll)</option>
+										</select>
+									</div>
+
+									<p style={{ fontSize: '0.88rem', color: '#555', margin: '6px 0 12px 0' }}>
+										<strong>Automatic User Account:</strong> Password will be set to{' '}
+										<code>{formData.first_name ? `${formData.first_name.trim().toLowerCase()}123` : '<firstname>123'}</code>
+									</p>
+								</>
 							)}
 							<br />
 							<button type="submit">
@@ -378,8 +405,14 @@ function AdminView() {
 							))
 						) : (
 							<tr>
-								<td colSpan="12">
-									{error ? 'Could not load data due to an error.' : `No employees found matching "${searchTerm}". Try checking the spelling or entering an ID.`}
+								<td colSpan="12" style={{ textAlign: 'center', padding: '2rem' }}>
+									{error ? (
+										<span style={{ color: 'red' }}>Could not load directory data: {error}</span>
+									) : searchTerm.trim() ? (
+										<span>No employees found matching <strong>"{searchTerm}"</strong>. Check the employee name or ID.</span>
+									) : (
+										<span>No employee records found in the database.</span>
+									)}
 								</td>
 							</tr>
 						)}
