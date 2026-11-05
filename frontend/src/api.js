@@ -1,14 +1,15 @@
+
 const API_ORIGIN = (
   import.meta.env.VITE_API_URL || 'http://localhost:5000'
 ).replace(/\/+$/, '');
 
 export async function apiFetch(url, options = {}) {
-  const requested = new URL(url, window.location.origin);
   const configured = new URL(API_ORIGIN);
+  const requested = new URL(url, configured.origin);
 
   const allowedOrigin =
-    requested.origin === 'http://localhost:5000' ||
-    requested.origin === configured.origin;
+    requested.origin === configured.origin ||
+    requested.origin === 'http://localhost:5000';
 
   if (
     !allowedOrigin ||
