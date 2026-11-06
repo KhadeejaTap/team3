@@ -2068,6 +2068,30 @@ const server = http.createServer(async (req, res) => {
     }
   } else if (
     req.method === 'GET' &&
+    /^\/api\/enclosures\/\d+\/costs$/.test(req.url)
+  ) {
+    try {
+      const allowed = await requireRoles(req, res, pool, send, ['admin']);
+      if (!allowed) return;
+
+      const enclosureID = Number(req.url.split('/')[3]);
+      const [rows] = await pool.query(
+        `SELECT cost_ID, enclosure_ID, cost_category, description, amount, cost_date
+         FROM ENCLOSURE_COST
+         WHERE enclosure_ID = ?
+         ORDER BY cost_date DESC, cost_ID DESC`,
+        [enclosureID]
+      );
+
+      send(res, 200, rows);
+      return;
+    } catch (err) {
+      console.error('Error loading enclosure costs:', err);
+      send(res, 500, { error: 'Could not load enclosure cost report.' });
+      return;
+    }
+  } else if (
+    req.method === 'GET' &&
     /^\/api\/enclosures\/\d+\/maintenance$/.test(req.url)
   ) {
     try {
