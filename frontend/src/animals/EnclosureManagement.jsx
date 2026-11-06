@@ -1,4 +1,3 @@
-
 import { useCallback, useEffect, useState } from 'react';
 import { apiFetch } from '../api';
 
@@ -11,13 +10,14 @@ const EMPTY_MAINTENANCE = {
 };
 
 const CONDITION_OPTIONS = ['Good', 'Fair', 'Poor', 'Under Maintenance'];
-
 const MAINTENANCE_STATUSES = [
   'Scheduled',
   'In Progress',
   'Completed',
   'Needs Attention'
 ];
+
+const COST_CATEGORIES = ['Feeding', 'Maintenance', 'Cleaning', 'Utilities', 'Landscaping'];
 
 const styles = {
   page: { maxWidth: 1200, margin: '0 auto', padding: '24px 16px' },
@@ -42,6 +42,12 @@ function EnclosureManagement() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [costReportRecords, setCostReportRecords] = useState([]);
+  const [showCostReport, setShowCostReport] = useState(false);
+  const [costReportLoading, setCostReportLoading] = useState(false);
+  const [costReportLoaded, setCostReportLoaded] = useState(false);
+  const [costStartDate, setCostStartDate] = useState('');
+  const [costEndDate, setCostEndDate] = useState('');
 
   const selectedEnclosure = enclosures.find(
     enclosure => String(enclosure.enclosure_ID) === String(selectedID)
@@ -50,23 +56,14 @@ function EnclosureManagement() {
   const loadEnclosures = useCallback(async (preferredID) => {
     setLoading(true);
     setError('');
-
     try {
       const response = await apiFetch('/api/enclosures');
       const data = await response.json();
-
       if (!response.ok) throw new Error(data.error || 'Could not load enclosures.');
-
       setEnclosures(data);
-
       const nextID = preferredID || selectedID || (data[0] ? String(data[0].enclosure_ID) : '');
-
       setSelectedID(nextID);
-
-      const selected = data.find(
-        item => String(item.enclosure_ID) === String(nextID)
-      );
-
+      const selected = data.find(item => String(item.enclosure_ID) === String(nextID));
       setForm(selected ? {
         name: selected.name || '',
         capacity: selected.capacity ?? '',
@@ -75,7 +72,6 @@ function EnclosureManagement() {
         amenities: selected.amenities || '',
         notes: selected.notes || ''
       } : null);
-
     } catch (err) {
       setError(err.message);
     } finally {
@@ -83,20 +79,87 @@ function EnclosureManagement() {
     }
   }, [selectedID]);
 
+  async function loadCostReport() {
+    setCostReportLoading(true);
+    setError('');
+    try {
+      const results = await Promise.all(enclosures.map(async enclosure => {
+        const response = await apiFetch(`/api/enclosures/${enclosure.enclosure_ID}/costs`);
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || `Could not load costs for ${enclosure.name}.`);
+        }
+        if (!Array.isArray(data)) {
+          throw new Error(`Unexpected cost report response for ${enclosure.name}.`);
+        }
+        return data.map(record => ({
+          ...record,
+          enclosure_name: enclosure.name,
+          enclosure_ID: enclosure.enclosure_ID
+        }));
+      }));
+      setCostReportRecords(results.flat());
+      setCostReportLoaded(true);
+      setShowCostReport(true);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setCostReportLoading(false);
+    }
+  }
+
+  const filteredCostRecords = costReportRecords.filter(record => {
+    const recordDate = String(record.cost_date || '').slice(0, 10);
+    if (costStartDate && recordDate < costStartDate) return false;
+    if (costEndDate && recordDate > costEndDate) return false;
+    return true;
+  });
+
+  const costReportRows = enclosures.map(enclosure => {
+    const enclosureRecords = filteredCostRecords.filter(
+      record => String(record.enclosure_ID) === String(enclosure.enclosure_ID)
+    );
+    const categoryTotals = Object.fromEntries(COST_CATEGORIES.map(category => [category, 0]));
+    enclosureRecords.forEach(record => {
+      const category = String(record.cost_category || '').trim().toLowerCase();
+      if (!category) return;
+      const matchedCategory = COST_CATEGORIES.find(item => {
+        const normalized = item.toLowerCase();
+        return category === normalized || category.includes(normalized) || normalized.includes(category);
+      });
+      if (matchedCategory) categoryTotals[matchedCategory] += Number(record.amount) || 0;
+    });
+    const total = enclosureRecords.reduce((sum, record) => sum + (Number(record.amount) || 0), 0);
+    return { ...enclosure, categoryTotals, total };
+  });
+
+  function exportCostReport() {
+    const headers = ['Enclosure', 'Total', ...COST_CATEGORIES];
+    const rows = costReportRows.map(row => [
+      row.name,
+      row.total.toFixed(2),
+      ...COST_CATEGORIES.map(category => row.categoryTotals[category].toFixed(2))
+    ]);
+    const csv = [headers, ...rows].map(row => row.map(value => `"${String(value).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'enclosure-cost-report.csv';
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   const loadMaintenance = useCallback(async (enclosureID) => {
     if (!enclosureID) {
       setMaintenance([]);
       return;
     }
-
     try {
       const response = await apiFetch(`/api/enclosures/${enclosureID}/maintenance`);
       const data = await response.json();
-
       if (!response.ok) throw new Error(data.error || 'Could not load maintenance history.');
-
       setMaintenance(data);
-
     } catch (err) {
       setError(err.message);
     }
@@ -104,7 +167,7 @@ function EnclosureManagement() {
 
   useEffect(() => {
     loadEnclosures();
-  }, []);
+  }, []); // Load once when the page opens.
 
   useEffect(() => {
     if (selectedID) loadMaintenance(selectedID);
@@ -112,7 +175,6 @@ function EnclosureManagement() {
 
   function selectEnclosure(enclosure) {
     setSelectedID(String(enclosure.enclosure_ID));
-
     setForm({
       name: enclosure.name || '',
       capacity: enclosure.capacity ?? '',
@@ -121,7 +183,6 @@ function EnclosureManagement() {
       amenities: enclosure.amenities || '',
       notes: enclosure.notes || ''
     });
-
     setMessage('');
     setError('');
     setMaintenanceForm(EMPTY_MAINTENANCE);
@@ -134,28 +195,20 @@ function EnclosureManagement() {
 
   async function saveEnclosure(event) {
     event.preventDefault();
-
     if (!selectedID || !form) return;
-
     setSaving(true);
     setMessage('');
     setError('');
-
     try {
       const response = await apiFetch(`/api/enclosures/${selectedID}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form)
       });
-
       const data = await response.json();
-
       if (!response.ok) throw new Error(data.error || 'Could not save enclosure details.');
-
       setMessage(data.message || 'Enclosure details saved.');
-
       await loadEnclosures(selectedID);
-
     } catch (err) {
       setError(err.message);
     } finally {
@@ -170,29 +223,21 @@ function EnclosureManagement() {
 
   async function addMaintenance(event) {
     event.preventDefault();
-
     if (!selectedID) return;
-
     setSaving(true);
     setMessage('');
     setError('');
-
     try {
       const response = await apiFetch(`/api/enclosures/${selectedID}/maintenance`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(maintenanceForm)
       });
-
       const data = await response.json();
-
       if (!response.ok) throw new Error(data.error || 'Could not add maintenance record.');
-
       setMessage(data.message || 'Maintenance record added.');
       setMaintenanceForm(EMPTY_MAINTENANCE);
-
       await loadMaintenance(selectedID);
-
     } catch (err) {
       setError(err.message);
     } finally {
@@ -201,27 +246,87 @@ function EnclosureManagement() {
   }
 
   if (loading && enclosures.length === 0) {
-    return (
-      <main style={styles.page}>
-        <h1>Enclosure Management</h1>
-        <p>Loading enclosure records...</p>
-      </main>
-    );
+    return <main style={styles.page}><h1>Enclosure Management</h1><p>Loading enclosure records...</p></main>;
   }
 
   return (
     <main style={styles.page}>
       <h1>Enclosure Management</h1>
-
-      <p style={styles.muted}>
-        Review enclosure conditions, capacity, temperature, amenities, and maintenance history.
-      </p>
+      <p style={styles.muted}>Review enclosure conditions, capacity, temperature, amenities, and maintenance history.</p>
 
       {message && <p role="status" style={styles.success}>{message}</p>}
       {error && <p role="alert" style={styles.warning}>{error}</p>}
 
-      <h2>Enclosure Overview</h2>
+      <section style={{ ...styles.card, marginBottom: 24 }}>
+        <h2>Enclosure Cost Report</h2>
+        <p style={styles.muted}>Compare recorded expenses by enclosure and cost category. Costs are grouped by enclosure, not by individual animal.</p>
+        <button
+          type="button"
+          style={styles.button}
+          onClick={() => {
+            if (showCostReport) setShowCostReport(false);
+            else if (costReportLoaded) setShowCostReport(true);
+            else loadCostReport();
+          }}
+          disabled={costReportLoading || enclosures.length === 0}
+        >
+          {costReportLoading ? 'Loading Cost Report...' : showCostReport ? 'Hide Cost Report' : 'View Cost Report'}
+        </button>
+        {showCostReport && (
+          <div style={{ marginTop: 18 }}>
+            <div style={styles.grid}>
+              <label style={styles.field}>From date
+                <input style={styles.input} type="date" value={costStartDate} onChange={event => setCostStartDate(event.target.value)} />
+              </label>
+              <label style={styles.field}>Through date
+                <input style={styles.input} type="date" value={costEndDate} min={costStartDate || undefined} onChange={event => setCostEndDate(event.target.value)} />
+              </label>
+            </div>
+            <button type="button" style={styles.secondaryButton} onClick={exportCostReport}>
+              Export CSV
+            </button>
+            {filteredCostRecords.length === 0 ? (
+              <p style={styles.muted}>No enclosure cost records were found for the selected date range.</p>
+            ) : (
+              <div style={{ overflowX: 'auto', marginTop: 14 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                  <thead>
+                    <tr>
+                      {['Enclosure', 'Total', ...COST_CATEGORIES].map(label => (
+                        <th key={label} style={{ padding: 9, borderBottom: '2px solid #d7dce2', whiteSpace: 'nowrap' }}>{label}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {costReportRows.filter(row => row.total > 0).map(row => (
+                      <tr key={row.enclosure_ID}>
+                        <td style={{ padding: 9, borderBottom: '1px solid #e6e9ed' }}>{row.name}</td>
+                        <td style={{ padding: 9, borderBottom: '1px solid #e6e9ed', fontWeight: 700 }}>${row.total.toFixed(2)}</td>
+                        {COST_CATEGORIES.map(category => (
+                          <td key={category} style={{ padding: 9, borderBottom: '1px solid #e6e9ed' }}>${row.categoryTotals[category].toFixed(2)}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <th style={{ padding: 9, borderTop: '2px solid #d7dce2' }}>All Enclosures</th>
+                      <th style={{ padding: 9, borderTop: '2px solid #d7dce2' }}>${costReportRows.reduce((sum, row) => sum + row.total, 0).toFixed(2)}</th>
+                      {COST_CATEGORIES.map(category => (
+                        <th key={category} style={{ padding: 9, borderTop: '2px solid #d7dce2' }}>
+                          ${costReportRows.reduce((sum, row) => sum + row.categoryTotals[category], 0).toFixed(2)}
+                        </th>
+                      ))}
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+      </section>
 
+      <h2>Enclosure Overview</h2>
       {enclosures.length === 0 ? (
         <p>No enclosure records were found.</p>
       ) : (
@@ -230,41 +335,23 @@ function EnclosureManagement() {
             const occupancy = enclosure.occupancy_percent == null
               ? 'Not available'
               : `${Number(enclosure.occupancy_percent).toFixed(1)}%`;
-
             const crowded = Number(enclosure.crowding_flag) === 1;
-
             return (
-              <article
-                key={enclosure.enclosure_ID}
-                style={{
-                  ...styles.card,
-                  border: String(enclosure.enclosure_ID) === String(selectedID)
-                    ? '2px solid #263746'
-                    : '1px solid #d7dce2'
-                }}
-              >
+              <article key={enclosure.enclosure_ID} style={{
+                ...styles.card,
+                border: String(enclosure.enclosure_ID) === String(selectedID)
+                  ? '2px solid #263746'
+                  : '1px solid #d7dce2'
+              }}>
                 <h3>{enclosure.name}</h3>
-
-                <p style={styles.muted}>
-                  {enclosure.location || 'Location not listed'} · {enclosure.indoor_outdoor || 'Type not listed'}
-                </p>
-
+                <p style={styles.muted}>{enclosure.location || 'Location not listed'} · {enclosure.indoor_outdoor || 'Type not listed'}</p>
                 <p><strong>Animals:</strong> {enclosure.animal_count} / {enclosure.capacity}</p>
                 <p><strong>Occupancy:</strong> {occupancy}</p>
-
                 <p style={crowded ? styles.warning : styles.success}>
                   {crowded ? 'Crowding alert: over 75% capacity' : 'Within crowding threshold'}
                 </p>
-
-                <p>
-                  <strong>Condition:</strong> {enclosure.condition_status || 'Not recorded'}
-                </p>
-
-                <button
-                  type="button"
-                  style={styles.secondaryButton}
-                  onClick={() => selectEnclosure(enclosure)}
-                >
+                <p><strong>Condition:</strong> {enclosure.condition_status || 'Not recorded'}</p>
+                <button type="button" style={styles.secondaryButton} onClick={() => selectEnclosure(enclosure)}>
                   Manage Enclosure
                 </button>
               </article>
@@ -277,136 +364,52 @@ function EnclosureManagement() {
         <>
           <section style={{ ...styles.card, marginTop: 24 }}>
             <h2>Edit {selectedEnclosure.name}</h2>
-
-            <p style={styles.muted}>
-              Basic enclosure information such as location, size, and department comes from the existing enclosure record.
-            </p>
-
+            <p style={styles.muted}>Basic enclosure information such as location, size, and department comes from the existing enclosure record.</p>
             <form onSubmit={saveEnclosure}>
               <div style={styles.grid}>
-                <label style={styles.field}>
-                  Enclosure name
-                  <input
-                    style={styles.input}
-                    name="name"
-                    value={form.name}
-                    onChange={updateForm}
-                    required
-                    maxLength={100}
-                  />
+                <label style={styles.field}>Enclosure name
+                  <input style={styles.input} name="name" value={form.name} onChange={updateForm} required maxLength={100} />
                 </label>
-
-                <label style={styles.field}>
-                  Capacity (number of animals)
-                  <input
-                    style={styles.input}
-                    type="number"
-                    name="capacity"
-                    min="1"
-                    step="1"
-                    value={form.capacity}
-                    onChange={updateForm}
-                    required
-                  />
+                <label style={styles.field}>Capacity (number of animals)
+                  <input style={styles.input} type="number" name="capacity" min="1" step="1" value={form.capacity} onChange={updateForm} required />
                 </label>
-
-                <label style={styles.field}>
-                  Condition
-                  <select
-                    style={styles.input}
-                    name="condition_status"
-                    value={form.condition_status}
-                    onChange={updateForm}
-                  >
-                    {CONDITION_OPTIONS.map(option => (
-                      <option key={option} value={option}>{option}</option>
-                    ))}
+                <label style={styles.field}>Condition
+                  <select style={styles.input} name="condition_status" value={form.condition_status} onChange={updateForm}>
+                    {CONDITION_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
                   </select>
                 </label>
-
-                <label style={styles.field}>
-                  Temperature (°)
-                  <input
-                    style={styles.input}
-                    type="number"
-                    step="0.1"
-                    name="temperature"
-                    value={form.temperature}
-                    onChange={updateForm}
-                    placeholder="Enter temperature"
-                  />
+                <label style={styles.field}>Temperature (°)
+                  <input style={styles.input} type="number" step="0.1" name="temperature" value={form.temperature} onChange={updateForm} placeholder="Enter temperature" />
                 </label>
               </div>
-
-              <label style={styles.field}>
-                Amenities
-                <textarea
-                  style={{ ...styles.input, minHeight: 80 }}
-                  name="amenities"
-                  value={form.amenities}
-                  onChange={updateForm}
-                  placeholder="Water features, climbing structures, shelters, enrichment items..."
-                />
+              <label style={styles.field}>Amenities
+                <textarea style={{ ...styles.input, minHeight: 80 }} name="amenities" value={form.amenities} onChange={updateForm} placeholder="Water features, climbing structures, shelters, enrichment items..." />
               </label>
-
-              <label style={styles.field}>
-                Condition / enclosure notes
-                <textarea
-                  style={{ ...styles.input, minHeight: 90 }}
-                  name="notes"
-                  value={form.notes}
-                  onChange={updateForm}
-                  placeholder="Document observations or issues..."
-                />
+              <label style={styles.field}>Condition / enclosure notes
+                <textarea style={{ ...styles.input, minHeight: 90 }} name="notes" value={form.notes} onChange={updateForm} placeholder="Document observations or issues..." />
               </label>
-
-              <button type="submit" style={styles.button} disabled={saving}>
-                {saving ? 'Saving...' : 'Save Enclosure Details'}
-              </button>
+              <button type="submit" style={styles.button} disabled={saving}>{saving ? 'Saving...' : 'Save Enclosure Details'}</button>
             </form>
           </section>
 
           <section style={{ ...styles.card, marginTop: 24 }}>
             <h2>Maintenance History</h2>
-
             {maintenance.length === 0 ? (
-              <p style={styles.muted}>
-                No maintenance records have been added for this enclosure.
-              </p>
+              <p style={styles.muted}>No maintenance records have been added for this enclosure.</p>
             ) : (
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                  <thead>
-                    <tr>
-                      {['Date', 'Type', 'Description', 'Status', 'Notes'].map(label => (
-                        <th
-                          key={label}
-                          style={{ padding: 8, borderBottom: '1px solid #d7dce2' }}
-                        >
-                          {label}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-
+                  <thead><tr>
+                    {['Date', 'Type', 'Description', 'Status', 'Notes'].map(label => <th key={label} style={{ padding: 8, borderBottom: '1px solid #d7dce2' }}>{label}</th>)}
+                  </tr></thead>
                   <tbody>
                     {maintenance.map(record => (
                       <tr key={record.maintenance_ID}>
-                        <td style={{ padding: 8, borderBottom: '1px solid #e6e9ed' }}>
-                          {String(record.maintenance_date).slice(0, 10)}
-                        </td>
-                        <td style={{ padding: 8, borderBottom: '1px solid #e6e9ed' }}>
-                          {record.maintenance_type}
-                        </td>
-                        <td style={{ padding: 8, borderBottom: '1px solid #e6e9ed' }}>
-                          {record.description}
-                        </td>
-                        <td style={{ padding: 8, borderBottom: '1px solid #e6e9ed' }}>
-                          {record.status}
-                        </td>
-                        <td style={{ padding: 8, borderBottom: '1px solid #e6e9ed' }}>
-                          {record.notes || '—'}
-                        </td>
+                        <td style={{ padding: 8, borderBottom: '1px solid #e6e9ed' }}>{String(record.maintenance_date).slice(0, 10)}</td>
+                        <td style={{ padding: 8, borderBottom: '1px solid #e6e9ed' }}>{record.maintenance_type}</td>
+                        <td style={{ padding: 8, borderBottom: '1px solid #e6e9ed' }}>{record.description}</td>
+                        <td style={{ padding: 8, borderBottom: '1px solid #e6e9ed' }}>{record.status}</td>
+                        <td style={{ padding: 8, borderBottom: '1px solid #e6e9ed' }}>{record.notes || '—'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -417,75 +420,27 @@ function EnclosureManagement() {
 
           <section style={{ ...styles.card, marginTop: 24 }}>
             <h2>Add Maintenance Record</h2>
-
             <form onSubmit={addMaintenance}>
               <div style={styles.grid}>
-                <label style={styles.field}>
-                  Maintenance date
-                  <input
-                    style={styles.input}
-                    type="date"
-                    name="maintenance_date"
-                    value={maintenanceForm.maintenance_date}
-                    onChange={updateMaintenanceForm}
-                    required
-                  />
+                <label style={styles.field}>Maintenance date
+                  <input style={styles.input} type="date" name="maintenance_date" value={maintenanceForm.maintenance_date} onChange={updateMaintenanceForm} required />
                 </label>
-
-                <label style={styles.field}>
-                  Maintenance type
-                  <input
-                    style={styles.input}
-                    name="maintenance_type"
-                    value={maintenanceForm.maintenance_type}
-                    onChange={updateMaintenanceForm}
-                    placeholder="Cleaning, repair, inspection..."
-                    required
-                    maxLength={100}
-                  />
+                <label style={styles.field}>Maintenance type
+                  <input style={styles.input} name="maintenance_type" value={maintenanceForm.maintenance_type} onChange={updateMaintenanceForm} placeholder="Cleaning, repair, inspection..." required maxLength={100} />
                 </label>
-
-                <label style={styles.field}>
-                  Status
-                  <select
-                    style={styles.input}
-                    name="status"
-                    value={maintenanceForm.status}
-                    onChange={updateMaintenanceForm}
-                  >
-                    {MAINTENANCE_STATUSES.map(status => (
-                      <option key={status} value={status}>{status}</option>
-                    ))}
+                <label style={styles.field}>Status
+                  <select style={styles.input} name="status" value={maintenanceForm.status} onChange={updateMaintenanceForm}>
+                    {MAINTENANCE_STATUSES.map(status => <option key={status} value={status}>{status}</option>)}
                   </select>
                 </label>
               </div>
-
-              <label style={styles.field}>
-                Description
-                <textarea
-                  style={{ ...styles.input, minHeight: 80 }}
-                  name="description"
-                  value={maintenanceForm.description}
-                  onChange={updateMaintenanceForm}
-                  required
-                  placeholder="Describe the work performed or planned..."
-                />
+              <label style={styles.field}>Description
+                <textarea style={{ ...styles.input, minHeight: 80 }} name="description" value={maintenanceForm.description} onChange={updateMaintenanceForm} required placeholder="Describe the work performed or planned..." />
               </label>
-
-              <label style={styles.field}>
-                Additional notes
-                <textarea
-                  style={{ ...styles.input, minHeight: 70 }}
-                  name="notes"
-                  value={maintenanceForm.notes}
-                  onChange={updateMaintenanceForm}
-                  placeholder="Optional notes..."
-                />
+              <label style={styles.field}>Additional notes
+                <textarea style={{ ...styles.input, minHeight: 70 }} name="notes" value={maintenanceForm.notes} onChange={updateMaintenanceForm} placeholder="Optional notes..." />
               </label>
-
-              <button type="submit" style={styles.button} disabled={saving}>
-                {saving ? 'Saving...' : 'Add Maintenance Record'}
-              </button>
+              <button type="submit" style={styles.button} disabled={saving}>{saving ? 'Saving...' : 'Add Maintenance Record'}</button>
             </form>
           </section>
         </>
