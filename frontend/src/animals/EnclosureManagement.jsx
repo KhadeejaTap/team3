@@ -1,7 +1,5 @@
-mport { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { apiFetch } from '../api';
-
-const API_ORIGIN = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/+$/, '');
 
 const EMPTY_MAINTENANCE = {
   maintenance_date: new Date().toISOString().slice(0, 10),
@@ -18,6 +16,8 @@ const MAINTENANCE_STATUSES = [
   'Completed',
   'Needs Attention'
 ];
+
+const COST_CATEGORIES = ['Feeding', 'Maintenance', 'Cleaning', 'Utilities', 'Landscaping'];
 
 const styles = {
   page: { maxWidth: 1200, margin: '0 auto', padding: '24px 16px' },
@@ -42,6 +42,12 @@ function EnclosureManagement() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [costReportRecords, setCostReportRecords] = useState([]);
+  const [showCostReport, setShowCostReport] = useState(false);
+  const [costReportLoading, setCostReportLoading] = useState(false);
+  const [costReportLoaded, setCostReportLoaded] = useState(false);
+  const [costStartDate, setCostStartDate] = useState('');
+  const [costEndDate, setCostEndDate] = useState('');
 
   const selectedEnclosure = enclosures.find(
     enclosure => String(enclosure.enclosure_ID) === String(selectedID)
@@ -51,7 +57,7 @@ function EnclosureManagement() {
     setLoading(true);
     setError('');
     try {
-      const response = await apiFetch(`${API_ORIGIN}/api/enclosures`);
+      const response = await apiFetch('/api/enclosures');
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Could not load enclosures.');
       setEnclosures(data);
@@ -73,13 +79,84 @@ function EnclosureManagement() {
     }
   }, [selectedID]);
 
+  async function loadCostReport() {
+    setCostReportLoading(true);
+    setError('');
+    try {
+      const results = await Promise.all(enclosures.map(async enclosure => {
+        const response = await apiFetch(`/api/enclosures/${enclosure.enclosure_ID}/costs`);
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || `Could not load costs for ${enclosure.name}.`);
+        }
+        if (!Array.isArray(data)) {
+          throw new Error(`Unexpected cost report response for ${enclosure.name}.`);
+        }
+        return data.map(record => ({
+          ...record,
+          enclosure_name: enclosure.name,
+          enclosure_ID: enclosure.enclosure_ID
+        }));
+      }));
+      setCostReportRecords(results.flat());
+      setCostReportLoaded(true);
+      setShowCostReport(true);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setCostReportLoading(false);
+    }
+  }
+
+  const filteredCostRecords = costReportRecords.filter(record => {
+    const recordDate = String(record.cost_date || '').slice(0, 10);
+    if (costStartDate && recordDate < costStartDate) return false;
+    if (costEndDate && recordDate > costEndDate) return false;
+    return true;
+  });
+
+  const costReportRows = enclosures.map(enclosure => {
+    const enclosureRecords = filteredCostRecords.filter(
+      record => String(record.enclosure_ID) === String(enclosure.enclosure_ID)
+    );
+    const categoryTotals = Object.fromEntries(COST_CATEGORIES.map(category => [category, 0]));
+    enclosureRecords.forEach(record => {
+      const category = String(record.cost_category || '').trim().toLowerCase();
+      if (!category) return;
+      const matchedCategory = COST_CATEGORIES.find(item => {
+        const normalized = item.toLowerCase();
+        return category === normalized || category.includes(normalized) || normalized.includes(category);
+      });
+      if (matchedCategory) categoryTotals[matchedCategory] += Number(record.amount) || 0;
+    });
+    const total = enclosureRecords.reduce((sum, record) => sum + (Number(record.amount) || 0), 0);
+    return { ...enclosure, categoryTotals, total };
+  });
+
+  function exportCostReport() {
+    const headers = ['Enclosure', 'Total', ...COST_CATEGORIES];
+    const rows = costReportRows.map(row => [
+      row.name,
+      row.total.toFixed(2),
+      ...COST_CATEGORIES.map(category => row.categoryTotals[category].toFixed(2))
+    ]);
+    const csv = [headers, ...rows].map(row => row.map(value => `"${String(value).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'enclosure-cost-report.csv';
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   const loadMaintenance = useCallback(async (enclosureID) => {
     if (!enclosureID) {
       setMaintenance([]);
       return;
     }
     try {
-      const response = await apiFetch(`${API_ORIGIN}/api/enclosures/${enclosureID}/maintenance`);
+      const response = await apiFetch(`/api/enclosures/${enclosureID}/maintenance`);
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Could not load maintenance history.');
       setMaintenance(data);
@@ -123,7 +200,7 @@ function EnclosureManagement() {
     setMessage('');
     setError('');
     try {
-      const response = await apiFetch(`${API_ORIGIN}/api/enclosures/${selectedID}`, {
+      const response = await apiFetch(`/api/enclosures/${selectedID}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form)
@@ -151,7 +228,7 @@ function EnclosureManagement() {
     setMessage('');
     setError('');
     try {
-      const response = await apiFetch(`${API_ORIGIN}/api/enclosures/${selectedID}/maintenance`, {
+      const response = await apiFetch(`/api/enclosures/${selectedID}/maintenance`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(maintenanceForm)
@@ -179,6 +256,75 @@ function EnclosureManagement() {
 
       {message && <p role="status" style={styles.success}>{message}</p>}
       {error && <p role="alert" style={styles.warning}>{error}</p>}
+
+      <section style={{ ...styles.card, marginBottom: 24 }}>
+        <h2>Enclosure Cost Report</h2>
+        <p style={styles.muted}>Compare recorded expenses by enclosure and cost category. Costs are grouped by enclosure, not by individual animal.</p>
+        <button
+          type="button"
+          style={styles.button}
+          onClick={() => {
+            if (showCostReport) setShowCostReport(false);
+            else if (costReportLoaded) setShowCostReport(true);
+            else loadCostReport();
+          }}
+          disabled={costReportLoading || enclosures.length === 0}
+        >
+          {costReportLoading ? 'Loading Cost Report...' : showCostReport ? 'Hide Cost Report' : 'View Cost Report'}
+        </button>
+        {showCostReport && (
+          <div style={{ marginTop: 18 }}>
+            <div style={styles.grid}>
+              <label style={styles.field}>From date
+                <input style={styles.input} type="date" value={costStartDate} onChange={event => setCostStartDate(event.target.value)} />
+              </label>
+              <label style={styles.field}>Through date
+                <input style={styles.input} type="date" value={costEndDate} min={costStartDate || undefined} onChange={event => setCostEndDate(event.target.value)} />
+              </label>
+            </div>
+            <button type="button" style={styles.secondaryButton} onClick={exportCostReport}>
+              Export CSV
+            </button>
+            {filteredCostRecords.length === 0 ? (
+              <p style={styles.muted}>No enclosure cost records were found for the selected date range.</p>
+            ) : (
+              <div style={{ overflowX: 'auto', marginTop: 14 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                  <thead>
+                    <tr>
+                      {['Enclosure', 'Total', ...COST_CATEGORIES].map(label => (
+                        <th key={label} style={{ padding: 9, borderBottom: '2px solid #d7dce2', whiteSpace: 'nowrap' }}>{label}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {costReportRows.filter(row => row.total > 0).map(row => (
+                      <tr key={row.enclosure_ID}>
+                        <td style={{ padding: 9, borderBottom: '1px solid #e6e9ed' }}>{row.name}</td>
+                        <td style={{ padding: 9, borderBottom: '1px solid #e6e9ed', fontWeight: 700 }}>${row.total.toFixed(2)}</td>
+                        {COST_CATEGORIES.map(category => (
+                          <td key={category} style={{ padding: 9, borderBottom: '1px solid #e6e9ed' }}>${row.categoryTotals[category].toFixed(2)}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <th style={{ padding: 9, borderTop: '2px solid #d7dce2' }}>All Enclosures</th>
+                      <th style={{ padding: 9, borderTop: '2px solid #d7dce2' }}>${costReportRows.reduce((sum, row) => sum + row.total, 0).toFixed(2)}</th>
+                      {COST_CATEGORIES.map(category => (
+                        <th key={category} style={{ padding: 9, borderTop: '2px solid #d7dce2' }}>
+                          ${costReportRows.reduce((sum, row) => sum + row.categoryTotals[category], 0).toFixed(2)}
+                        </th>
+                      ))}
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+      </section>
 
       <h2>Enclosure Overview</h2>
       {enclosures.length === 0 ? (
