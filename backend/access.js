@@ -24,9 +24,10 @@ async function handleAccess(req, res, pool, send, readBody) {
     }
 
     const [users] = await pool.execute(
-      `SELECT userID, email, role
-       FROM users
-       WHERE email = ? AND password = ?`,
+      `SELECT u.userID, u.email, u.role, e.department_ID
+       FROM users u
+       LEFT JOIN employee e ON u.email = e.email
+       WHERE u.email = ? AND u.password = ?`,
       [data.email.trim(), data.password]
     );
 
@@ -46,6 +47,7 @@ async function handleAccess(req, res, pool, send, readBody) {
       userID: user.userID,
       email: user.email,
       role: user.role,
+      department_ID: user.department_ID ? Number(user.department_ID) : null,
       token
     });
     return true;

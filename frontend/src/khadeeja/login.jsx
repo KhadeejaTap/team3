@@ -58,7 +58,12 @@ function LoginPage({ onLogin }) {
       }
 
       localStorage.setItem('user_token', data.token);
-      onLogin(data.role, data.email);
+      if (data.department_ID) {
+        localStorage.setItem('user_dept', String(data.department_ID));
+      } else {
+        localStorage.removeItem('user_dept');
+      }
+      onLogin(data.role, data.email, data.department_ID ? Number(data.department_ID) : null);
       setPassword('');
       setMessage(`Logged in as ${data.role}.`);
     } catch (err) {
