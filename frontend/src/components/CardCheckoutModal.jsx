@@ -176,7 +176,7 @@ export default function CardCheckoutModal({
               <div style={{ borderTop: '1px solid #ddd', borderBottom: '1px solid #ddd', padding: '8px 0', margin: '8px 0' }}>
                 {receipt.items.map((it, idx) => (
                   <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', margin: '4px 0' }}>
-                    <span>{it.quantity}x {it.name} {it.color ? `(${it.color})` : ''}</span>
+                    <span>{it.quantity}x {it.name} {it.color ? `(${it.color})` : ''} {it.size ? `Size: ${it.size}` : ''}</span>
                     <span>${(Number(it.price) * it.quantity).toFixed(2)}</span>
                   </div>
                 ))}
@@ -233,7 +233,7 @@ export default function CardCheckoutModal({
               <div style={{ maxHeight: '120px', overflowY: 'auto', margin: '6px 0', fontSize: '0.85rem' }}>
                 {items.map((it, idx) => (
                   <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
-                    <span>{it.quantity}x {it.name} {it.color ? `(${it.color})` : ''}</span>
+                    <span>{it.quantity}x {it.name} {it.color ? `(${it.color})` : ''} {it.size ? `Size: ${it.size}` : ''}</span>
                     <span>${(Number(it.price) * it.quantity).toFixed(2)}</span>
                   </div>
                 ))}
