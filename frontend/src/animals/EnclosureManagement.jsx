@@ -21,8 +21,18 @@ const COST_CATEGORIES = ['Feeding', 'Maintenance', 'Cleaning', 'Utilities', 'Lan
 
 const styles = {
   page: { maxWidth: 1200, margin: '0 auto', padding: '24px 16px' },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 },
-  card: { border: '1px solid #d7dce2', borderRadius: 10, padding: 18, background: '#fff' },
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 20 },
+  card: {
+    border: '1px solid #d7dce2',
+    borderRadius: 10,
+    padding: 20,
+    background: '#fff',
+    width: '100%',
+    boxSizing: 'border-box',
+    display: 'flex',
+    flexDirection: 'column',
+    marginRight: 0
+  },
   field: { display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 },
   input: { width: '100%', boxSizing: 'border-box', padding: 10, border: '1px solid #b9c0c8', borderRadius: 6, font: 'inherit' },
   button: { padding: '9px 14px', border: '1px solid #263746', borderRadius: 6, background: '#263746', color: '#fff', cursor: 'pointer', font: 'inherit' },

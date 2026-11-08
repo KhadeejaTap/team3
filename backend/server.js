@@ -399,6 +399,22 @@ const server = http.createServer(async (req, res) => {
     req.url.startsWith('/api/reports/revenue') &&
     req.method === 'GET'
   ) {
+    // TODO / UPCOMING REVENUE & COST STREAMS TO INTEGRATE:
+    // 1. Retail Sales:
+    //    SELECT 'Retail' AS stream_category, p.name AS stream_name, COUNT(*) AS transaction_count,
+    //           SUM(ti.price * ti.quantity) AS total_revenue, AVG(ti.price * ti.quantity) AS avg_amount,
+    //           MIN(ti.price * ti.quantity) AS min_amount, MAX(ti.price * ti.quantity) AS max_amount
+    //    FROM transaction_item ti JOIN product p ON ti.item_ID = p.product_ID WHERE ti.item_type = 'product' GROUP BY p.name
+    // 2. Food Concessions:
+    //    SELECT 'Food Services' AS stream_category, mi.name AS stream_name, COUNT(*) AS transaction_count,
+    //           SUM(ti.price * ti.quantity) AS total_revenue, ... FROM transaction_item ti JOIN menu_item mi ...
+    // 3. Parking Passes:
+    //    SELECT 'Parking' AS stream_category, pl.name AS stream_name, COUNT(*) AS transaction_count,
+    //           SUM(pl.parking_rate) AS total_revenue, ... FROM parking_session ps JOIN parking_lot pl ...
+    // 4. Operational Cost Deductions (for Net Operating Margin):
+    //    - Wholesale COGS: SUM(p.cost_price * ti.quantity)
+    //    - Zoo Payroll: SELECT SUM(salary) FROM employee WHERE current = 1
+    //    - Enclosure Ops: SELECT SUM(amount) FROM enclosure_cost
     try {
       const parsedUrl = new URL(req.url, 'http://localhost');
       const streamType = parsedUrl.searchParams.get('stream_type') || 'all';
@@ -432,6 +448,34 @@ const server = http.createServer(async (req, res) => {
           FROM DONATION
           GROUP BY purpose
         `;
+      } else if (streamType === 'retail') {
+        query = `
+          SELECT 
+            'Retail Merchandise' AS stream_category,
+            COALESCE(p.name, CONCAT('Product #', ti.item_ID)) AS stream_name,
+            COUNT(*) AS transaction_count,
+            COALESCE(SUM(ti.price * ti.quantity), 0) AS total_revenue,
+            COALESCE(ROUND(AVG(ti.price * ti.quantity), 2), 0) AS avg_amount,
+            COALESCE(MIN(ti.price * ti.quantity), 0) AS min_amount,
+            COALESCE(MAX(ti.price * ti.quantity), 0) AS max_amount
+          FROM transaction_item ti
+          LEFT JOIN product p ON ti.item_ID = p.product_ID
+          WHERE ti.item_type = 'product'
+          GROUP BY p.product_ID, p.name, ti.item_ID
+        `;
+      } else if (streamType === 'expenses') {
+        query = `
+          SELECT 
+            'Habitat Operations' AS stream_category,
+            cost_category AS stream_name,
+            COUNT(*) AS transaction_count,
+            COALESCE(SUM(amount), 0) AS total_revenue,
+            COALESCE(ROUND(AVG(amount), 2), 0) AS avg_amount,
+            COALESCE(MIN(amount), 0) AS min_amount,
+            COALESCE(MAX(amount), 0) AS max_amount
+          FROM ENCLOSURE_COST
+          GROUP BY cost_category
+        `;
       } else {
         query = `
           SELECT * FROM (
@@ -458,6 +502,21 @@ const server = http.createServer(async (req, res) => {
               COALESCE(MAX(amount), 0) AS max_amount
             FROM DONATION
             GROUP BY purpose
+
+            UNION ALL
+
+            SELECT 
+              'Retail Merchandise' AS stream_category,
+              COALESCE(p.name, CONCAT('Product #', ti.item_ID)) AS stream_name,
+              COUNT(*) AS transaction_count,
+              COALESCE(SUM(ti.price * ti.quantity), 0) AS total_revenue,
+              COALESCE(ROUND(AVG(ti.price * ti.quantity), 2), 0) AS avg_amount,
+              COALESCE(MIN(ti.price * ti.quantity), 0) AS min_amount,
+              COALESCE(MAX(ti.price * ti.quantity), 0) AS max_amount
+            FROM transaction_item ti
+            LEFT JOIN product p ON ti.item_ID = p.product_ID
+            WHERE ti.item_type = 'product'
+            GROUP BY p.product_ID, p.name, ti.item_ID
           ) AS streams
         `;
       }
@@ -476,6 +535,47 @@ const server = http.createServer(async (req, res) => {
     } catch (err) {
       res.statusCode = 500;
       res.end(JSON.stringify({ error: err.message }));
+    }
+  } else if (
+    req.url === '/api/reports/financial-summary' &&
+    req.method === 'GET'
+  ) {
+    try {
+      const [[tickets]] = await pool.query('SELECT COALESCE(SUM(price), 0) AS total FROM TICKET');
+      const [[donations]] = await pool.query('SELECT COALESCE(SUM(amount), 0) AS total FROM DONATION');
+      const [[retail]] = await pool.query("SELECT COALESCE(SUM(price * quantity), 0) AS total FROM TRANSACTION_ITEM WHERE item_type = 'product'");
+      const [categories] = await pool.query(`
+        SELECT cost_category, COALESCE(SUM(amount), 0) AS total
+        FROM ENCLOSURE_COST
+        GROUP BY cost_category
+        ORDER BY total DESC
+      `);
+
+      const admissionsTotal = Number(tickets.total || 0);
+      const donationsTotal = Number(donations.total || 0);
+      const retailTotal = Number(retail.total || 0);
+      const grossRevenue = admissionsTotal + donationsTotal + retailTotal;
+
+      const enclosureCostsTotal = categories.reduce((sum, c) => sum + Number(c.total || 0), 0);
+      const netBalance = grossRevenue - enclosureCostsTotal;
+
+      send(res, 200, {
+        gross_revenue: grossRevenue.toFixed(2),
+        admissions_total: admissionsTotal.toFixed(2),
+        donations_total: donationsTotal.toFixed(2),
+        retail_total: retailTotal.toFixed(2),
+        enclosure_costs_total: enclosureCostsTotal.toFixed(2),
+        enclosure_categories: categories.map(c => ({
+          category: c.cost_category,
+          amount: Number(c.total || 0).toFixed(2)
+        })),
+        net_balance: netBalance.toFixed(2)
+      });
+      return;
+    } catch (err) {
+      console.error('Error fetching financial summary:', err);
+      send(res, 500, { error: 'Could not calculate financial summary.' });
+      return;
     }
   } else if (
     req.url.startsWith('/api/reports/species') &&
@@ -1962,7 +2062,7 @@ const server = http.createServer(async (req, res) => {
     req.method === 'GET'
   ) {
     try {
-      const allowed = await requireRoles(req, res, pool, send, ['admin']);
+      const allowed = await requireRoles(req, res, pool, send, ['admin', 'manager', 'employee']);
       if (!allowed) return;
 
       const [rows] = await pool.query(`
@@ -2011,7 +2111,7 @@ const server = http.createServer(async (req, res) => {
     /^\/api\/enclosures\/\d+$/.test(req.url)
   ) {
     try {
-      const allowed = await requireRoles(req, res, pool, send, ['admin']);
+      const allowed = await requireRoles(req, res, pool, send, ['admin', 'manager', 'employee']);
       if (!allowed) return;
 
       const enclosureID = Number(req.url.split('/')[3]);
@@ -2071,7 +2171,7 @@ const server = http.createServer(async (req, res) => {
     /^\/api\/enclosures\/\d+\/costs$/.test(req.url)
   ) {
     try {
-      const allowed = await requireRoles(req, res, pool, send, ['admin']);
+      const allowed = await requireRoles(req, res, pool, send, ['admin', 'manager', 'employee']);
       if (!allowed) return;
 
       const enclosureID = Number(req.url.split('/')[3]);
@@ -2095,7 +2195,7 @@ const server = http.createServer(async (req, res) => {
     /^\/api\/enclosures\/\d+\/maintenance$/.test(req.url)
   ) {
     try {
-      const allowed = await requireRoles(req, res, pool, send, ['admin']);
+      const allowed = await requireRoles(req, res, pool, send, ['admin', 'manager', 'employee']);
       if (!allowed) return;
 
       const enclosureID = Number(req.url.split('/')[3]);
@@ -2120,7 +2220,7 @@ const server = http.createServer(async (req, res) => {
     /^\/api\/enclosures\/\d+\/maintenance$/.test(req.url)
   ) {
     try {
-      const allowed = await requireRoles(req, res, pool, send, ['admin']);
+      const allowed = await requireRoles(req, res, pool, send, ['admin', 'manager', 'employee']);
       if (!allowed) return;
 
       const enclosureID = Number(req.url.split('/')[3]);

@@ -38,13 +38,20 @@ function App() {
       : null
   );
 
+  const [userDept, setUserDept] = useState(() => {
+    const saved = localStorage.getItem('user_dept');
+    return saved ? Number(saved) : null;
+  });
+
   const [loggingOut, setLoggingOut] = useState(false);
   const [authError, setAuthError] = useState('');
 
-  function handleLogin(newRole, newEmail) {
+  function handleLogin(newRole, newEmail, newDept) {
     setAuthError('');
     setRole(newRole);
     setUserEmail(newEmail);
+    const parsedDept = newDept ? Number(newDept) : null;
+    setUserDept(parsedDept);
 
     if (newRole) {
       localStorage.setItem('user_role', newRole);
@@ -54,10 +61,17 @@ function App() {
       } else {
         localStorage.removeItem('user_email');
       }
+
+      if (parsedDept) {
+        localStorage.setItem('user_dept', String(parsedDept));
+      } else {
+        localStorage.removeItem('user_dept');
+      }
     } else {
       localStorage.removeItem('user_token');
       localStorage.removeItem('user_role');
       localStorage.removeItem('user_email');
+      localStorage.removeItem('user_dept');
     }
   }
 
@@ -94,14 +108,17 @@ function App() {
   const isVisitor = !role || role === 'visitor';
 
   const isRetailStaff =
+    userDept === 6 ||
     userEmail === 'emma.watson@zoo.com' ||
     userEmail === 'tom.hardy@zoo.com';
 
   const isFoodStaff =
+    userDept === 7 ||
     userEmail === 'gordon.ramsay@zoo.com' ||
     userEmail === 'mia.goth@zoo.com';
 
   const isParkingStaff =
+    userDept === 8 ||
     userEmail === 'al.bundy@zoo.com' ||
     userEmail === 'kevin.hart@zoo.com';
 
@@ -113,23 +130,14 @@ function App() {
             <Link to="/">Home</Link>
           </li>
 
-          {/* Admin */}
+          {/* Admin: Executive & Financial Oversight */}
           {isAdmin && (
             <>
               <li className="nav-item">
-                <Link to="/directory">Staff & Directory</Link>
+                <Link to="/directory">Staff & Payroll</Link>
               </li>
               <li className="nav-item">
                 <Link to="/revenue-details">Revenue Details</Link>
-              </li>
-              <li className="nav-item">
-                <Link to="/species-report">Species Report</Link>
-              </li>
-              <li className="nav-item">
-                <Link to="/animals">Animal Management</Link>
-              </li>
-              <li className="nav-item">
-                <Link to="/enclosures">Enclosure Management</Link>
               </li>
             </>
           )}
@@ -182,6 +190,9 @@ function App() {
                 </li>
                 <li className="nav-item">
                   <Link to="/animals">Animal Management</Link>
+                </li>
+                <li className="nav-item">
+                  <Link to="/enclosures">Enclosure Management</Link>
                 </li>
                 <li className="nav-item">
                   <Link to="/attractions">Attraction Management</Link>
@@ -292,11 +303,11 @@ function App() {
             }
           />
 
-          {/* Admin-only Enclosure Management */}
+          {/* Staff Enclosure Management */}
           <Route
             path="/enclosures"
             element={
-              isAdmin
+              isStaff
                 ? <EnclosureManagement />
                 : <Navigate to="/" replace />
             }
