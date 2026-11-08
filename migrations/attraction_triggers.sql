@@ -1,3 +1,5 @@
+USE ZOO;
+
 DELIMITER $$
 
 CREATE TRIGGER attraction_capacity_before_insert

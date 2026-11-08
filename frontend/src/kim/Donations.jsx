@@ -129,42 +129,60 @@ function Donations({ role, userEmail, userID, token }) {
 
 
     return(
-        <main>
+        <main className="donation-page">
             <h1>Donations</h1>
+            <p>Enter your donation details below.</p>
+
             <form onSubmit={handleSubmit}>
-                <label htmlFor="donor_first"> First Name</label>
-                <input type="text" id="donor_first" name="donor_first" value={donationForm.donor_first} onChange={handleChange} required />
+                <div className="donation-form-field">
+                    <label htmlFor="donor_first">First Name:</label>
+                    <input type="text" id="donor_first" name="donor_first" value={donationForm.donor_first} onChange={handleChange} required />
+                </div>
 
-                <label htmlFor="donor_last"> Last Name</label>
-                <input type="text" id="donor_last" name="donor_last" value={donationForm.donor_last} onChange={handleChange} required />
+                <div className="donation-form-field">
+                    <label htmlFor="donor_last">Last Name:</label>
+                    <input type="text" id="donor_last" name="donor_last" value={donationForm.donor_last} onChange={handleChange} required />
+                </div>
                 
-                <label htmlFor="donor_email"> Email</label>
-                <input type="email" id="donor_email" name="donor_email" value={donationForm.donor_email} onChange={handleChange} required />
+                <div className="donation-form-field">
+                    <label htmlFor="donor_email">Email:</label>
+                    <input type="email" id="donor_email" name="donor_email" value={donationForm.donor_email} onChange={handleChange} required />
+                </div>
                 
-                <label htmlFor="donor_phone"> Phone Number</label>
-                <input type="text" id="donor_phone" name="donor_phone" value={donationForm.donor_phone} onChange={handleChange} required />
+                <div className="donation-form-field">
+                    <label htmlFor="donor_phone">Phone Number:</label>
+                    <input type="text" id="donor_phone" name="donor_phone" value={donationForm.donor_phone} onChange={handleChange} required />
+                </div>
 
-                <label htmlFor="donation_amt">Donation Amount ($)</label>
-                <input type="number" id="donation_amt" name="donation_amt" step="0.01" min="0.01" value={donationForm.donation_amt} onChange={handleChange} required />
+                <div className="donation-form-field">
+                    <label htmlFor="donation_amt">Donation Amount ($):</label>
+                    <input type="number" id="donation_amt" name="donation_amt" step="0.01" min="0.01" value={donationForm.donation_amt} onChange={handleChange} required />
+                </div>
 
-                <label htmlFor="donation_date">Donation Date</label>
-                <input type="date" value={donationForm.donation_date} readOnly/>
+                <div className="donation-form-field">
+                    <label htmlFor="donation_date">Donation Date:</label>
+                    <input type="date" id="donation_date" value={donationForm.donation_date} readOnly />
+                </div>
 
-                <label htmlFor="purpose">Purpose of Donation</label>
-                <input type="text" id="purpose" name="purpose" value={donationForm.purpose} onChange={handleChange} required />
+                <div className="donation-form-field">
+                    <label htmlFor="purpose">Purpose of Donation:</label>
+                    <input type="text" id="purpose" name="purpose" value={donationForm.purpose} onChange={handleChange} required />
+                </div>
 
-                <label htmlFor="payment_method">Payment Method</label>
-                <select id="payment_method" name="payment_method" value={donationForm.payment_method} onChange={handleChange} required>
-                    <option value="credit">Credit</option>
-                    <option value="debit">Debit</option>
-                    <option value="digital_wallet">Digital Wallet</option>
-                    <option value="paypal">PayPal</option>
-                </select>
+                <div className="donation-form-field">
+                    <label htmlFor="payment_method">Payment Method:</label>
+                    <select id="payment_method" name="payment_method" value={donationForm.payment_method} onChange={handleChange} required>
+                        <option value="credit">Credit</option>
+                        <option value="debit">Debit</option>
+                        <option value="digital_wallet">Digital Wallet</option>
+                        <option value="paypal">PayPal</option>
+                    </select>
+                </div>
 
                 <button type="submit">Submit Donation</button>
-                {message && <p role="status">{message}</p>}
+                {message && <p className="donation-message" role="status">{message}</p>}
             </form>
-            <section>
+            <section className="donation-history">
                 <h2>My Donation History</h2>
 
                 {!token ? (

@@ -12,6 +12,8 @@ export default function GiftShop({ role, userEmail }) {
 	const [selectedCategory, setSelectedCategory] = useState('all');
 	const [cart, setCart] = useState([]);
 	const [checkout, setCheckout] = useState(false);
+	const [selectedVariants, setSelectedVariants] = useState({});
+	const [selectedSizes, setSelectedSizes] = useState({});
 
 	// Dept Head / Manager view state ('pos' or 'inventory')
 	const [managerTab, setManagerTab] = useState('inventory');
@@ -115,8 +117,6 @@ export default function GiftShop({ role, userEmail }) {
 	}
 
 	// --- 3. PUBLIC VISITOR STOREFRONT (Visitors / Customers) ---
-	const [selectedVariants, setSelectedVariants] = useState({});
-
 	// Group products by category and name so color variants collapse into a dropdown
 	const groupedProducts = Object.values(
 		products.reduce((acc, p) => {
@@ -146,17 +146,27 @@ export default function GiftShop({ role, userEmail }) {
 		return group.variants[0];
 	}
 
-	function addToCart(product) {
+	function addToCart(product, size) {
 		setCart(prevCart => {
-			const existing = prevCart.find(item => item.product_ID === product.product_ID);
-			if (existing) {
-				if (existing.quantity >= product.quantity_in_stock) {
-					alert('Cannot add more; stock limit reached');
-					return prevCart;
-				}
-				return prevCart.map(item => item.product_ID === product.product_ID ? { ...item, quantity: item.quantity + 1 } : item);
+			const productQuantity = prevCart
+				.filter(item => item.product_ID === product.product_ID)
+				.reduce((sum, item) => sum + item.quantity, 0);
+			if (productQuantity >= product.quantity_in_stock) {
+				alert('Cannot add more; stock limit reached');
+				return prevCart;
 			}
-			//if not alr in cart
+
+			const existing = prevCart.find(item =>
+				item.product_ID === product.product_ID && item.size === size
+			);
+			if (existing) {
+				return prevCart.map(item =>
+					item.product_ID === product.product_ID && item.size === size
+						? { ...item, quantity: item.quantity + 1 }
+						: item
+				);
+			}
+
 			return [
 				...prevCart,
 				{
@@ -164,6 +174,7 @@ export default function GiftShop({ role, userEmail }) {
 					name: product.name,
 					price: Number(product.price),
 					color: product.color,
+					size,
 					quantity: 1,
 					maxStock: product.quantity_in_stock
 				}
@@ -171,13 +182,16 @@ export default function GiftShop({ role, userEmail }) {
 		});
 	}
 
-	function updateQuantity(product_ID, delta) {
+	function updateQuantity(product_ID, size, delta) {
 		setCart(prev =>
 			prev
 				.map(item => {
-					if (item.product_ID !== product_ID) return item;
+					if (item.product_ID !== product_ID || item.size !== size) return item;
 					const newQty = item.quantity + delta;
-					if (newQty > item.maxStock) {
+					const otherProductQuantity = prev
+						.filter(other => other.product_ID === product_ID && other.size !== size)
+						.reduce((sum, other) => sum + other.quantity, 0);
+					if (newQty + otherProductQuantity > item.maxStock) {
 						alert('Cannot add more; stock limit reached.');
 						return item;
 					}
@@ -187,8 +201,8 @@ export default function GiftShop({ role, userEmail }) {
 		);
 	}
 
-	function removeFromCart(product_ID) {
-		setCart(prev => prev.filter(item => item.product_ID !== product_ID));
+	function removeFromCart(product_ID, size) {
+		setCart(prev => prev.filter(item => item.product_ID !== product_ID || item.size !== size));
 	}
 
 	const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -199,7 +213,7 @@ export default function GiftShop({ role, userEmail }) {
 		<div>
 			<h1>Cougar Zoo Gift Shop</h1>
 
-			<div>
+			<div style={{ display: 'flex', gap: '8px' }}>
 				{['all', 'Toys', 'Apparel', 'Drinkware', 'Souvenirs', 'Books'].map(cat => (
 					<button key={cat} onClick={() => setSelectedCategory(cat)}>
 						{cat}
@@ -212,14 +226,14 @@ export default function GiftShop({ role, userEmail }) {
 				<div>
 					<h2>Your Cart</h2>
 					{cart.map(item => (
-						<div key={item.product_ID}>
-							<span>{item.name} {item.color ? `(${item.color})` : ''} - ${item.price.toFixed(2)} x {item.quantity}</span>
+						<div key={`${item.product_ID}-${item.size || ''}`}>
+							<span>{item.name} {item.color ? `(${item.color})` : ''} {item.size ? `Size: ${item.size}` : ''} - ${item.price.toFixed(2)} x {item.quantity}</span>
 							{' '}
-							<button onClick={() => updateQuantity(item.product_ID, -1)}>-</button>
+							<button onClick={() => updateQuantity(item.product_ID, item.size, -1)}>-</button>
 							{' '}
-							<button onClick={() => updateQuantity(item.product_ID, 1)}>+</button>
+							<button onClick={() => updateQuantity(item.product_ID, item.size, 1)}>+</button>
 							{' '}
-							<button onClick={() => removeFromCart(item.product_ID)}>Remove</button>
+							<button onClick={() => removeFromCart(item.product_ID, item.size)}>Remove</button>
 						</div>
 					))}
 
@@ -241,6 +255,7 @@ export default function GiftShop({ role, userEmail }) {
 					item_ID: item.product_ID,
 					name: item.name,
 					color: item.color,
+					size: item.size,
 					price: item.price,
 					quantity: item.quantity
 				}))}
@@ -253,6 +268,11 @@ export default function GiftShop({ role, userEmail }) {
 				{filteredGroups.map(group => {
 					const active = getActiveVariant(group);
 					const hasColorVariants = group.variants.length > 1 && group.variants.some(v => v.color);
+					const hasSizeOptions = ![
+						'embroided zoo baseball cap',
+						'embroidered zoo baseball cap',
+						'stainless steel insulated tumbler',
+					].includes(group.name.trim().toLowerCase());
 
 					return (
 						<div key={group.name} style={{ border: '1px solid #ccc', padding: '12px', borderRadius: '4px', background: '#fff' }}>
@@ -261,25 +281,46 @@ export default function GiftShop({ role, userEmail }) {
 
 							{hasColorVariants && (
 								<div style={{ margin: '8px 0' }}>
-									<label style={{ fontSize: '13px', marginRight: '6px', fontWeight: 'bold' }}>Color:</label>
-									<select
-										value={active.product_ID}
-										onChange={e => {
-											const chosenId = Number(e.target.value);
-											setSelectedVariants(prev => ({
-												...prev,
-												[group.name]: chosenId
-											}));
-										}}
-										style={{ padding: '4px 8px' }}
-									>
-										{group.variants.map(v => (
-											<option key={v.product_ID} value={v.product_ID}>
-												{v.color ? v.color.charAt(0).toUpperCase() + v.color.slice(1) : 'Default'}
-												{v.quantity_in_stock <= 0 ? ' (Out of stock)' : ''}
-											</option>
-										))}
-									</select>
+									<div style={{ marginBottom: '8px' }}>
+										<label style={{ display: 'block', fontSize: '13px', marginBottom: '4px', fontWeight: 'bold' }}>Color:</label>
+										<select
+											value={active.product_ID}
+											onChange={e => {
+												const chosenId = Number(e.target.value);
+												setSelectedVariants(prev => ({
+													...prev,
+													[group.name]: chosenId
+												}));
+											}}
+											style={{ padding: '4px 8px' }}
+										>
+											{group.variants.map(v => (
+												<option key={v.product_ID} value={v.product_ID}>
+													{v.color ? v.color.charAt(0).toUpperCase() + v.color.slice(1) : 'Default'}
+													{v.quantity_in_stock <= 0 ? ' (Out of stock)' : ''}
+												</option>
+											))}
+										</select>
+									</div>
+									{hasSizeOptions && (
+										<div>
+											<label htmlFor={`size-${group.name}`} style={{ display: 'block', fontSize: '13px', marginBottom: '4px', fontWeight: 'bold' }}>Size:</label>
+											<select
+												id={`size-${group.name}`}
+												value={selectedSizes[group.name] || ''}
+												onChange={e => setSelectedSizes(prev => ({
+													...prev,
+													[group.name]: e.target.value
+												}))}
+												style={{ padding: '4px 8px' }}
+											>
+												<option value="">Select a size</option>
+												{['XS', 'S', 'M', 'L', 'XL', 'XXL'].map(size => (
+													<option key={size} value={size}>{size}</option>
+												))}
+											</select>
+										</div>
+									)}
 								</div>
 							)}
 
@@ -292,10 +333,10 @@ export default function GiftShop({ role, userEmail }) {
 								)}
 							</p>
 							<button
-								onClick={() => addToCart(active)}
-								disabled={active.quantity_in_stock === 0}
+								onClick={() => addToCart(active, selectedSizes[group.name])}
+								disabled={active.quantity_in_stock === 0 || (hasColorVariants && hasSizeOptions && !selectedSizes[group.name])}
 							>
-								{active.quantity_in_stock === 0 ? 'Out of Stock' : 'Add to Cart'}
+								{active.quantity_in_stock === 0 ? 'Out of Stock' : hasColorVariants && hasSizeOptions && !selectedSizes[group.name] ? 'Select a Size' : 'Add to Cart'}
 							</button>
 						</div>
 					);

@@ -397,31 +397,60 @@ main form {
   text-align: left;
 }
 
-.ticket-form-field {
+.donation-page form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 24px;
+  max-width: 800px;
+  margin: 24px auto;
+  padding: 24px;
+  text-align: left;
+}
+
+.ticket-form-field,
+.donation-form-field {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.ticket-form-field input {
+.ticket-form-field input,
+.donation-form-field input,
+.donation-form-field select {
   box-sizing: border-box;
   width: 100%;
 }
 
-.ticket-purchase form button {
+.ticket-purchase form button,
+.donation-page form button {
   grid-column: 1 / -1;
   justify-self: start;
 }
 
+.donation-message {
+  grid-column: 1 / -1;
+}
+
+.donation-history {
+  max-width: 800px;
+  margin: 32px auto 0;
+}
+
 @media (max-width: 600px) {
   .attraction-management form,
-  .ticket-purchase form {
+  .ticket-purchase form,
+  .donation-page form {
     grid-template-columns: 1fr;
     padding: 16px;
   }
 
   .attraction-management form button,
-  .ticket-purchase form button {
+  .ticket-purchase form button,
+  .donation-page form button {
+    grid-column: auto;
+  }
+
+  .donation-message {
     grid-column: auto;
   }
 }
