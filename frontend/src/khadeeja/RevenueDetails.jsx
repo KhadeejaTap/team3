@@ -178,7 +178,7 @@ function RevenueDetails({ role }) {
 								<td style={{ color: Number(summary.net_balance) < 0 ? '#b00' : '#070' }}>
 									<strong>{Number(summary.net_balance) < 0 ? '-' : '+'}${Math.abs(Number(summary.net_balance)).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
 									<br />
-									<small>{Number(summary.net_balance) < 0 ? 'Operating Deficit (Subsidized by Endowment/City)' : 'Operating Surplus'}</small>
+									<small>{Number(summary.net_balance) < 0 ? 'Operating Deficit' : 'Operating Surplus'}</small>
 								</td>
 							</tr>
 						</tbody>
