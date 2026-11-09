@@ -298,9 +298,14 @@ const server = http.createServer(async (req, res) => {
       const params = [];
 
       if (email) {
-        query +=
-          ' WHERE department_ID = (SELECT department_ID FROM EMPLOYEE WHERE email = ?)';
-        params.push(email);
+        const [emp] = await pool.query('SELECT department_ID FROM EMPLOYEE WHERE email = ?', [email]);
+        const isFinHR = emp.length > 0 && emp[0].department_ID === 1;
+
+        if (!isFinHR) {
+          query +=
+            ' WHERE department_ID = (SELECT department_ID FROM EMPLOYEE WHERE email = ?)';
+          params.push(email);
+        }
       }
 
       const [rows] = await pool.query(query, params);
@@ -319,7 +324,7 @@ const server = http.createServer(async (req, res) => {
     }
   } else if (req.url === '/api/hr' && req.method === 'GET') {
     try {
-      const [rows] = await pool.query('SELECT * FROM hr_view');
+      const [rows] = await pool.query('SELECT * FROM admin_view WHERE department_ID = 1');
       res.end(JSON.stringify(rows));
     } catch (err) {
       res.statusCode = 500;
@@ -347,12 +352,9 @@ const server = http.createServer(async (req, res) => {
           COALESCE(MAX(e.salary), 0) AS max_salary,
           CASE d.department_ID
             WHEN 1 THEN 200000
-            WHEN 2 THEN 300000
-            WHEN 3 THEN 280000
-            WHEN 6 THEN 100000
-            WHEN 7 THEN 110000
-            WHEN 8 THEN 95000
-            WHEN 9 THEN 180000
+            WHEN 2 THEN 580000
+            WHEN 3 THEN 210000
+            WHEN 4 THEN 180000
             ELSE 150000
           END AS allocated_budget
         FROM DEPARTMENT d
@@ -362,10 +364,17 @@ const server = http.createServer(async (req, res) => {
       const params = [];
 
       if (email) {
-        const [userRole] = await pool.query('SELECT role FROM users WHERE email = ?', [email]);
+        const [userRole] = await pool.query(
+          `SELECT u.role, e.department_ID 
+           FROM users u 
+           LEFT JOIN employee e ON u.email = e.email 
+           WHERE u.email = ?`,
+          [email]
+        );
         const isManager = userRole.length > 0 && userRole[0].role === 'manager';
+        const isFinHR = userRole.length > 0 && userRole[0].department_ID === 1;
 
-        if (isManager) {
+        if (isManager && !isFinHR) {
           query += ' WHERE d.department_ID = (SELECT department_ID FROM EMPLOYEE WHERE email = ?)';
           params.push(email);
         } else if (departmentId && departmentId !== 'all') {
@@ -587,20 +596,19 @@ const server = http.createServer(async (req, res) => {
       const statusFilter = parsedUrl.searchParams.get('status');
       const sortBy = parsedUrl.searchParams.get('sort_by') || 'population_desc';
 
-      if (email) {
-        const [userRole] = await pool.query('SELECT role FROM users WHERE email = ?', [email]);
-        const isAdmin = userRole.length > 0 && userRole[0].role === 'admin';
+      if (!email) {
+        res.statusCode = 401;
+        res.end(JSON.stringify({ error: 'Authentication required. Please log in to view the species report.' }));
+        return;
+      }
 
-        if (!isAdmin) {
-          const [emp] = await pool.query('SELECT department_ID FROM EMPLOYEE WHERE email = ?', [email]);
-          const deptId = emp.length > 0 ? emp[0].department_ID : null;
+      const [emp] = await pool.query('SELECT department_ID FROM EMPLOYEE WHERE email = ?', [email]);
+      const deptId = emp.length > 0 ? emp[0].department_ID : null;
 
-          if (deptId !== 2 && deptId !== 3) {
-            res.statusCode = 403;
-            res.end(JSON.stringify({ error: 'Access restricted to Zoo Administrators, Animal Care, and Veterinary personnel.' }));
-            return;
-          }
-        }
+      if (deptId !== 2 && deptId !== 1) {
+        res.statusCode = 403;
+        res.end(JSON.stringify({ error: 'Access restricted to Animal Operations and Zoo Leadership personnel.' }));
+        return;
       }
 
       let query = `
@@ -640,13 +648,23 @@ const server = http.createServer(async (req, res) => {
       res.end(JSON.stringify({ error: err.message }));
     }
   } else if (
-    req.url === '/api/attractions' &&
+    (req.url === '/api/attractions' || req.url.startsWith('/api/attractions?')) &&
     req.method === 'GET'
   ) {
     try {
-      const [rows] = await pool.query(
-        'SELECT attr_ID, name, location, type FROM ATTRACTION ORDER BY name ASC'
-      );
+      const parsedUrl = new URL(req.url, 'http://localhost');
+      const upcomingOnly = parsedUrl.searchParams.get('upcoming') === 'true';
+
+      const query = upcomingOnly
+        ? `SELECT attr_ID, name, location, type, attr_datetime, description
+           FROM ATTRACTION
+           WHERE attr_datetime >= CURRENT_DATE
+           ORDER BY attr_datetime ASC, name ASC`
+        : `SELECT attr_ID, name, location, type, attr_datetime, description
+           FROM ATTRACTION
+           ORDER BY name ASC`;
+
+      const [rows] = await pool.query(query);
       res.end(JSON.stringify(rows));
     } catch (err) {
       res.statusCode = 500;
@@ -790,13 +808,48 @@ const server = http.createServer(async (req, res) => {
           await connection.beginTransaction();
 
           let visitorID = null;
+          const visitorEmail =
+            typeof ticket.email === 'string' && ticket.email.trim()
+              ? ticket.email.trim()
+              : null;
 
-          if (visitorName != null) {
-            const [visitorResult] = await connection.query(
-              'INSERT INTO VISITOR (name) VALUES (?)',
-              [visitorName.trim()]
+          if (visitorName != null && visitorName.trim() !== '') {
+            const cleanName = visitorName.trim();
+            let selectQuery = 'SELECT visitor_ID FROM VISITOR WHERE LOWER(name) = LOWER(?)';
+            const queryParams = [cleanName];
+
+            if (visitorEmail) {
+              selectQuery += ' AND LOWER(email) = LOWER(?)';
+              queryParams.push(visitorEmail);
+            } else {
+              selectQuery += ' AND email IS NULL';
+            }
+
+            const [existing] = await connection.query(selectQuery, queryParams);
+
+            if (existing.length > 0) {
+              visitorID = existing[0].visitor_ID;
+            } else {
+              const [visitorResult] = await connection.query(
+                'INSERT INTO VISITOR (name, email) VALUES (?, ?)',
+                [cleanName, visitorEmail]
+              );
+              visitorID = visitorResult.insertId;
+            }
+          } else if (visitorEmail) {
+            const [existing] = await connection.query(
+              'SELECT visitor_ID FROM VISITOR WHERE LOWER(email) = LOWER(?) ORDER BY visitor_ID ASC LIMIT 1',
+              [visitorEmail]
             );
-            visitorID = visitorResult.insertId;
+            if (existing.length > 0) {
+              visitorID = existing[0].visitor_ID;
+            } else {
+              const [visitorResult] = await connection.query(
+                'INSERT INTO VISITOR (name, email) VALUES (?, ?)',
+                [visitorEmail.split('@')[0], visitorEmail]
+              );
+              visitorID = visitorResult.insertId;
+            }
           }
 
           const [result] = await connection.query(
@@ -833,6 +886,133 @@ const server = http.createServer(async (req, res) => {
       }
     });
   } else if (
+    (req.url === '/api/user/upcoming-tickets' || req.url.startsWith('/api/user/upcoming-tickets?')) &&
+    req.method === 'GET'
+  ) {
+    try {
+      const parsedUrl = new URL(req.url, 'http://localhost');
+      const email = parsedUrl.searchParams.get('email');
+
+      if (!email || !email.trim()) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: 'Email query parameter is required.' }));
+        return;
+      }
+
+      const query = `
+        SELECT 
+          t.ticket_ID,
+          t.ticket_type,
+          t.price,
+          DATE_FORMAT(t.visit_date, '%Y-%m-%d') AS visit_date,
+          DATE_FORMAT(t.purchase_date, '%Y-%m-%d') AS purchase_date,
+          v.name AS visitor_name
+        FROM TICKET t
+        JOIN VISITOR v ON t.visitor_ID = v.visitor_ID
+        WHERE LOWER(v.email) = LOWER(?)
+          AND t.visit_date >= CURRENT_DATE
+        ORDER BY t.visit_date ASC, t.ticket_ID ASC
+      `;
+
+      const [rows] = await pool.query(query, [email.trim()]);
+      res.end(JSON.stringify(rows));
+    } catch (err) {
+      res.statusCode = 500;
+      res.end(JSON.stringify({ error: `Database error: ${err.message}` }));
+    }
+  } else if (
+    (req.url === '/api/user/profile' || req.url.startsWith('/api/user/profile?')) &&
+    req.method === 'GET'
+  ) {
+    try {
+      const parsedUrl = new URL(req.url, 'http://localhost');
+      const email = parsedUrl.searchParams.get('email');
+
+      if (!email || !email.trim()) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: 'Email query parameter is required.' }));
+        return;
+      }
+
+      const [rows] = await pool.query(
+        'SELECT userID, email, first_name, last_name, role FROM users WHERE LOWER(email) = LOWER(?)',
+        [email.trim()]
+      );
+
+      if (rows.length === 0) {
+        res.statusCode = 404;
+        res.end(JSON.stringify({ error: 'User not found.' }));
+        return;
+      }
+
+      res.end(JSON.stringify(rows[0]));
+    } catch (err) {
+      res.statusCode = 500;
+      res.end(JSON.stringify({ error: `Database error: ${err.message}` }));
+    }
+  } else if (
+    (req.url === '/api/user/orders' || req.url.startsWith('/api/user/orders?')) &&
+    req.method === 'GET'
+  ) {
+    try {
+      const parsedUrl = new URL(req.url, 'http://localhost');
+      const email = parsedUrl.searchParams.get('email');
+
+      if (!email || !email.trim()) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: 'Email query parameter is required.' }));
+        return;
+      }
+
+      const query = `
+        SELECT 
+          ct.transaction_ID,
+          ct.total,
+          ct.payment_method,
+          DATE_FORMAT(ct.transaction_date, '%Y-%m-%d %H:%i') AS transaction_date,
+          ti.transaction_item_ID,
+          ti.item_type,
+          ti.quantity,
+          ti.price,
+          COALESCE(p.name, m.name, t.ticket_type, CONCAT(UPPER(SUBSTRING(ti.item_type, 1, 1)), LOWER(SUBSTRING(ti.item_type, 2)))) AS item_name
+        FROM CUST_TRANSACTION ct
+        JOIN VISITOR v ON ct.visitor_ID = v.visitor_ID
+        JOIN TRANSACTION_ITEM ti ON ct.transaction_ID = ti.transaction_ID
+        LEFT JOIN PRODUCT p ON ti.item_ID = p.product_ID AND ti.item_type = 'product'
+        LEFT JOIN MENU_ITEM m ON ti.item_ID = m.item_ID AND ti.item_type = 'food'
+        LEFT JOIN TICKET t ON ti.item_ID = t.ticket_ID AND ti.item_type = 'ticket'
+        WHERE LOWER(v.email) = LOWER(?)
+        ORDER BY ct.transaction_date DESC, ct.transaction_ID DESC
+      `;
+
+      const [rows] = await pool.query(query, [email.trim()]);
+
+      const ordersMap = new Map();
+      for (const row of rows) {
+        if (!ordersMap.has(row.transaction_ID)) {
+          ordersMap.set(row.transaction_ID, {
+            transaction_ID: row.transaction_ID,
+            total: row.total,
+            payment_method: row.payment_method,
+            transaction_date: row.transaction_date,
+            items: []
+          });
+        }
+        ordersMap.get(row.transaction_ID).items.push({
+          item_ID: row.transaction_item_ID,
+          item_type: row.item_type,
+          item_name: row.item_name,
+          quantity: row.quantity,
+          price: row.price
+        });
+      }
+
+      res.end(JSON.stringify(Array.from(ordersMap.values())));
+    } catch (err) {
+      res.statusCode = 500;
+      res.end(JSON.stringify({ error: `Database error: ${err.message}` }));
+    }
+  } else if (
     req.url === '/api/register' &&
     req.method === 'POST'
   ) {
@@ -844,7 +1024,7 @@ const server = http.createServer(async (req, res) => {
 
     req.on('end', async () => {
       try {
-        const { email, password } = JSON.parse(body);
+        const { email, password, first_name, last_name } = JSON.parse(body);
 
         if (!email || !password) {
           res.statusCode = 400;
@@ -856,9 +1036,12 @@ const server = http.createServer(async (req, res) => {
           return;
         }
 
+        const firstName = typeof first_name === 'string' && first_name.trim() ? first_name.trim() : null;
+        const lastName = typeof last_name === 'string' && last_name.trim() ? last_name.trim() : null;
+
         const [result] = await pool.query(
-          'INSERT INTO users (email, password, role) VALUES (?, ?, ?)',
-          [email.trim(), password.trim(), 'visitor']
+          'INSERT INTO users (email, password, role, first_name, last_name) VALUES (?, ?, ?, ?, ?)',
+          [email.trim(), password.trim(), 'visitor', firstName, lastName]
         );
 
         res.statusCode = 201;
@@ -1312,19 +1495,33 @@ const server = http.createServer(async (req, res) => {
       try {
         await connection.beginTransaction();
 
-        if (data.email) {
-          const [oldEmp] = await connection.query(
-            'SELECT email FROM EMPLOYEE WHERE employee_ID = ?',
-            [employeeID]
-          );
+        const [oldEmp] = await connection.query(
+          'SELECT email FROM EMPLOYEE WHERE employee_ID = ?',
+          [employeeID]
+        );
 
-          if (
-            oldEmp.length > 0 &&
-            oldEmp[0].email !== data.email.trim()
-          ) {
+        if (oldEmp.length > 0) {
+          const userUpdates = [];
+          const userParams = [];
+
+          if (data.email && data.email.trim() !== oldEmp[0].email) {
+            userUpdates.push('email = ?');
+            userParams.push(data.email.trim());
+          }
+          if (data.first_name !== undefined) {
+            userUpdates.push('first_name = ?');
+            userParams.push(data.first_name.trim());
+          }
+          if (data.last_name !== undefined) {
+            userUpdates.push('last_name = ?');
+            userParams.push(data.last_name.trim());
+          }
+
+          if (userUpdates.length > 0) {
+            userParams.push(oldEmp[0].email);
             await connection.query(
-              'UPDATE users SET email = ? WHERE email = ?',
-              [data.email.trim(), oldEmp[0].email]
+              `UPDATE users SET ${userUpdates.join(', ')} WHERE email = ?`,
+              userParams
             );
           }
         }
@@ -1439,7 +1636,6 @@ const server = http.createServer(async (req, res) => {
       const required = [
         'first_name',
         'last_name',
-        'email',
         'street_address',
         'city',
         'state',
@@ -1463,10 +1659,27 @@ const server = http.createServer(async (req, res) => {
         }
       }
 
+      const cleanFirst = data.first_name.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+      const cleanLast = data.last_name.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+      const finalEmail = (data.email && data.email.toString().trim() !== '')
+        ? data.email.toString().trim()
+        : `${cleanFirst}.${cleanLast}@gmail.com`;
+
       const connection = await pool.getConnection();
 
       try {
         await connection.beginTransaction();
+
+        let assignedManagerID = data.manager_ID ? Number(data.manager_ID) : null;
+        if (!assignedManagerID && data.department_ID) {
+          const [deptHead] = await connection.query(
+            'SELECT head_employee_ID FROM DEPARTMENT WHERE department_ID = ?',
+            [data.department_ID]
+          );
+          if (deptHead.length > 0 && deptHead[0].head_employee_ID) {
+            assignedManagerID = deptHead[0].head_employee_ID;
+          }
+        }
 
         const [empResult] = await connection.query(
           `INSERT INTO EMPLOYEE
@@ -1484,14 +1697,14 @@ const server = http.createServer(async (req, res) => {
             data.state.trim(),
             data.zip_code.trim(),
             data.country.trim(),
-            data.email.trim(),
+            finalEmail,
             data.phone_number ? data.phone_number.trim() : null,
             data.department_ID,
             data.role.trim(),
             data.salary,
             data.hire_date,
             data.hours ? data.hours : null,
-            data.manager_ID ? data.manager_ID : null
+            assignedManagerID
           ]
         );
 
@@ -1519,8 +1732,8 @@ const server = http.createServer(async (req, res) => {
             : 'employee');
 
         await connection.query(
-          'INSERT INTO users (email, password, role) VALUES (?, ?, ?)',
-          [data.email.trim(), defaultPassword, userRole]
+          'INSERT INTO users (email, password, role, first_name, last_name) VALUES (?, ?, ?, ?, ?)',
+          [finalEmail, defaultPassword, userRole, data.first_name.trim(), data.last_name.trim()]
         );
 
         if (data.attr_ID) {
@@ -1536,8 +1749,9 @@ const server = http.createServer(async (req, res) => {
         res.end(
           JSON.stringify({
             message:
-              `Employee ${data.first_name} ${data.last_name} created successfully (ID: ${newEmployeeID}). Login generated: ${data.email.trim()} with password '${defaultPassword}' (${userRole}).`,
+              `Employee ${data.first_name} ${data.last_name} created successfully (ID: ${newEmployeeID}). Login generated: ${finalEmail} with password '${defaultPassword}' (${userRole}).`,
             employee_ID: newEmployeeID,
+            generatedEmail: finalEmail,
             generatedPassword: defaultPassword
           })
         );
@@ -1999,18 +2213,46 @@ const server = http.createServer(async (req, res) => {
       const tax = subtotal * 0.0825;
       const totalAmount = data.total ? Number(data.total) : subtotal + tax;
 
-      const allowedMethods = ['credit', 'debit', 'digital_wallet', 'paypal'];
-      const paymentMethod = allowedMethods.includes(data.payment_method) ? data.payment_method : 'credit';
+      const allowedMethods = ['credit', 'debit', 'digital_wallet', 'paypal', 'cash'];
+      let chosenMethod = data.payment_method === 'card' ? 'credit' : data.payment_method;
+      const paymentMethod = allowedMethods.includes(chosenMethod) ? chosenMethod : 'credit';
 
       let connection;
       try {
         connection = await pool.getConnection();
         await connection.beginTransaction();
 
+        let visitorID = data.visitor_ID || null;
+        const checkoutEmail = typeof data.email === 'string' && data.email.trim() ? data.email.trim() : null;
+
+        if (!visitorID && checkoutEmail) {
+          const [existingVisitor] = await connection.query(
+            'SELECT visitor_ID FROM VISITOR WHERE LOWER(email) = LOWER(?)',
+            [checkoutEmail]
+          );
+          if (existingVisitor.length > 0) {
+            visitorID = existingVisitor[0].visitor_ID;
+          } else {
+            const [u] = await connection.query(
+              'SELECT first_name, last_name FROM users WHERE LOWER(email) = LOWER(?)',
+              [checkoutEmail]
+            );
+            const fullName = u.length > 0 && (u[0].first_name || u[0].last_name)
+              ? [u[0].first_name, u[0].last_name].filter(Boolean).join(' ')
+              : checkoutEmail.split('@')[0];
+
+            const [newVisitor] = await connection.query(
+              'INSERT INTO VISITOR (name, email) VALUES (?, ?)',
+              [fullName, checkoutEmail]
+            );
+            visitorID = newVisitor.insertId;
+          }
+        }
+
         const [transResult] = await connection.query(
           `INSERT INTO CUST_TRANSACTION (visitor_ID, total, payment_method, transaction_date)
            VALUES (?, ?, ?, NOW())`,
-          [data.visitor_ID || null, totalAmount.toFixed(2), paymentMethod]
+          [visitorID, totalAmount.toFixed(2), paymentMethod]
         );
         const transactionID = transResult.insertId;
 

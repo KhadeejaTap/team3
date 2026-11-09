@@ -6,6 +6,8 @@ const API = `${(import.meta.env.VITE_API_URL || 'http://localhost:5000').replace
 function LoginPage({ onLogin }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
@@ -27,7 +29,9 @@ function LoginPage({ onLogin }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: email.trim(),
-          password
+          password,
+          first_name: isSignUp ? firstName.trim() : undefined,
+          last_name: isSignUp ? lastName.trim() : undefined
         })
       });
 
@@ -43,6 +47,8 @@ function LoginPage({ onLogin }) {
       if (isSignUp) {
         setIsSignUp(false);
         setPassword('');
+        setFirstName('');
+        setLastName('');
         setMessage('Account created. Please log in.');
         return;
       }
@@ -58,6 +64,12 @@ function LoginPage({ onLogin }) {
       }
 
       localStorage.setItem('user_token', data.token);
+      if (data.first_name) {
+        localStorage.setItem('user_first_name', data.first_name);
+      }
+      if (data.last_name) {
+        localStorage.setItem('user_last_name', data.last_name);
+      }
       if (data.department_ID) {
         localStorage.setItem('user_dept', String(data.department_ID));
       } else {
@@ -97,6 +109,35 @@ function LoginPage({ onLogin }) {
       {message && <p role="status">{message}</p>}
 
       <form onSubmit={handleSubmit}>
+        {isSignUp && (
+          <>
+            <p>
+              <label>
+                First Name<br />
+                <input
+                  type="text"
+                  value={firstName}
+                  onChange={event => setFirstName(event.target.value)}
+                  disabled={saving}
+                  required
+                />
+              </label>
+            </p>
+            <p>
+              <label>
+                Last Name<br />
+                <input
+                  type="text"
+                  value={lastName}
+                  onChange={event => setLastName(event.target.value)}
+                  disabled={saving}
+                  required
+                />
+              </label>
+            </p>
+          </>
+        )}
+
         <p>
           <label>
             Email<br />

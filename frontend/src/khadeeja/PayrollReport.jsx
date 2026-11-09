@@ -10,14 +10,15 @@ function PayrollReport({ role, userEmail }) {
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState('');
 
+	const isFinHR =
+		userEmail === 'taylor.hemsworth@zoo.com' ||
+		Number(localStorage.getItem('user_dept')) === 1;
+
 	const targetHeadcounts = {
 		1: 4,
-		2: 6,
-		3: 4,
-		6: 2,
-		7: 2,
-		8: 2,
-		9: 4
+		2: 10,
+		3: 5,
+		4: 4
 	};
 
 	const getVacancies = (deptID, activeCount) => {
@@ -27,12 +28,9 @@ function PayrollReport({ role, userEmail }) {
 
 	const greenGradient = [
 		'#143d22',
-		'#1b4d2c',
 		'#25633a',
-		'#30804b',
 		'#42a363',
-		'#6cc987',
-		'#a7ecc0'
+		'#6cc987'
 	];
 
 	const fetchReport = () => {
@@ -44,7 +42,7 @@ function PayrollReport({ role, userEmail }) {
 			sort_by: sortBy
 		});
 
-		if (role === 'manager' && userEmail) {
+		if (role === 'manager' && userEmail && !isFinHR) {
 			params.append('email', userEmail);
 		}
 
@@ -236,7 +234,7 @@ function PayrollReport({ role, userEmail }) {
 				<label htmlFor="dept-select">
 					<strong>Department: </strong>
 				</label>
-				{role === 'manager' ? (
+				{role === 'manager' && !isFinHR ? (
 					<>
 						<select id="dept-select" value={reportData[0]?.department_ID || 'all'} disabled>
 							<option>{reportData[0]?.department_name || 'Your Department'}</option>
@@ -251,14 +249,11 @@ function PayrollReport({ role, userEmail }) {
 						value={departmentId}
 						onChange={(e) => setDepartmentId(e.target.value)}
 					>
-						<option value="all">All Departments (7)</option>
-						<option value="1">HR</option>
-						<option value="2">Animal Care</option>
-						<option value="3">Veterinary</option>
-						<option value="6">Retail</option>
-						<option value="7">Food Services</option>
-						<option value="8">Parking</option>
-						<option value="9">Events & Attractions</option>
+						<option value="all">All Departments (4)</option>
+						<option value="1">Financial and HR</option>
+						<option value="2">Animal Operations</option>
+						<option value="3">Commercial Operations</option>
+						<option value="4">Guest Operations</option>
 					</select>
 				)}
 				&nbsp;&nbsp;&nbsp;

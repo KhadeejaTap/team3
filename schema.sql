@@ -257,6 +257,8 @@ CREATE TABLE TRANSACTION_ITEM (
 CREATE TABLE users (
 	userID INT AUTO_INCREMENT PRIMARY KEY,
 	email VARCHAR(100) UNIQUE NOT NULL,
+	first_name VARCHAR(50) DEFAULT NULL,
+	last_name VARCHAR(50) DEFAULT NULL,
 	password VARCHAR(255) NOT NULL,
 	role VARCHAR(20) NOT NULL CHECK (role IN ('admin', 'manager', 'employee', 'visitor'))
 );

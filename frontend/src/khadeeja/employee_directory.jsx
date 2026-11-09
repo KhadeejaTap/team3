@@ -30,6 +30,15 @@ function ReturnDir({ role, userEmail }) {
 		return <EmpView />;
 	}
 
+	const isFinHR =
+		userEmail === 'taylor.hemsworth@zoo.com' ||
+		Number(localStorage.getItem('user_dept')) === 1;
+
+	// Non-HR department heads go directly to their team hub without the payroll tab
+	if (role === 'manager' && !isFinHR) {
+		return <MgrView userEmail={userEmail} />;
+	}
+
 	return (
 		<div>
 			<div>
@@ -37,7 +46,7 @@ function ReturnDir({ role, userEmail }) {
 					type="button"
 					onClick={() => setCurrentTab('directory')}
 				>
-					{currentTab === 'directory' ? <strong>Employee Directory</strong> : 'Employee Directory'}
+					{currentTab === 'directory' ? <strong>Staff Directory</strong> : 'Staff Directory'}
 				</button>
 				&nbsp;&nbsp;
 				<button
@@ -51,8 +60,6 @@ function ReturnDir({ role, userEmail }) {
 
 			{currentTab === 'report' ? (
 				<PayrollReport role={role} userEmail={userEmail} />
-			) : role === 'manager' ? (
-				<MgrView userEmail={userEmail} />
 			) : (
 				<AdminView />
 			)}

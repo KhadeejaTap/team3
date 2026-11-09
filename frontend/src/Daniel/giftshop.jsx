@@ -251,6 +251,7 @@ export default function GiftShop({ role, userEmail }) {
 				isOpen={checkout}
 				onClose={() => setCheckout(false)}
 				itemType="product"
+				userEmail={userEmail || localStorage.getItem('user_email') || ''}
 				items={cart.map(item => ({
 					item_ID: item.product_ID,
 					name: item.name,
