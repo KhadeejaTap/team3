@@ -1284,21 +1284,23 @@ const server = http.createServer(async (req, res) => {
     req.method === 'GET'
   ) {
     // Public, read-only animal directory. Deliberately excludes breeding_status.
-    try {
-      const [rows] = await pool.query(
-        `SELECT
-           a.animal_ID,
-           a.name,
-           a.age,
-           a.arrival_date,
-           a.gender,
-           COALESCE(s.endangered_status, 'Unknown') AS endangered_status,
-           a.weight,
-           a.weight_unit
-         FROM ANIMAL a
-         LEFT JOIN SPECIES s ON a.species_ID = s.species_ID
-         ORDER BY a.name`
-      );
+try {
+  const [rows] = await pool.query(
+    `SELECT
+       a.animal_ID,
+       a.name,
+       a.age,
+       a.arrival_date,
+       a.gender,
+       s.common_name,
+       s.scientific_name,
+       COALESCE(s.endangered_status, 'Unknown') AS endangered_status,
+       a.weight,
+       a.weight_unit
+     FROM ANIMAL a
+     LEFT JOIN SPECIES s ON a.species_ID = s.species_ID
+     ORDER BY a.name`
+  );
       send(res, 200, rows);
     } catch (err) {
       console.error('Error fetching public animal directory:', err);
