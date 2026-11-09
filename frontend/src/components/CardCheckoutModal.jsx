@@ -13,7 +13,8 @@ export default function CardCheckoutModal({
   customSubmit = null,
   title = null,
   summaryDetails = null,
-  directTotal = null
+  directTotal = null,
+  initialCouponCode = ''
 }) {
   const [cardName, setCardName] = useState(() => customCardName || '');
   const [cardNumber, setCardNumber] = useState('');
@@ -21,6 +22,11 @@ export default function CardCheckoutModal({
   const [cvv, setCvv] = useState('');
   const [zipCode, setZipCode] = useState('');
   const [email, setEmail] = useState(() => userEmail || localStorage.getItem('user_email') || '');
+
+  const [typedCoupon, setTypedCoupon] = useState(() => (initialCouponCode ? initialCouponCode.trim().toUpperCase() : ''));
+  const [appliedCoupon, setAppliedCoupon] = useState(() => (initialCouponCode ? { code: initialCouponCode.trim().toUpperCase(), discount_percent: 15 } : null));
+  const [availableCoupons, setAvailableCoupons] = useState([]);
+  const [couponError, setCouponError] = useState('');
 
   useEffect(() => {
     if (isOpen) {
@@ -31,13 +37,13 @@ export default function CardCheckoutModal({
       if (customCardName) {
         setCardName(customCardName);
       }
+      if (initialCouponCode) {
+        const raw = initialCouponCode.trim().toUpperCase();
+        setTypedCoupon(raw);
+        setAppliedCoupon({ code: raw, discount_percent: 15 });
+      }
     }
-  }, [isOpen, userEmail, customCardName]);
-
-  const [typedCoupon, setTypedCoupon] = useState('');
-  const [appliedCoupon, setAppliedCoupon] = useState(null);
-  const [availableCoupons, setAvailableCoupons] = useState([]);
-  const [couponError, setCouponError] = useState('');
+  }, [isOpen, userEmail, customCardName, initialCouponCode]);
 
   const isDonation = itemType === 'donation';
 
