@@ -97,6 +97,14 @@ function VisitorAnimalDirectory() {
             >
               <h2>{animal.name}</h2>
 
+              <p className="animal-species">
+                {animal.common_name || 'Species unknown'}
+              </p>
+
+              <p className="animal-scientific-name">
+                {animal.scientific_name || 'Scientific name unavailable'}
+              </p>
+
               <dl>
                 <div>
                   <dt>Age</dt>
