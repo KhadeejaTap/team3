@@ -387,6 +387,14 @@ main form {
   justify-self: start;
 }
 
+.attraction-table-wrapper {
+  overflow-x: auto;
+}
+
+.attraction-table-wrapper table {
+  min-width: 760px;
+}
+
 .ticket-purchase form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

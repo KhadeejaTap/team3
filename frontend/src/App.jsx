@@ -131,6 +131,9 @@ function App() {
               <li className="nav-item">
                 <Link to="/enclosures">Enclosure Management</Link>
               </li>
+              <li className="nav-item">
+                  <Link to="/attractions">Attraction Management</Link>
+              </li>
             </>
           )}
 
@@ -311,7 +314,7 @@ function App() {
 
           <Route
             path="/attractions"
-            element={<AttractionManagement />}
+            element={<AttractionManagement role ={role} userEmail={userEmail} />}
           />
 
           <Route

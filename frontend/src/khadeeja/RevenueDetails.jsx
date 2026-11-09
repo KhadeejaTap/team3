@@ -125,6 +125,7 @@ function RevenueDetails({ role }) {
 					<option value="all">All Streams (Admissions & Donations)</option>
 					<option value="tickets">Admissions (Ticket Sales Only)</option>
 					<option value="donations">Fundraising (Donations Only)</option>
+					<option value="products">Merchandise (Gift Shop)</option>
 				</select>
 				&nbsp;&nbsp;
 

@@ -545,7 +545,9 @@ const server = http.createServer(async (req, res) => {
   ) {
     try {
       const [rows] = await pool.query(
-        'SELECT attr_ID, name, location, type FROM ATTRACTION ORDER BY name ASC'
+        `SELECT attr_ID, name, type, location, attr_datetime, capacity, description
+         FROM ATTRACTION
+         ORDER BY name ASC`
       );
       res.end(JSON.stringify(rows));
     } catch (err) {

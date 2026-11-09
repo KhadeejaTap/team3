@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -12,6 +12,32 @@ function AttractionManagement() {
         description: '',
     });
     const [message, setMessage] = useState('');
+    const [attractions, setAttractions] = useState([]);
+    const [isLoadingAttractions, setIsLoadingAttractions] = useState(true);
+    const [attractionError, setAttractionError] = useState('');
+
+    const loadAttractions = useCallback(async () => {
+        setIsLoadingAttractions(true);
+        setAttractionError('');
+
+        try {
+            const response = await fetch(`${API_URL}/api/attractions`);
+            const result = await response.json();
+            if (!response.ok) {
+                throw new Error(result.error || 'Could not load attractions.');
+            }
+
+            setAttractions(result);
+        } catch (error) {
+            setAttractionError(error.message || 'Could not load attractions.');
+        } finally {
+            setIsLoadingAttractions(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        loadAttractions();
+    }, [loadAttractions]);
 
     function handleChange(event) {
         setFormData({
@@ -49,6 +75,7 @@ function AttractionManagement() {
                 capacity: '',
                 description: '',
             });
+            await loadAttractions();
         } catch (error) {
             setMessage(`Error: ${error.message}`);
         }
@@ -107,7 +134,7 @@ function AttractionManagement() {
                 </div>
 
                 <div className="attraction-form-field">
-                    <label htmlFor="attr_datetime">Attraction Date:</label>
+                    <label htmlFor="attr_datetime">Opening Date:</label>
                     <input
                         id="attr_datetime"
                         name="attr_datetime"
@@ -131,6 +158,46 @@ function AttractionManagement() {
                 <button type="submit">Save Attraction</button>
             </form>
             {message && <p role="status">{message}</p>}
+
+            <section aria-labelledby="created-attractions-heading">
+                <h2 id="created-attractions-heading">Created Attractions</h2>
+                {isLoadingAttractions ? (
+                    <p role="status">Loading attractions...</p>
+                ) : attractionError ? (
+                    <p role="alert">Error: {attractionError}</p>
+                ) : attractions.length === 0 ? (
+                    <p>No attractions have been created yet.</p>
+                ) : (
+                    <div className="attraction-table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th scope="col">ID</th>
+                                    <th scope="col">Name</th>
+                                    <th scope="col">Type</th>
+                                    <th scope="col">Location</th>
+                                    <th scope="col">Opening Date</th>
+                                    <th scope="col">Capacity</th>
+                                    <th scope="col">Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {attractions.map((attraction) => (
+                                    <tr key={attraction.attr_ID}>
+                                        <td>{attraction.attr_ID}</td>
+                                        <td>{attraction.name || '-'}</td>
+                                        <td>{attraction.type || '-'}</td>
+                                        <td>{attraction.location || '-'}</td>
+                                        <td>{attraction.attr_datetime || '-'}</td>
+                                        <td>{attraction.capacity ?? '-'}</td>
+                                        <td>{attraction.description || '-'}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </section>
         </div>
     );
 }
