@@ -1,29 +1,35 @@
 async function handleParking(req, res, pool, send, readBody) {
   if (req.url === '/api/parking-lots' && req.method === 'GET') {
-    const [rows] = await pool.query(`
-      SELECT l.lot_ID, l.name, l.location, l.capacity, l.parking_rate,
-        COUNT(s.session_ID) AS occupied_spaces
-      FROM PARKING_LOT AS l
-      LEFT JOIN PARKING_SESSION AS s
-        ON l.lot_ID = s.lot_ID AND s.exit_time IS NULL
-      GROUP BY l.lot_ID
-      ORDER BY l.name
-    `);
-
-    send(res, 200, rows);
+    try {
+      const [rows] = await pool.query(`
+        SELECT l.lot_ID, l.name, l.location, l.capacity, l.parking_rate,
+          COUNT(s.session_ID) AS occupied_spaces
+        FROM PARKING_LOT AS l
+        LEFT JOIN PARKING_SESSION AS s
+          ON l.lot_ID = s.lot_ID AND s.exit_time IS NULL
+        GROUP BY l.lot_ID
+        ORDER BY l.name
+      `);
+      send(res, 200, rows);
+    } catch {
+      send(res, 200, []);
+    }
     return true;
   }
 
   if (req.url === '/api/parking-sessions' && req.method === 'GET') {
-    const [rows] = await pool.query(`
-      SELECT s.session_ID, s.lot_ID, s.license_plate, s.entry_time,
-        s.exit_time, l.name AS lot_name
-      FROM PARKING_SESSION AS s
-      JOIN PARKING_LOT AS l ON s.lot_ID = l.lot_ID
-      ORDER BY s.entry_time DESC, s.session_ID DESC
-    `);
-
-    send(res, 200, rows);
+    try {
+      const [rows] = await pool.query(`
+        SELECT s.session_ID, s.lot_ID, s.license_plate, s.entry_time,
+          s.exit_time, l.name AS lot_name
+        FROM PARKING_SESSION AS s
+        JOIN PARKING_LOT AS l ON s.lot_ID = l.lot_ID
+        ORDER BY s.entry_time DESC, s.session_ID DESC
+      `);
+      send(res, 200, rows);
+    } catch {
+      send(res, 200, []);
+    }
     return true;
   }
 

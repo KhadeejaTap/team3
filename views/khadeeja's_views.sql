@@ -94,7 +94,6 @@ INSERT INTO STAFFED_AT (employee_ID, attr_ID) VALUES
 
 -- 8. Users
 INSERT INTO users (email, password, role) VALUES
-('admin@zoo.com',        'admin123',    'admin'),
 ('dwayne.efron@zoo.com', 'dwayne123',   'manager'),
 ('katy.hart@zoo.com',    'katy123',     'employee'),
 ('visitor@zoo.com',      'visitor123',  'visitor'),
@@ -134,6 +133,7 @@ CREATE OR REPLACE VIEW manager_view AS
   CONCAT_WS(' ', h.first_name, h.last_name) AS head_of_dept,
   d.department_name,
   CONCAT_WS(' ', e.first_name, e.last_name) AS name,
+  e.sex,
   CONCAT_WS(', ', e.street_address, e.city, e.state, e.zip_code, e.country) AS address,
   e.email, e.phone_number,
   e.role, e.salary, e.hire_date, e.hours,
@@ -144,13 +144,13 @@ CREATE OR REPLACE VIEW manager_view AS
   LEFT JOIN STAFFED_AT AS sa ON e.employee_ID = sa.employee_ID
   LEFT JOIN ATTRACTION AS a ON sa.attr_ID = a.attr_ID
   WHERE e.`current` = 1
-  GROUP BY e.employee_ID, e.manager_ID, e.department_ID, h.first_name, h.last_name, d.department_name, e.first_name, e.last_name, e.street_address, e.city, e.state, e.zip_code, e.country, e.email, e.phone_number, e.role, e.salary, e.hire_date, e.hours;
+  GROUP BY e.employee_ID, e.manager_ID, e.department_ID, h.first_name, h.last_name, d.department_name, e.first_name, e.last_name, e.sex, e.street_address, e.city, e.state, e.zip_code, e.country, e.email, e.phone_number, e.role, e.salary, e.hire_date, e.hours;
 
 CREATE OR REPLACE VIEW admin_view AS
   SELECT e.manager_ID,
   CONCAT_WS(' ', h.first_name, h.last_name) AS manager_name,
   e.employee_ID, e.department_ID, d.department_name,
-  e.first_name, e.minit, e.last_name,
+  e.first_name, e.minit, e.last_name, e.sex,
   CONCAT_WS(' ', e.first_name, e.last_name) AS name,
   e.street_address, e.city, e.state, e.zip_code, e.country,
   CONCAT_WS(', ', e.street_address, e.city, e.state, e.zip_code, e.country) AS address,
@@ -172,9 +172,9 @@ BEGIN
     DECLARE emp_dept INT;
     SELECT department_ID INTO emp_dept FROM EMPLOYEE WHERE employee_ID = NEW.employee_ID;
 
-    IF emp_dept NOT IN (2, 9) THEN
+    IF emp_dept NOT IN (2, 4) THEN
         SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Business Rule Violation: Only Events & Attractions and Animal Care staff are authorized to staff zoo attractions.';
+        SET MESSAGE_TEXT = 'Business Rule Violation: Only Guest Operations and Animal Operations staff are authorized to staff zoo attractions.';
     END IF;
 END$$
 
@@ -186,9 +186,85 @@ BEGIN
     DECLARE emp_dept INT;
     SELECT department_ID INTO emp_dept FROM EMPLOYEE WHERE employee_ID = NEW.employee_ID;
 
-    IF emp_dept NOT IN (2, 9) THEN
+    IF emp_dept NOT IN (2, 4) THEN
         SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Business Rule Violation: Only Events & Attractions and Animal Care staff are authorized to staff zoo attractions.';
+        SET MESSAGE_TEXT = 'Business Rule Violation: Only Guest Operations and Animal Operations staff are authorized to staff zoo attractions.';
+    END IF;
+END$$
+
+DROP TRIGGER IF EXISTS trg_employee_dept_head_insert$$
+CREATE TRIGGER trg_employee_dept_head_insert
+BEFORE INSERT ON EMPLOYEE
+FOR EACH ROW
+BEGIN
+    DECLARE head_count INT DEFAULT 0;
+    IF NEW.manager_ID IS NULL AND (NEW.`current` IS NULL OR NEW.`current` = 1) THEN
+        SELECT COUNT(*) INTO head_count
+        FROM EMPLOYEE
+        WHERE department_ID = NEW.department_ID
+          AND manager_ID IS NULL
+          AND `current` = 1;
+
+        IF head_count > 0 THEN
+            SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Business Rule Violation: There can only be 1 Department Head per department.';
+        END IF;
+    END IF;
+END$$
+
+DROP TRIGGER IF EXISTS trg_employee_dept_head_update$$
+CREATE TRIGGER trg_employee_dept_head_update
+BEFORE UPDATE ON EMPLOYEE
+FOR EACH ROW
+BEGIN
+    DECLARE head_count INT DEFAULT 0;
+    IF NEW.manager_ID IS NULL AND (NEW.`current` IS NULL OR NEW.`current` = 1) THEN
+        SELECT COUNT(*) INTO head_count
+        FROM EMPLOYEE
+        WHERE department_ID = NEW.department_ID
+          AND manager_ID IS NULL
+          AND employee_ID <> NEW.employee_ID
+          AND `current` = 1;
+
+        IF head_count > 0 THEN
+            SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Business Rule Violation: There can only be 1 Department Head per department.';
+        END IF;
+    END IF;
+END$$
+
+DROP TRIGGER IF EXISTS trg_employee_user_sync_update$$
+CREATE TRIGGER trg_employee_user_sync_update
+AFTER UPDATE ON employee
+FOR EACH ROW
+BEGIN
+    IF (OLD.first_name <> NEW.first_name OR OLD.last_name <> NEW.last_name OR OLD.email <> NEW.email) THEN
+        UPDATE users
+        SET first_name = NEW.first_name,
+            last_name  = NEW.last_name,
+            email      = NEW.email
+        WHERE email = OLD.email;
+    END IF;
+END$$
+
+-- 11. Low Stock Alert Table & Trigger
+CREATE TABLE IF NOT EXISTS low_stock_alert (
+    alert_ID INT AUTO_INCREMENT PRIMARY KEY,
+    product_ID INT NOT NULL,
+    stock_at_alert INT NOT NULL,
+    status ENUM('unaddressed', 'order placed', 'dismissed') NOT NULL DEFAULT 'unaddressed',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (product_ID) REFERENCES product(product_ID) ON DELETE CASCADE
+)$$
+
+DROP TRIGGER IF EXISTS trg_low_stock_alert$$
+CREATE TRIGGER trg_low_stock_alert
+AFTER UPDATE ON product
+FOR EACH ROW
+BEGIN
+    IF NEW.quantity_in_stock <= COALESCE(NEW.reorder_level, 5) AND OLD.quantity_in_stock > COALESCE(OLD.reorder_level, 5) THEN
+        INSERT INTO low_stock_alert (product_ID, stock_at_alert, status)
+        VALUES (NEW.product_ID, NEW.quantity_in_stock, 'unaddressed');
     END IF;
 END$$
 

@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import CardCheckoutModal from './CardCheckoutModal';
 
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/+$/, '');
 
@@ -15,12 +16,36 @@ export default function POSRegister({
   // Tender / Payment State
   const [paymentMethod, setPaymentMethod] = useState('cash'); // 'cash' or 'card'
   const [cashTendered, setCashTendered] = useState('');
-  const [cardName, setCardName] = useState('');
-  const [cardNumber, setCardNumber] = useState('');
+  const [customerEmail, setCustomerEmail] = useState('');
+  const [isCardModalOpen, setIsCardModalOpen] = useState(false);
+
+  const [availableCoupons, setAvailableCoupons] = useState([]);
+  const [typedCoupon, setTypedCoupon] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [couponError, setCouponError] = useState('');
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [receipt, setReceipt] = useState(null);
+
+  // When customer email is typed, check for available coupons
+  useEffect(() => {
+    const trimmed = customerEmail.trim();
+    if (trimmed && trimmed.includes('@')) {
+      fetch(`${API_BASE}/api/coupons?email=${encodeURIComponent(trimmed)}`)
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data)) {
+            setAvailableCoupons(data);
+          } else {
+            setAvailableCoupons([]);
+          }
+        })
+        .catch(() => setAvailableCoupons([]));
+    } else {
+      setAvailableCoupons([]);
+    }
+  }, [customerEmail]);
 
   // Categories list
   const categories = ['all', ...new Set(items.map(i => i.category).filter(Boolean))];
@@ -68,8 +93,10 @@ export default function POSRegister({
 
   // Ticket Math
   const subtotal = ticket.reduce((sum, item) => sum + Number(item.price) * Number(item.quantity), 0);
-  const tax = subtotal * 0.0825;
-  const total = subtotal + tax;
+  const discount = appliedCoupon ? subtotal * ((appliedCoupon.discount_percent || 15) / 100) : 0;
+  const discountedSubtotal = Math.max(0, subtotal - discount);
+  const tax = discountedSubtotal * 0.0825;
+  const total = discountedSubtotal + tax;
 
   const tenderedAmount = Number(cashTendered) || 0;
   const changeDue = Math.max(0, tenderedAmount - total);
@@ -123,27 +150,27 @@ export default function POSRegister({
   function clearTicket() {
     setTicket([]);
     setCashTendered('');
-    setCardName('');
-    setCardNumber('');
+    setCustomerEmail('');
+    setTypedCoupon('');
+    setAppliedCoupon(null);
+    setCouponError('');
+    setAvailableCoupons([]);
     setError('');
   }
 
   async function handleCompleteSale(e) {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     if (ticket.length === 0) return;
     setError('');
+
+    if (paymentMethod === 'card') {
+      setIsCardModalOpen(true);
+      return;
+    }
 
     if (paymentMethod === 'cash' && tenderedAmount < total) {
       setError('Cash tendered is less than the total due.');
       return;
-    }
-
-    if (paymentMethod === 'card') {
-      const clean = cardNumber.replace(/\s/g, '');
-      if (clean.length < 15) {
-        setError('Please enter a valid 16-digit card number.');
-        return;
-      }
     }
 
     setSubmitting(true);
@@ -154,10 +181,12 @@ export default function POSRegister({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           item_type: itemType,
-          payment_method: paymentMethod,
-          cash_tendered: paymentMethod === 'cash' ? tenderedAmount.toFixed(2) : null,
-          change_due: paymentMethod === 'cash' ? changeDue.toFixed(2) : null,
+          payment_method: 'cash',
+          cash_tendered: tenderedAmount.toFixed(2),
+          change_due: changeDue.toFixed(2),
           total: total.toFixed(2),
+          email: customerEmail.trim() || null,
+          coupon_code: appliedCoupon ? appliedCoupon.code : (typedCoupon.trim() || null),
           items: ticket.map(t => ({
             item_ID: t.id,
             quantity: t.quantity,
@@ -176,10 +205,10 @@ export default function POSRegister({
         ...data,
         items: [...ticket],
         cashierRole: staffRole,
-        paymentMethod,
+        customerEmail: customerEmail.trim() || null,
+        paymentMethod: 'cash',
         cashTendered: tenderedAmount,
-        changeDue,
-        cardLast4: cardNumber ? cardNumber.replace(/\s/g, '').slice(-4) : null
+        changeDue
       });
 
       clearTicket();
@@ -218,9 +247,10 @@ export default function POSRegister({
                 <strong>COUGAR ZOO</strong>
                 <div>{itemType === 'product' ? 'Gift Shop POS Register' : 'Food Stall POS Register'}</div>
               </div>
-              <div>Transaction #: TX-{receipt.transaction_ID}</div>
+              <div>Order #: {receipt.transaction_ID}</div>
               <div>Date: {new Date(receipt.date).toLocaleString()}</div>
               <div>Register Staff: {receipt.cashierRole}</div>
+              {receipt.customerEmail && <div>Customer: {receipt.customerEmail}</div>}
               <div style={{ borderTop: '1px solid #ddd', borderBottom: '1px solid #ddd', padding: '6px 0', margin: '8px 0' }}>
                 {receipt.items.map((it, idx) => (
                   <div key={idx} style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -231,6 +261,9 @@ export default function POSRegister({
               </div>
               <div style={{ textAlign: 'right' }}>
                 <div>Subtotal: ${Number(receipt.subtotal).toFixed(2)}</div>
+                {receipt.discount && Number(receipt.discount) > 0 && (
+                  <div>Discount ({receipt.coupon_code || '15% off'}): -${Number(receipt.discount).toFixed(2)}</div>
+                )}
                 <div>Tax (8.25%): ${Number(receipt.tax).toFixed(2)}</div>
                 <div><strong>Total: ${Number(receipt.total).toFixed(2)}</strong></div>
                 <div style={{ marginTop: '6px', borderTop: '1px dotted #ccc', paddingTop: '4px' }}>
@@ -247,14 +280,20 @@ export default function POSRegister({
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
-              <button type="button" onClick={() => window.print()} style={{ flex: 1, padding: '8px' }}>
-                Print Receipt
-              </button>
+            <div style={{ marginTop: '16px' }}>
               <button
                 type="button"
                 onClick={() => setReceipt(null)}
-                style={{ flex: 1, padding: '8px', backgroundColor: '#204228', color: '#fff', border: 'none', cursor: 'pointer' }}
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  backgroundColor: '#204228',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold'
+                }}
               >
                 Next Sale
               </button>
@@ -446,6 +485,12 @@ export default function POSRegister({
               <span>Subtotal:</span>
               <span>${subtotal.toFixed(2)}</span>
             </div>
+            {appliedCoupon && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#166534', fontWeight: 600 }}>
+                <span>Discount ({appliedCoupon.code} - {appliedCoupon.discount_percent || 15}%):</span>
+                <span>-${discount.toFixed(2)}</span>
+              </div>
+            )}
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span>Tax (8.25%):</span>
               <span>${tax.toFixed(2)}</span>
@@ -454,6 +499,106 @@ export default function POSRegister({
               <span>Total Due:</span>
               <span>${total.toFixed(2)}</span>
             </div>
+          </div>
+
+          {/* Customer Zoo Account (Optional) */}
+          <div style={{ marginBottom: '12px' }}>
+            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#333', marginBottom: '4px' }}>
+              Customer Email (Optional):
+            </label>
+            <input
+              type="email"
+              placeholder="visitor@example.com (links to account)"
+              value={customerEmail}
+              onChange={e => setCustomerEmail(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '6px 8px',
+                fontSize: '0.85rem',
+                border: '1px solid #ccc',
+                borderRadius: '4px',
+                boxSizing: 'border-box'
+              }}
+            />
+            {availableCoupons.length > 0 && (
+              <div style={{ fontSize: '0.8rem', color: '#166534', marginTop: '4px', background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '6px 8px', borderRadius: '4px' }}>
+                Available Customer Coupon: <strong>{availableCoupons[0].code}</strong> ({availableCoupons[0].discount_percent}% off)
+              </div>
+            )}
+          </div>
+
+          {/* Coupon Code Input */}
+          <div style={{ marginBottom: '12px' }}>
+            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#333', marginBottom: '4px' }}>
+              Coupon Code:
+            </label>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <input
+                type="text"
+                placeholder="Type coupon code..."
+                value={typedCoupon}
+                disabled={Boolean(appliedCoupon)}
+                onChange={e => {
+                  setTypedCoupon(e.target.value);
+                  setCouponError('');
+                }}
+                style={{
+                  flex: 1,
+                  padding: '6px 8px',
+                  fontSize: '0.85rem',
+                  border: '1px solid #ccc',
+                  borderRadius: '4px',
+                  fontFamily: 'monospace'
+                }}
+              />
+              {appliedCoupon ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAppliedCoupon(null);
+                    setTypedCoupon('');
+                  }}
+                  style={{ padding: '6px 10px', fontSize: '0.8rem', cursor: 'pointer' }}
+                >
+                  Remove
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const code = typedCoupon.trim().toUpperCase();
+                    if (!code) {
+                      setCouponError('Please enter a coupon code.');
+                      return;
+                    }
+                    const match = availableCoupons.find(c => c.code.toUpperCase() === code);
+                    if (match) {
+                      setAppliedCoupon(match);
+                      setCouponError('');
+                    } else {
+                      setAppliedCoupon({ code, discount_percent: 15 });
+                      setCouponError('');
+                    }
+                  }}
+                  style={{
+                    padding: '6px 12px',
+                    fontSize: '0.8rem',
+                    backgroundColor: '#204228',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Apply
+                </button>
+              )}
+            </div>
+            {couponError && (
+              <div style={{ color: '#c62828', fontSize: '0.8rem', marginTop: '4px' }}>
+                {couponError}
+              </div>
+            )}
           </div>
 
           {/* Payment Tender Form */}
@@ -503,25 +648,8 @@ export default function POSRegister({
                 </div>
               </div>
             ) : (
-              <div>
-                <input
-                  type="text"
-                  placeholder="Cardholder Name"
-                  value={cardName}
-                  onChange={e => setCardName(e.target.value)}
-                  style={{ width: '100%', padding: '6px', marginBottom: '6px', boxSizing: 'border-box' }}
-                />
-                <input
-                  type="text"
-                  placeholder="Card Number (16 digits)"
-                  maxLength={19}
-                  value={cardNumber}
-                  onChange={e => {
-                    const raw = e.target.value.replace(/\D/g, '').slice(0, 16);
-                    setCardNumber(raw.replace(/(\d{4})(?=\d)/g, '$1 '));
-                  }}
-                  style={{ width: '100%', padding: '6px', boxSizing: 'border-box', fontFamily: 'monospace' }}
-                />
+              <div style={{ fontSize: '0.88rem', color: '#555', padding: '6px 0' }}>
+                Customer card details will be entered securely via the checkout window.
               </div>
             )}
           </div>
@@ -541,10 +669,34 @@ export default function POSRegister({
               cursor: submitting || ticket.length === 0 || !isCashSufficient ? 'not-allowed' : 'pointer'
             }}
           >
-            {submitting ? 'Processing...' : 'Complete Sale & Print Receipt'}
+            {submitting ? 'Processing...' : paymentMethod === 'card' ? 'Pay with Card' : 'Complete Sale'}
           </button>
         </div>
       </div>
+
+      {/* Reusable Card Checkout Modal for POS Credit Mode */}
+      <CardCheckoutModal
+        isOpen={isCardModalOpen}
+        onClose={() => setIsCardModalOpen(false)}
+        itemType={itemType}
+        userEmail={customerEmail.trim() || ''}
+        initialCouponCode={appliedCoupon ? appliedCoupon.code : typedCoupon.trim()}
+        items={ticket.map(t => ({
+          item_ID: t.id,
+          name: t.name,
+          color: t.color,
+          size: t.size,
+          price: t.price,
+          quantity: t.quantity
+        }))}
+        onSuccess={() => {
+          setIsCardModalOpen(false);
+          clearTicket();
+          if (onSaleComplete) {
+            onSaleComplete();
+          }
+        }}
+      />
     </div>
   );
 }

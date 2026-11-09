@@ -1,8 +1,31 @@
+
 import { useEffect, useState } from 'react';
 import { apiFetch } from './api';
 import './VisitorAnimalDirectory.css';
 
 const API_URL = 'http://localhost:5000';
+
+const animalImageFiles = import.meta.glob(
+  './images/animals/*.{jpg,jpeg,png,webp}',
+  {
+    eager: true,
+    query: '?url',
+    import: 'default'
+  }
+);
+
+function normalizeName(name) {
+  return String(name || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+}
+
+const animalImages = Object.fromEntries(
+  Object.entries(animalImageFiles).map(([path, imageUrl]) => {
+    const fileName = path.split('/').pop().replace(/\.[^.]+$/, '');
+    return [normalizeName(fileName), imageUrl];
+  })
+);
 
 function formatDate(value) {
   if (!value) return 'Not available';
@@ -90,45 +113,69 @@ function VisitorAnimalDirectory() {
         <p>No animal records are available right now.</p>
       ) : (
         <div className="visitor-animal-grid">
-          {animals.map((animal) => (
-            <article
-              className="visitor-animal-card"
-              key={animal.animal_ID}
-            >
-              <h2>{animal.name}</h2>
+          {animals.map((animal) => {
+            const image = animalImages[normalizeName(animal.name)];
 
-              <dl>
-                <div>
-                  <dt>Age</dt>
-                  <dd>{animal.age ?? 'Not available'}</dd>
-                </div>
+            return (
+              <article
+                className="visitor-animal-card"
+                key={animal.animal_ID}
+              >
+                {image ? (
+                  <img
+                    className="visitor-animal-image"
+                    src={image}
+                    alt={animal.name}
+                  />
+                ) : (
+                  <div className="visitor-animal-image-placeholder">
+                    Photo unavailable
+                  </div>
+                )}
 
-                <div>
-                  <dt>Arrival date</dt>
-                  <dd>{formatDate(animal.arrival_date)}</dd>
-                </div>
+                <h2>{animal.name}</h2>
 
-                <div>
-                  <dt>Gender</dt>
-                  <dd>{animal.gender || 'Not available'}</dd>
-                </div>
+                <p className="animal-species">
+                  {animal.common_name || 'Species unknown'}
+                </p>
 
-                <div>
-                  <dt>Conservation status</dt>
-                  <dd>{animal.endangered_status || 'Unknown'}</dd>
-                </div>
+                <p className="animal-scientific-name">
+                  {animal.scientific_name || 'Scientific name unavailable'}
+                </p>
 
-                <div>
-                  <dt>Weight</dt>
-                  <dd>
-                    {animal.weight == null
-                      ? 'Not available'
-                      : `${animal.weight} ${animal.weight_unit || ''}`.trim()}
-                  </dd>
-                </div>
-              </dl>
-            </article>
-          ))}
+                <dl>
+                  <div>
+                    <dt>Age</dt>
+                    <dd>{animal.age ?? 'Not available'}</dd>
+                  </div>
+
+                  <div>
+                    <dt>Arrival date</dt>
+                    <dd>{formatDate(animal.arrival_date)}</dd>
+                  </div>
+
+                  <div>
+                    <dt>Gender</dt>
+                    <dd>{animal.gender || 'Not available'}</dd>
+                  </div>
+
+                  <div>
+                    <dt>Conservation status</dt>
+                    <dd>{animal.endangered_status || 'Unknown'}</dd>
+                  </div>
+
+                  <div>
+                    <dt>Weight</dt>
+                    <dd>
+                      {animal.weight == null
+                        ? 'Not available'
+                        : `${animal.weight} ${animal.weight_unit || ''}`.trim()}
+                    </dd>
+                  </div>
+                </dl>
+              </article>
+            );
+          })}
         </div>
       )}
     </main>
