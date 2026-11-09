@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import CardCheckoutModal from './CardCheckoutModal';
 
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/+$/, '');
 
@@ -15,9 +16,8 @@ export default function POSRegister({
   // Tender / Payment State
   const [paymentMethod, setPaymentMethod] = useState('cash'); // 'cash' or 'card'
   const [cashTendered, setCashTendered] = useState('');
-  const [cardName, setCardName] = useState('');
-  const [cardNumber, setCardNumber] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
+  const [isCardModalOpen, setIsCardModalOpen] = useState(false);
 
   const [availableCoupons, setAvailableCoupons] = useState([]);
   const [typedCoupon, setTypedCoupon] = useState('');
@@ -150,8 +150,6 @@ export default function POSRegister({
   function clearTicket() {
     setTicket([]);
     setCashTendered('');
-    setCardName('');
-    setCardNumber('');
     setCustomerEmail('');
     setTypedCoupon('');
     setAppliedCoupon(null);
@@ -161,21 +159,18 @@ export default function POSRegister({
   }
 
   async function handleCompleteSale(e) {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     if (ticket.length === 0) return;
     setError('');
+
+    if (paymentMethod === 'card') {
+      setIsCardModalOpen(true);
+      return;
+    }
 
     if (paymentMethod === 'cash' && tenderedAmount < total) {
       setError('Cash tendered is less than the total due.');
       return;
-    }
-
-    if (paymentMethod === 'card') {
-      const clean = cardNumber.replace(/\s/g, '');
-      if (clean.length < 15) {
-        setError('Please enter a valid 16-digit card number.');
-        return;
-      }
     }
 
     setSubmitting(true);
@@ -186,9 +181,9 @@ export default function POSRegister({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           item_type: itemType,
-          payment_method: paymentMethod,
-          cash_tendered: paymentMethod === 'cash' ? tenderedAmount.toFixed(2) : null,
-          change_due: paymentMethod === 'cash' ? changeDue.toFixed(2) : null,
+          payment_method: 'cash',
+          cash_tendered: tenderedAmount.toFixed(2),
+          change_due: changeDue.toFixed(2),
           total: total.toFixed(2),
           email: customerEmail.trim() || null,
           coupon_code: appliedCoupon ? appliedCoupon.code : (typedCoupon.trim() || null),
@@ -211,10 +206,9 @@ export default function POSRegister({
         items: [...ticket],
         cashierRole: staffRole,
         customerEmail: customerEmail.trim() || null,
-        paymentMethod,
+        paymentMethod: 'cash',
         cashTendered: tenderedAmount,
-        changeDue,
-        cardLast4: cardNumber ? cardNumber.replace(/\s/g, '').slice(-4) : null
+        changeDue
       });
 
       clearTicket();
@@ -286,14 +280,20 @@ export default function POSRegister({
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
-              <button type="button" onClick={() => window.print()} style={{ flex: 1, padding: '8px' }}>
-                Print Receipt
-              </button>
+            <div style={{ marginTop: '16px' }}>
               <button
                 type="button"
                 onClick={() => setReceipt(null)}
-                style={{ flex: 1, padding: '8px', backgroundColor: '#204228', color: '#fff', border: 'none', cursor: 'pointer' }}
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  backgroundColor: '#204228',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold'
+                }}
               >
                 Next Sale
               </button>
@@ -648,25 +648,8 @@ export default function POSRegister({
                 </div>
               </div>
             ) : (
-              <div>
-                <input
-                  type="text"
-                  placeholder="Cardholder Name"
-                  value={cardName}
-                  onChange={e => setCardName(e.target.value)}
-                  style={{ width: '100%', padding: '6px', marginBottom: '6px', boxSizing: 'border-box' }}
-                />
-                <input
-                  type="text"
-                  placeholder="Card Number (16 digits)"
-                  maxLength={19}
-                  value={cardNumber}
-                  onChange={e => {
-                    const raw = e.target.value.replace(/\D/g, '').slice(0, 16);
-                    setCardNumber(raw.replace(/(\d{4})(?=\d)/g, '$1 '));
-                  }}
-                  style={{ width: '100%', padding: '6px', boxSizing: 'border-box', fontFamily: 'monospace' }}
-                />
+              <div style={{ fontSize: '0.88rem', color: '#555', padding: '6px 0' }}>
+                Customer card details will be entered securely via the checkout window.
               </div>
             )}
           </div>
@@ -686,10 +669,34 @@ export default function POSRegister({
               cursor: submitting || ticket.length === 0 || !isCashSufficient ? 'not-allowed' : 'pointer'
             }}
           >
-            {submitting ? 'Processing...' : 'Complete Sale & Print Receipt'}
+            {submitting ? 'Processing...' : paymentMethod === 'card' ? 'Pay with Card' : 'Complete Sale'}
           </button>
         </div>
       </div>
+
+      {/* Reusable Card Checkout Modal for POS Credit Mode */}
+      <CardCheckoutModal
+        isOpen={isCardModalOpen}
+        onClose={() => setIsCardModalOpen(false)}
+        itemType={itemType}
+        userEmail={customerEmail.trim() || ''}
+        initialCouponCode={appliedCoupon ? appliedCoupon.code : typedCoupon.trim()}
+        items={ticket.map(t => ({
+          item_ID: t.id,
+          name: t.name,
+          color: t.color,
+          size: t.size,
+          price: t.price,
+          quantity: t.quantity
+        }))}
+        onSuccess={() => {
+          setIsCardModalOpen(false);
+          clearTicket();
+          if (onSaleComplete) {
+            onSaleComplete();
+          }
+        }}
+      />
     </div>
   );
 }
