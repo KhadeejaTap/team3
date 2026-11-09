@@ -3,8 +3,9 @@ import { useEffect, useState } from 'react';
 
 const API = 'http://localhost:5000/api';
 
-export default function Food({ role }) {
-  const canManage = ['admin', 'manager'].includes(role);
+export default function Food({ role, userDept }) {
+  const effectiveDept = userDept != null ? Number(userDept) : Number(localStorage.getItem('user_dept'));
+  const canManage = role === 'manager' && effectiveDept === 3;
 
   const [stalls, setStalls] = useState([]);
   const [items, setItems] = useState([]);

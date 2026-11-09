@@ -330,6 +330,81 @@ const server = http.createServer(async (req, res) => {
       res.statusCode = 500;
       res.end(JSON.stringify({ error: err.message }));
     }
+  } else if (req.url.startsWith('/api/alerts/low-stock') && req.method === 'GET') {
+    try {
+      const [rows] = await pool.query(`
+        SELECT 
+          a.alert_ID,
+          a.product_ID,
+          p.sku,
+          p.name AS product_name,
+          p.category,
+          p.quantity_in_stock AS current_stock,
+          p.reorder_level,
+          a.stock_at_alert,
+          a.status,
+          a.created_at,
+          CASE 
+            WHEN p.quantity_in_stock > p.reorder_level THEN 'Restocked'
+            ELSE 'Low'
+          END AS stock_condition
+        FROM low_stock_alert a
+        JOIN product p ON a.product_ID = p.product_ID
+        ORDER BY a.created_at DESC
+      `);
+      send(res, 200, rows);
+    } catch (err) {
+      send(res, 500, { error: err.message });
+    }
+  } else if (req.url === '/api/alerts/upcoming-events' && req.method === 'GET') {
+    try {
+      const [rows] = await pool.query(`
+        SELECT 
+          a.attr_ID,
+          a.name,
+          a.type,
+          a.location,
+          a.attr_datetime,
+          a.capacity,
+          GROUP_CONCAT(CONCAT(e.first_name, ' ', e.last_name) ORDER BY e.last_name SEPARATOR ', ') AS staffed_employees,
+          COUNT(sa.employee_ID) AS staff_count
+        FROM ATTRACTION a
+        LEFT JOIN STAFFED_AT sa ON a.attr_ID = sa.attr_ID
+        LEFT JOIN EMPLOYEE e ON sa.employee_ID = e.employee_ID AND e.current = 1
+        WHERE a.attr_datetime BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)
+        GROUP BY a.attr_ID, a.name, a.type, a.location, a.attr_datetime, a.capacity
+        ORDER BY a.attr_datetime ASC
+      `);
+      send(res, 200, rows);
+    } catch (err) {
+      send(res, 500, { error: err.message });
+    }
+  } else if (req.url.startsWith('/api/alerts/low-stock/') && (req.method === 'PATCH' || req.method === 'PUT')) {
+    try {
+      const parts = req.url.split('/');
+      const alertID = parts[4];
+      const body = await readBody(req);
+      const validStatuses = ['unaddressed', 'order placed', 'dismissed'];
+
+      if (!body.status || !validStatuses.includes(body.status)) {
+        send(res, 400, { error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
+        return;
+      }
+
+      const [result] = await pool.query(
+        'UPDATE low_stock_alert SET status = ? WHERE alert_ID = ?',
+        [body.status, alertID]
+      );
+
+      if (result.affectedRows === 0) {
+        send(res, 404, { error: `Alert ID ${alertID} not found.` });
+        return;
+      }
+
+      send(res, 200, { message: `Alert status updated to '${body.status}'.`, status: body.status });
+    } catch (err) {
+      send(res, 500, { error: err.message });
+    }
   } else if (
     req.url.startsWith('/api/reports/payroll') &&
     req.method === 'GET'
@@ -1235,7 +1310,12 @@ const server = http.createServer(async (req, res) => {
     req.method === 'GET'
   ) {
     try {
-      const [rows] = await pool.query('SELECT * FROM ANIMAL ORDER BY animal_ID');
+      const [rows] = await pool.query(`
+        SELECT a.*, s.common_name, s.endangered_status
+        FROM ANIMAL a
+        LEFT JOIN SPECIES s ON a.species_ID = s.species_ID
+        ORDER BY a.name
+      `);
       send(res, 200, rows);
     } catch (err) {
       console.error('Error fetching animals:', err);
@@ -1377,6 +1457,27 @@ const server = http.createServer(async (req, res) => {
     }
 
     try {
+      const requesterEmail = req.headers['x-user-email'] || req.headers['user-email'];
+      if (requesterEmail) {
+        const [authRows] = await pool.query(
+          `SELECT e.employee_ID
+           FROM employee e
+           JOIN department d ON e.department_ID = d.department_ID
+           WHERE e.email = ? AND e.department_ID = 1 AND e.employee_ID = d.head_employee_ID`,
+          [requesterEmail.trim()]
+        );
+
+        if (authRows.length === 0) {
+          res.statusCode = 403;
+          res.end(
+            JSON.stringify({
+              error: 'Permission denied: Only the Financial & HR Director is authorized to terminate employees.'
+            })
+          );
+          return;
+        }
+      }
+
       const [result] = await pool.query(
         'UPDATE EMPLOYEE SET current = 0 WHERE employee_ID = ?',
         [employeeID]
@@ -1454,6 +1555,7 @@ const server = http.createServer(async (req, res) => {
         'first_name',
         'minit',
         'last_name',
+        'sex',
         'street_address',
         'city',
         'state',
@@ -1683,15 +1785,16 @@ const server = http.createServer(async (req, res) => {
 
         const [empResult] = await connection.query(
           `INSERT INTO EMPLOYEE
-           (first_name, minit, last_name, street_address, city,
+           (first_name, minit, last_name, sex, street_address, city,
             state, zip_code, country, email, phone_number,
             department_ID, role, salary, hire_date,
             \`current\`, hours, manager_ID)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
           [
             data.first_name.trim(),
             data.minit ? data.minit.trim() : null,
             data.last_name.trim(),
+            data.sex && ['M', 'F', 'Other'].includes(data.sex.toString().trim()) ? data.sex.toString().trim() : 'Other',
             data.street_address.trim(),
             data.city.trim(),
             data.state.trim(),
@@ -1959,10 +2062,13 @@ const server = http.createServer(async (req, res) => {
            dn.amount,
            dn.donation_date,
            dn.purpose,
+           dn.animal_ID,
+           a.name AS animal_name,
            ct.payment_method,
            ct.transaction_date
          FROM donor AS d
          JOIN DONATION AS dn ON d.donor_ID = dn.donor_ID
+         LEFT JOIN ANIMAL AS a ON a.animal_ID = dn.animal_ID
          JOIN TRANSACTION_ITEM AS ti
            ON ti.item_ID = dn.donation_ID
            AND ti.item_type = 'donation'
@@ -2038,12 +2144,7 @@ const server = http.createServer(async (req, res) => {
       }
 
       const amount = Number(donation_amt);
-      const allowedMethods = [
-        'credit',
-        'debit',
-        'digital_wallet',
-        'paypal'
-      ];
+      const finalPaymentMethod = 'credit';
 
       if (
         ![
@@ -2060,8 +2161,7 @@ const server = http.createServer(async (req, res) => {
         ) ||
         !Number.isFinite(amount) ||
         amount <= 0 ||
-        Math.round(amount * 100) !== amount * 100 ||
-        !allowedMethods.includes(payment_method)
+        Math.round(amount * 100) !== amount * 100
       ) {
         res.statusCode = 400;
         res.end(
@@ -2087,6 +2187,30 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
+      const isSponsorship = purpose.trim() === 'Sponsor an Animal';
+      const animalID = data.animal_ID ? Number(data.animal_ID) : null;
+
+      if (isSponsorship) {
+        if (amount < 150) {
+          res.statusCode = 400;
+          res.end(
+            JSON.stringify({
+              error: 'Sponsoring an animal requires a minimum donation of $150.00.'
+            })
+          );
+          return;
+        }
+        if (!animalID) {
+          res.statusCode = 400;
+          res.end(
+            JSON.stringify({
+              error: 'Please select a specific animal to sponsor.'
+            })
+          );
+          return;
+        }
+      }
+
       let connection;
 
       try {
@@ -2110,23 +2234,48 @@ const server = http.createServer(async (req, res) => {
 
         const [donationResult] = await connection.query(
           `INSERT INTO DONATION
-           (donor_ID, amount, donation_date, purpose)
-           VALUES (?, ?, ?, ?)`,
+           (donor_ID, amount, donation_date, purpose, animal_ID)
+           VALUES (?, ?, ?, ?, ?)`,
           [
             donorID,
             amount.toFixed(2),
             donation_date,
-            purpose.trim()
+            purpose.trim(),
+            animalID
           ]
         );
 
         const donationID = donationResult.insertId;
 
+        let generatedCouponCode = null;
+        if (isSponsorship) {
+          const [animalRows] = await connection.query(
+            'SELECT name FROM ANIMAL WHERE animal_ID = ?',
+            [animalID]
+          );
+          const rawName = animalRows.length > 0 && animalRows[0].name ? animalRows[0].name : 'ANIMAL';
+          const cleanName = rawName.trim().toUpperCase().replace(/[^A-Z0-9]/g, '') || 'ANIMAL';
+
+          const tempPlaceholder = `TEMP-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+          const [couponResult] = await connection.query(
+            `INSERT INTO COUPON (donor_email, code, discount_percent, is_used)
+             VALUES (?, ?, 15, FALSE)`,
+            [donor_email.trim().toLowerCase(), tempPlaceholder]
+          );
+          const couponID = couponResult.insertId;
+          generatedCouponCode = `SPONSOR-${cleanName}-${couponID}`;
+
+          await connection.query(
+            'UPDATE COUPON SET code = ? WHERE coupon_ID = ?',
+            [generatedCouponCode, couponID]
+          );
+        }
+
         const [transactionResult] = await connection.query(
           `INSERT INTO CUST_TRANSACTION
            (visitor_ID, total, payment_method)
            VALUES (NULL, ?, ?)`,
-          [amount.toFixed(2), payment_method]
+          [amount.toFixed(2), finalPaymentMethod]
         );
 
         const transactionID = transactionResult.insertId;
@@ -2147,10 +2296,13 @@ const server = http.createServer(async (req, res) => {
         res.statusCode = 201;
         res.end(
           JSON.stringify({
-            message: 'Donation processed successfully!',
+            message: generatedCouponCode
+              ? `Thank you for your sponsorship! Your 15% off coupon code is: ${generatedCouponCode}`
+              : 'Donation processed successfully!',
             donor_ID: donorID,
             donation_ID: donationID,
-            transaction_ID: transactionID
+            transaction_ID: transactionID,
+            coupon_code: generatedCouponCode
           })
         );
       } catch (err) {
@@ -2210,8 +2362,8 @@ const server = http.createServer(async (req, res) => {
       }
 
       const subtotal = data.items.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 1), 0);
-      const tax = subtotal * 0.0825;
-      const totalAmount = data.total ? Number(data.total) : subtotal + tax;
+      let discountAmount = 0;
+      let appliedCouponCode = null;
 
       const allowedMethods = ['credit', 'debit', 'digital_wallet', 'paypal', 'cash'];
       let chosenMethod = data.payment_method === 'card' ? 'credit' : data.payment_method;
@@ -2221,6 +2373,30 @@ const server = http.createServer(async (req, res) => {
       try {
         connection = await pool.getConnection();
         await connection.beginTransaction();
+
+        if (data.coupon_code && typeof data.coupon_code === 'string' && data.coupon_code.trim()) {
+          const rawCode = data.coupon_code.trim().toUpperCase();
+          const [couponRows] = await connection.query(
+            'SELECT coupon_ID, code, discount_percent FROM COUPON WHERE UPPER(code) = ? AND is_used = FALSE FOR UPDATE',
+            [rawCode]
+          );
+          if (couponRows.length > 0) {
+            const coupon = couponRows[0];
+            const pct = coupon.discount_percent || 15;
+            discountAmount = subtotal * (pct / 100);
+            appliedCouponCode = coupon.code;
+            await connection.query('UPDATE COUPON SET is_used = TRUE WHERE coupon_ID = ?', [coupon.coupon_ID]);
+          } else {
+            await connection.rollback();
+            res.statusCode = 400;
+            res.end(JSON.stringify({ error: `Invalid, expired, or already-used coupon code: "${data.coupon_code}"` }));
+            return;
+          }
+        }
+
+        const discountedSubtotal = Math.max(0, subtotal - discountAmount);
+        const tax = discountedSubtotal * 0.0825;
+        const totalAmount = data.total ? Number(data.total) : discountedSubtotal + tax;
 
         let visitorID = data.visitor_ID || null;
         const checkoutEmail = typeof data.email === 'string' && data.email.trim() ? data.email.trim() : null;
@@ -2272,6 +2448,8 @@ const server = http.createServer(async (req, res) => {
           transaction_ID: transactionID,
           total: totalAmount.toFixed(2),
           subtotal: subtotal.toFixed(2),
+          discount: discountAmount.toFixed(2),
+          coupon_code: appliedCouponCode,
           tax: tax.toFixed(2),
           date: new Date().toISOString(),
           payment_method: data.payment_method || paymentMethod,
@@ -2299,6 +2477,25 @@ const server = http.createServer(async (req, res) => {
         }
       }
     });
+  } else if (req.url.startsWith('/api/coupons') && req.method === 'GET') {
+    try {
+      const parsedUrl = new URL(req.url, 'http://localhost');
+      const email = parsedUrl.searchParams.get('email');
+      if (!email || !email.trim()) {
+        send(res, 200, []);
+        return;
+      }
+      const [coupons] = await pool.query(
+        `SELECT coupon_ID, code, discount_percent, created_at 
+         FROM COUPON 
+         WHERE LOWER(donor_email) = LOWER(?) AND is_used = FALSE 
+         ORDER BY created_at DESC`,
+        [email.trim()]
+      );
+      send(res, 200, coupons);
+    } catch (err) {
+      send(res, 500, { error: err.message });
+    }
   } else if (
     req.url === '/api/enclosures' &&
     req.method === 'GET'

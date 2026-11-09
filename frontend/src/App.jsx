@@ -45,15 +45,20 @@ function AppContent() {
     return saved ? Number(saved) : null;
   });
 
+  const [isDeptHead, setIsDeptHead] = useState(() => {
+    return localStorage.getItem('is_dept_head') === 'true';
+  });
+
   const [loggingOut, setLoggingOut] = useState(false);
   const [authError, setAuthError] = useState('');
 
-  function handleLogin(newRole, newEmail, newDept) {
+  function handleLogin(newRole, newEmail, newDept, newIsHead) {
     setAuthError('');
     setRole(newRole);
     setUserEmail(newEmail);
     const parsedDept = newDept ? Number(newDept) : null;
     setUserDept(parsedDept);
+    setIsDeptHead(Boolean(newIsHead));
 
     if (newRole) {
       localStorage.setItem('user_role', newRole);
@@ -69,11 +74,14 @@ function AppContent() {
       } else {
         localStorage.removeItem('user_dept');
       }
+
+      localStorage.setItem('is_dept_head', newIsHead ? 'true' : 'false');
     } else {
       localStorage.removeItem('user_token');
       localStorage.removeItem('user_role');
       localStorage.removeItem('user_email');
       localStorage.removeItem('user_dept');
+      localStorage.removeItem('is_dept_head');
       localStorage.removeItem('user_first_name');
       localStorage.removeItem('user_last_name');
     }
@@ -107,39 +115,19 @@ function AppContent() {
     }
   }
 
-  const isStaff = ['manager', 'employee', 'admin'].includes(role);
+  const isStaff = ['manager', 'employee'].includes(role);
   const isVisitor = !role || role === 'visitor';
 
   // Department 1: Financial and HR
-  const isFinHR =
-    userDept === 1 ||
-    userEmail === 'taylor.hemsworth@zoo.com' ||
-    userEmail === 'jim.cruise@zoo.com' ||
-    userEmail === 'sarah.connor@zoo.com';
+  const isFinHR = userDept === 1;
 
   // Department 3: Commercial Operations (Gift Shop, Food, Parking)
-  const isCommercialStaff =
-    userDept === 3 ||
-    userDept === 6 ||
-    userDept === 7 ||
-    userDept === 8 ||
-    userEmail === 'emma.watson@zoo.com' ||
-    userEmail === 'gordon.ramsay@zoo.com' ||
-    userEmail === 'vin.diesel@zoo.com' ||
-    userEmail === 'tom.hardy@zoo.com' ||
-    userEmail === 'mia.goth@zoo.com';
+  const isCommercialStaff = userDept === 3;
 
   // Department 4: Guest Operations (Attractions, Tours, Educational Shows)
-  const isGuestOpsStaff =
-    userDept === 4 ||
-    userDept === 9 ||
-    userEmail === 'rachel.green@zoo.com' ||
-    userEmail === 'chris.pratt@zoo.com' ||
-    userEmail === 'zendaya.coleman@zoo.com';
+  const isGuestOpsStaff = userDept === 4;
 
-  const isGuestOpsHead =
-    (userDept === 4 && role === 'manager') ||
-    userEmail === 'rachel.green@zoo.com';
+  const isGuestOpsHead = userDept === 4 && role === 'manager';
 
   return (
     <>
@@ -148,53 +136,42 @@ function AppContent() {
           <li className="nav-item">
             <Link to="/">Home</Link>
           </li>
+          <li className="nav-item">
+            <Link to="/animal-directory">Meet the Animals</Link>
+          </li>
+          <li className="nav-item">
+            <Link to="/attractions">Exhibits & Shows</Link>
+          </li>
+          <li className="nav-item">
+            <Link to="/tickets">Tickets</Link>
+          </li>
+          <li className="nav-item">
+            <Link to="/gift-shop">Gift Shop</Link>
+          </li>
+          <li className="nav-item">
+            <Link to="/food">Food & Dining</Link>
+          </li>
+          <li className="nav-item">
+            <Link to="/donations">Donate</Link>
+          </li>
 
-            {/* Financial / HR: Executive & Financial Oversight */}
-            {isFinHR && (
-              <>
-                <li className="nav-item">
-                  <Link to="/directory">Staff & Payroll</Link>
-                </li>
-                <li className="nav-item">
-                  <Link to="/revenue-details">Revenue Details</Link>
-                </li>
-              </>
-            )}
-
-            {/* Commercial Operations Staff (Gift Shop, Dining) */}
-            {isCommercialStaff && !isFinHR && (
-              <>
-                <li className="nav-item">
-                  <Link to="/directory">Directory</Link>
-                </li>
-                <li className="nav-item">
-                  <Link to="/gift-shop">Gift Shop Operations</Link>
-                </li>
-                <li className="nav-item">
-                  <Link to="/food">Food Operations</Link>
-                </li>
-              </>
-            )}
-
-            {/* Guest Operations Staff (Tours, Shows, Attractions) */}
-            {isGuestOpsStaff && !isFinHR && !isCommercialStaff && (
-              <>
-                <li className="nav-item">
-                  <Link to="/directory">Directory</Link>
-                </li>
-                {isGuestOpsHead && (
+          {/* Staff Workstation Links */}
+          {isStaff && (
+            <>
+              {/* Department 1: Financial and HR */}
+              {isFinHR && (
+                <>
                   <li className="nav-item">
-                    <Link to="/attractions">Attraction Management</Link>
+                    <Link to="/directory">Staff & Payroll</Link>
                   </li>
-                )}
-              </>
-            )}
+                  <li className="nav-item">
+                    <Link to="/revenue-details">Revenue Details</Link>
+                  </li>
+                </>
+              )}
 
-            {/* Animal Operations & Other Field Staff */}
-            {isStaff &&
-              !isFinHR &&
-              !isCommercialStaff &&
-              !isGuestOpsStaff && (
+              {/* Department 2: Animal Care & Field Operations */}
+              {userDept === 2 && (
                 <>
                   <li className="nav-item">
                     <Link to="/directory">Directory</Link>
@@ -208,51 +185,59 @@ function AppContent() {
                 </>
               )}
 
-            {/* Public Visitors */}
-            {isVisitor && (
-              <>
-                <li className="nav-item">
-                  <Link to="/animal-directory">Meet the Animals</Link>
-                </li>
-                <li className="nav-item">
-                  <Link to="/attractions">Exhibits & Shows</Link>
-                </li>
-                <li className="nav-item">
-                  <Link to="/tickets">Purchase a Ticket</Link>
-                </li>
-                <li className="nav-item">
-                  <Link to="/gift-shop">Gift Shop</Link>
-                </li>
-                <li className="nav-item">
-                  <Link to="/food">Food & Dining</Link>
-                </li>
-                <li className="nav-item">
-                  <Link to="/donations">Donations</Link>
-                </li>
-              </>
-            )}
+              {/* Department 3: Commercial Operations */}
+              {isCommercialStaff && (
+                <>
+                  <li className="nav-item">
+                    <Link to="/directory">Directory</Link>
+                  </li>
+                </>
+              )}
 
-            {role ? (
-              <li className="nav-item">
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  disabled={loggingOut}
-                >
-                  {loggingOut
-                    ? 'Logging out...'
-                    : role === 'visitor'
-                      ? 'Log Out'
-                      : `Log Out (${role})`}
-                </button>
-              </li>
-            ) : (
-              <li className="nav-item">
-                <Link to="/login">Login or Sign Up</Link>
-              </li>
-            )}
-          </ul>
-        </nav>
+              {/* Department 4: Guest Operations */}
+              {isGuestOpsStaff && (
+                <>
+                  <li className="nav-item">
+                    <Link to="/directory">Directory</Link>
+                  </li>
+                  {isGuestOpsHead && (
+                    <li className="nav-item">
+                      <Link to="/attractions-management">Attraction Management</Link>
+                    </li>
+                  )}
+                </>
+              )}
+
+              {/* Fallback for other staff roles or unassigned department */}
+              {!isFinHR && userDept !== 2 && !isCommercialStaff && !isGuestOpsStaff && (
+                <li className="nav-item">
+                  <Link to="/directory">Directory</Link>
+                </li>
+              )}
+            </>
+          )}
+
+          {role ? (
+            <li className="nav-item">
+              <button
+                type="button"
+                onClick={handleLogout}
+                disabled={loggingOut}
+              >
+                {loggingOut
+                  ? 'Logging out...'
+                  : role === 'visitor'
+                    ? 'Log Out'
+                    : `Log Out (${role})`}
+              </button>
+            </li>
+          ) : (
+            <li className="nav-item">
+              <Link to="/login">Login or Sign Up</Link>
+            </li>
+          )}
+        </ul>
+      </nav>
 
       {authError && <p role="alert">{authError}</p>}
 
@@ -260,7 +245,7 @@ function AppContent() {
         <Routes>
           <Route
             path="/"
-            element={<Home role={role} userEmail={userEmail} />}
+            element={<Home role={role} userEmail={userEmail} userDept={userDept} />}
           />
 
           {/* Public Visitor Animal Directory */}
@@ -272,19 +257,19 @@ function AppContent() {
           <Route
             path="/directory"
             element={
-              <ReturnDir role={role} userEmail={userEmail} />
+              <ReturnDir role={role} userEmail={userEmail} userDept={userDept} isDeptHead={isDeptHead} />
             }
           />
 
           <Route
             path="/revenue-details"
-            element={<RevenueDetails role={role} />}
+            element={<RevenueDetails role={role} userDept={userDept} />}
           />
 
           <Route
             path="/employees"
             element={
-              <ReturnDir role={role} userEmail={userEmail} />
+              <ReturnDir role={role} userEmail={userEmail} userDept={userDept} isDeptHead={isDeptHead} />
             }
           />
 
@@ -295,12 +280,12 @@ function AppContent() {
 
           <Route
             path="/gift-shop"
-            element={<GiftShop role={role} userEmail={userEmail} />}
+            element={<GiftShop role={role} userEmail={userEmail} userDept={userDept} />}
           />
 
           <Route
             path="/food"
-            element={<Food role={role} />}
+            element={<Food role={role} userDept={userDept} />}
           />
 
           <Route
@@ -338,8 +323,17 @@ function AppContent() {
           />
 
           <Route
+            path="/attractions-management"
+            element={
+              isGuestOpsHead
+                ? <AttractionManagement />
+                : <Navigate to="/attractions" replace />
+            }
+          />
+
+          <Route
             path="/attractions"
-            element={isStaff ? <AttractionManagement /> : <VisitorAttractions />}
+            element={<VisitorAttractions />}
           />
           <Route
             path="/attractions-directory"

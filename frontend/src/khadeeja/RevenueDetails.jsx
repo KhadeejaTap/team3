@@ -20,7 +20,7 @@ import { useState, useEffect } from 'react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
-function RevenueDetails({ role }) {
+function RevenueDetails({ role, userDept }) {
 	const [reportData, setReportData] = useState([]);
 	const [summary, setSummary] = useState(null);
 	const [streamType, setStreamType] = useState('all');
@@ -30,7 +30,7 @@ function RevenueDetails({ role }) {
 	const [lastUpdated, setLastUpdated] = useState('');
 
 	const isFinAdmin =
-		userEmail === 'taylor.hemsworth@zoo.com' ||
+		Number(userDept) === 1 ||
 		Number(localStorage.getItem('user_dept')) === 1;
 
 	if (!isFinAdmin) {

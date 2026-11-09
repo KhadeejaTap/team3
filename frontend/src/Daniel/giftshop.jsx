@@ -7,7 +7,7 @@ import RetailInventoryManagement from './RetailInventoryManagement';
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/+$/, '');
 const API = `${API_BASE}/api`;
 
-export default function GiftShop({ role, userEmail }) {
+export default function GiftShop({ role, userEmail, userDept }) {
 	const [products, setProducts] = useState([]);
 	const [selectedCategory, setSelectedCategory] = useState('all');
 	const [cart, setCart] = useState([]);
@@ -15,11 +15,16 @@ export default function GiftShop({ role, userEmail }) {
 	const [selectedVariants, setSelectedVariants] = useState({});
 	const [selectedSizes, setSelectedSizes] = useState({});
 
-	// Dept Head / Manager view state ('pos' or 'inventory')
+	const activeEmail = userEmail || localStorage.getItem('user_email') || '';
+
+	// Workstation view toggles
+	const [cashierTab, setCashierTab] = useState('pos');
 	const [managerTab, setManagerTab] = useState('inventory');
 
-	const isCashier = role === 'employee';
-	const isManager = role === 'manager';
+	const effectiveDept = userDept != null ? Number(userDept) : Number(localStorage.getItem('user_dept'));
+	const isRetailStaff = effectiveDept === 3;
+	const isCashier = isRetailStaff && role === 'employee';
+	const isManager = isRetailStaff && role === 'manager';
 
 	async function loadProducts() {
 		try {
@@ -37,86 +42,7 @@ export default function GiftShop({ role, userEmail }) {
 		loadProducts();
 	}, []);
 
-	// --- 1. CASHIER WORKSTATION (role === 'employee') ---
-	// Frontline cashier sees only the POS register
-	if (isCashier) {
-		return (
-			<div>
-				<h1>Gift Shop — Cashier Register</h1>
-				<p style={{ color: '#555', margin: '4px 0 16px 0' }}>
-					Logged in as Cashier ({userEmail || 'Retail Staff'})
-				</p>
-				<POSRegister
-					items={products}
-					itemType="product"
-					staffRole={role}
-					onSaleComplete={loadProducts}
-				/>
-			</div>
-		);
-	}
-
-	// --- 2. DEPARTMENT HEAD / MANAGER WORKSTATION (role === 'manager') ---
-	// Manager can toggle between Register and Inventory Management (Frontend handled by user)
-	if (isManager) {
-		return (
-			<div>
-				<h1>Gift Shop — Retail Management</h1>
-				<p style={{ color: '#555', margin: '4px 0 16px 0' }}>
-					Logged in as Department Head ({userEmail || 'Retail Manager'})
-				</p>
-
-				<div style={{ marginBottom: '16px', display: 'flex', gap: '8px' }}>
-					<button
-						type="button"
-						onClick={() => setManagerTab('inventory')}
-						style={{
-							padding: '8px 16px',
-							fontWeight: managerTab === 'inventory' ? 'bold' : 'normal',
-							backgroundColor: managerTab === 'inventory' ? '#204228' : '#f0f0f0',
-							color: managerTab === 'inventory' ? '#fff' : '#000',
-							border: '1px solid #ccc',
-							cursor: 'pointer'
-						}}
-					>
-						Inventory Management
-					</button>
-					<button
-						type="button"
-						onClick={() => setManagerTab('pos')}
-						style={{
-							padding: '8px 16px',
-							fontWeight: managerTab === 'pos' ? 'bold' : 'normal',
-							backgroundColor: managerTab === 'pos' ? '#204228' : '#f0f0f0',
-							color: managerTab === 'pos' ? '#fff' : '#000',
-							border: '1px solid #ccc',
-							cursor: 'pointer'
-						}}
-					>
-						POS Register
-					</button>
-				</div>
-
-				{managerTab === 'pos' ? (
-					<POSRegister
-						items={products}
-						itemType="product"
-						staffRole={role}
-						onSaleComplete={loadProducts}
-					/>
-				) : (
-					<div id="dept-head-inventory-container">
-						<RetailInventoryManagement
-							products={products}
-							onRefresh={loadProducts}
-						/>
-					</div>
-				)}
-			</div>
-		);
-	}
-
-	// --- 3. PUBLIC VISITOR STOREFRONT (Visitors / Customers) ---
+	// --- 1. PREPARE STOREFRONT DATA ---
 	// Group products by category and name so color variants collapse into a dropdown
 	const groupedProducts = Object.values(
 		products.reduce((acc, p) => {
@@ -211,138 +137,267 @@ export default function GiftShop({ role, userEmail }) {
 
 	return (
 		<div>
-			<h1>Cougar Zoo Gift Shop</h1>
-
-			<div style={{ display: 'flex', gap: '8px' }}>
-				{['all', 'Toys', 'Apparel', 'Drinkware', 'Souvenirs', 'Books'].map(cat => (
-					<button key={cat} onClick={() => setSelectedCategory(cat)}>
-						{cat}
+			{/* Persistent Workstation Tabs for Cashier */}
+			{isCashier && (
+				<div style={{ marginBottom: '16px', display: 'flex', gap: '8px' }}>
+					<button
+						type="button"
+						onClick={() => setCashierTab('pos')}
+						style={{
+							padding: '8px 16px',
+							fontWeight: cashierTab === 'pos' ? 'bold' : 'normal',
+							backgroundColor: cashierTab === 'pos' ? '#204228' : '#f0f0f0',
+							color: cashierTab === 'pos' ? '#fff' : '#000',
+							border: '1px solid #ccc',
+							cursor: 'pointer'
+						}}
+					>
+						Cashier POS Register
 					</button>
-				))}
-			</div>
-			<p> Cart Items: {cart.reduce((sum, item) => sum + item.quantity, 0)}</p>
-
-			{cart.length > 0 && (
-				<div>
-					<h2>Your Cart</h2>
-					{cart.map(item => (
-						<div key={`${item.product_ID}-${item.size || ''}`}>
-							<span>{item.name} {item.color ? `(${item.color})` : ''} {item.size ? `Size: ${item.size}` : ''} - ${item.price.toFixed(2)} x {item.quantity}</span>
-							{' '}
-							<button onClick={() => updateQuantity(item.product_ID, item.size, -1)}>-</button>
-							{' '}
-							<button onClick={() => updateQuantity(item.product_ID, item.size, 1)}>+</button>
-							{' '}
-							<button onClick={() => removeFromCart(item.product_ID, item.size)}>Remove</button>
-						</div>
-					))}
-
-					<p>Subtotal: ${subtotal.toFixed(2)}</p>
-					<p>Tax (8.25%): ${tax.toFixed(2)}</p>
-					<p><strong>Total: ${total.toFixed(2)}</strong></p>
-
-					<button onClick={() => setCheckout(true)}>
-						Proceed to Checkout
+					<button
+						type="button"
+						onClick={() => setCashierTab('store')}
+						style={{
+							padding: '8px 16px',
+							fontWeight: cashierTab === 'store' ? 'bold' : 'normal',
+							backgroundColor: cashierTab === 'store' ? '#204228' : '#f0f0f0',
+							color: cashierTab === 'store' ? '#fff' : '#000',
+							border: '1px solid #ccc',
+							cursor: 'pointer'
+						}}
+					>
+						Shop as Customer
 					</button>
 				</div>
 			)}
 
-			<CardCheckoutModal
-				isOpen={checkout}
-				onClose={() => setCheckout(false)}
-				itemType="product"
-				userEmail={userEmail || localStorage.getItem('user_email') || ''}
-				items={cart.map(item => ({
-					item_ID: item.product_ID,
-					name: item.name,
-					color: item.color,
-					size: item.size,
-					price: item.price,
-					quantity: item.quantity
-				}))}
-				onSuccess={(receipt) => {
-					setCart([]);
-					loadProducts();
-				}}
-			/>
-			<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '16px', marginTop: '16px' }}>
-				{filteredGroups.map(group => {
-					const active = getActiveVariant(group);
-					const hasColorVariants = group.variants.length > 1 && group.variants.some(v => v.color);
-					const hasSizeOptions = ![
-						'embroided zoo baseball cap',
-						'embroidered zoo baseball cap',
-						'stainless steel insulated tumbler',
-					].includes(group.name.trim().toLowerCase());
+			{/* Persistent Workstation Tabs for Manager */}
+			{isManager && (
+				<div style={{ marginBottom: '16px', display: 'flex', gap: '8px' }}>
+					<button
+						type="button"
+						onClick={() => setManagerTab('inventory')}
+						style={{
+							padding: '8px 16px',
+							fontWeight: managerTab === 'inventory' ? 'bold' : 'normal',
+							backgroundColor: managerTab === 'inventory' ? '#204228' : '#f0f0f0',
+							color: managerTab === 'inventory' ? '#fff' : '#000',
+							border: '1px solid #ccc',
+							cursor: 'pointer'
+						}}
+					>
+						Inventory Management
+					</button>
+					<button
+						type="button"
+						onClick={() => setManagerTab('pos')}
+						style={{
+							padding: '8px 16px',
+							fontWeight: managerTab === 'pos' ? 'bold' : 'normal',
+							backgroundColor: managerTab === 'pos' ? '#204228' : '#f0f0f0',
+							color: managerTab === 'pos' ? '#fff' : '#000',
+							border: '1px solid #ccc',
+							cursor: 'pointer'
+						}}
+					>
+						POS Register
+					</button>
+					<button
+						type="button"
+						onClick={() => setManagerTab('store')}
+						style={{
+							padding: '8px 16px',
+							fontWeight: managerTab === 'store' ? 'bold' : 'normal',
+							backgroundColor: managerTab === 'store' ? '#204228' : '#f0f0f0',
+							color: managerTab === 'store' ? '#fff' : '#000',
+							border: '1px solid #ccc',
+							cursor: 'pointer'
+						}}
+					>
+						Shop as Customer
+					</button>
+				</div>
+			)}
 
-					return (
-						<div key={group.name} style={{ border: '1px solid #ccc', padding: '12px', borderRadius: '4px', background: '#fff' }}>
-							<h3 style={{ margin: '0 0 6px 0' }}>{group.name}</h3>
-							<div style={{ fontSize: '13px', color: '#666', marginBottom: '8px' }}>{group.category}</div>
+			{/* 1. Cashier POS Register View */}
+			{isCashier && cashierTab === 'pos' ? (
+				<div>
+					<h1>Gift Shop — Cashier Register</h1>
+					<p style={{ color: '#555', margin: '4px 0 16px 0' }}>
+						Logged in as Cashier ({userEmail || 'Retail Staff'})
+					</p>
+					<POSRegister
+						items={products}
+						itemType="product"
+						staffRole={role}
+						onSaleComplete={loadProducts}
+					/>
+				</div>
+			) : isManager && managerTab === 'inventory' ? (
+				/* 2. Manager Inventory Management View */
+				<div>
+					<h1>Gift Shop — Retail Management</h1>
+					<p style={{ color: '#555', margin: '4px 0 16px 0' }}>
+						Logged in as Department Head ({userEmail || 'Retail Manager'})
+					</p>
+					<div id="dept-head-inventory-container">
+						<RetailInventoryManagement
+							products={products}
+							onRefresh={loadProducts}
+						/>
+					</div>
+				</div>
+			) : isManager && managerTab === 'pos' ? (
+				/* 3. Manager POS Register View */
+				<div>
+					<h1>Gift Shop — Retail Management</h1>
+					<p style={{ color: '#555', margin: '4px 0 16px 0' }}>
+						Logged in as Department Head ({userEmail || 'Retail Manager'})
+					</p>
+					<POSRegister
+						items={products}
+						itemType="product"
+						staffRole={role}
+						onSaleComplete={loadProducts}
+					/>
+				</div>
+			) : (
+				/* 4. Public Visitor Storefront View */
+				<div>
+					<h1>Cougar Zoo Gift Shop</h1>
 
-							{hasColorVariants && (
-								<div style={{ margin: '8px 0' }}>
-									<div style={{ marginBottom: '8px' }}>
-										<label style={{ display: 'block', fontSize: '13px', marginBottom: '4px', fontWeight: 'bold' }}>Color:</label>
-										<select
-											value={active.product_ID}
-											onChange={e => {
-												const chosenId = Number(e.target.value);
-												setSelectedVariants(prev => ({
-													...prev,
-													[group.name]: chosenId
-												}));
-											}}
-											style={{ padding: '4px 8px' }}
-										>
-											{group.variants.map(v => (
-												<option key={v.product_ID} value={v.product_ID}>
-													{v.color ? v.color.charAt(0).toUpperCase() + v.color.slice(1) : 'Default'}
-													{v.quantity_in_stock <= 0 ? ' (Out of stock)' : ''}
-												</option>
-											))}
-										</select>
-									</div>
-									{hasSizeOptions && (
-										<div>
-											<label htmlFor={`size-${group.name}`} style={{ display: 'block', fontSize: '13px', marginBottom: '4px', fontWeight: 'bold' }}>Size:</label>
-											<select
-												id={`size-${group.name}`}
-												value={selectedSizes[group.name] || ''}
-												onChange={e => setSelectedSizes(prev => ({
-													...prev,
-													[group.name]: e.target.value
-												}))}
-												style={{ padding: '4px 8px' }}
-											>
-												<option value="">Select a size</option>
-												{['XS', 'S', 'M', 'L', 'XL', 'XXL'].map(size => (
-													<option key={size} value={size}>{size}</option>
-												))}
-											</select>
-										</div>
-									)}
+					<div style={{ display: 'flex', gap: '8px' }}>
+						{['all', 'Toys', 'Apparel', 'Drinkware', 'Souvenirs', 'Books'].map(cat => (
+							<button key={cat} onClick={() => setSelectedCategory(cat)}>
+								{cat}
+							</button>
+						))}
+					</div>
+					<p> Cart Items: {cart.reduce((sum, item) => sum + item.quantity, 0)}</p>
+
+					{cart.length > 0 && (
+						<div>
+							<h2>Your Cart</h2>
+							{cart.map(item => (
+								<div key={`${item.product_ID}-${item.size || ''}`}>
+									<span>{item.name} {item.color ? `(${item.color})` : ''} {item.size ? `Size: ${item.size}` : ''} - ${item.price.toFixed(2)} x {item.quantity}</span>
+									{' '}
+									<button onClick={() => updateQuantity(item.product_ID, item.size, -1)}>-</button>
+									{' '}
+									<button onClick={() => updateQuantity(item.product_ID, item.size, 1)}>+</button>
+									{' '}
+									<button onClick={() => removeFromCart(item.product_ID, item.size)}>Remove</button>
 								</div>
-							)}
+							))}
 
-							<p style={{ margin: '8px 0' }}>
-								Price: ${Number(active.price).toFixed(2)}
-								{active.quantity_in_stock <= 0 && (
-									<span style={{ color: '#c00', marginLeft: '8px', fontSize: '13px' }}>
-										(Out of stock)
-									</span>
-								)}
-							</p>
-							<button
-								onClick={() => addToCart(active, selectedSizes[group.name])}
-								disabled={active.quantity_in_stock === 0 || (hasColorVariants && hasSizeOptions && !selectedSizes[group.name])}
-							>
-								{active.quantity_in_stock === 0 ? 'Out of Stock' : hasColorVariants && hasSizeOptions && !selectedSizes[group.name] ? 'Select a Size' : 'Add to Cart'}
+							<p>Subtotal: ${subtotal.toFixed(2)}</p>
+							<p>Tax (8.25%): ${tax.toFixed(2)}</p>
+							<p><strong>Total: ${total.toFixed(2)}</strong></p>
+
+							<button onClick={() => setCheckout(true)}>
+								Proceed to Checkout
 							</button>
 						</div>
-					);
-				})}
-			</div>
+					)}
+
+					<CardCheckoutModal
+						isOpen={checkout}
+						onClose={() => setCheckout(false)}
+						itemType="product"
+						userEmail={userEmail || localStorage.getItem('user_email') || ''}
+						items={cart.map(item => ({
+							item_ID: item.product_ID,
+							name: item.name,
+							color: item.color,
+							size: item.size,
+							price: item.price,
+							quantity: item.quantity
+						}))}
+						onSuccess={(receipt) => {
+							setCart([]);
+							loadProducts();
+						}}
+					/>
+					<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '16px', marginTop: '16px' }}>
+						{filteredGroups.map(group => {
+							const active = getActiveVariant(group);
+							const hasColorVariants = group.variants.length > 1 && group.variants.some(v => v.color);
+							const hasSizeOptions = ![
+								'embroided zoo baseball cap',
+								'embroidered zoo baseball cap',
+								'stainless steel insulated tumbler',
+							].includes(group.name.trim().toLowerCase());
+
+							return (
+								<div key={group.name} style={{ border: '1px solid #ccc', padding: '12px', borderRadius: '4px', background: '#fff' }}>
+									<h3 style={{ margin: '0 0 6px 0' }}>{group.name}</h3>
+									<div style={{ fontSize: '13px', color: '#666', marginBottom: '8px' }}>{group.category}</div>
+
+									{hasColorVariants && (
+										<div style={{ margin: '8px 0' }}>
+											<div style={{ marginBottom: '8px' }}>
+												<label style={{ display: 'block', fontSize: '13px', marginBottom: '4px', fontWeight: 'bold' }}>Color:</label>
+												<select
+													value={active.product_ID}
+													onChange={e => {
+														const chosenId = Number(e.target.value);
+														setSelectedVariants(prev => ({
+															...prev,
+															[group.name]: chosenId
+														}));
+													}}
+													style={{ padding: '4px 8px' }}
+												>
+													{group.variants.map(v => (
+														<option key={v.product_ID} value={v.product_ID}>
+															{v.color ? v.color.charAt(0).toUpperCase() + v.color.slice(1) : 'Default'}
+															{v.quantity_in_stock <= 0 ? ' (Out of stock)' : ''}
+														</option>
+													))}
+												</select>
+											</div>
+											{hasSizeOptions && (
+												<div>
+													<label htmlFor={`size-${group.name}`} style={{ display: 'block', fontSize: '13px', marginBottom: '4px', fontWeight: 'bold' }}>Size:</label>
+													<select
+														id={`size-${group.name}`}
+														value={selectedSizes[group.name] || ''}
+														onChange={e => setSelectedSizes(prev => ({
+															...prev,
+															[group.name]: e.target.value
+														}))}
+														style={{ padding: '4px 8px' }}
+													>
+														<option value="">Select a size</option>
+														{['XS', 'S', 'M', 'L', 'XL', 'XXL'].map(size => (
+															<option key={size} value={size}>{size}</option>
+														))}
+													</select>
+												</div>
+											)}
+										</div>
+									)}
+
+									<p style={{ margin: '8px 0' }}>
+										Price: ${Number(active.price).toFixed(2)}
+										{active.quantity_in_stock <= 0 && (
+											<span style={{ color: '#c00', marginLeft: '8px', fontSize: '13px' }}>
+												(Out of stock)
+											</span>
+										)}
+									</p>
+									<button
+										onClick={() => addToCart(active, selectedSizes[group.name])}
+										disabled={active.quantity_in_stock === 0 || (hasColorVariants && hasSizeOptions && !selectedSizes[group.name])}
+									>
+										{active.quantity_in_stock === 0 ? 'Out of Stock' : hasColorVariants && hasSizeOptions && !selectedSizes[group.name] ? 'Select a Size' : 'Add to Cart'}
+									</button>
+								</div>
+							);
+						})}
+					</div>
+				</div>
+			)}
 		</div>
 	);
 }

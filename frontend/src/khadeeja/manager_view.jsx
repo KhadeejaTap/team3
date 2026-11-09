@@ -245,6 +245,7 @@ function MgrView({ userEmail }) {
 								<th>Dept Head</th>
 								<th>Department</th>
 								<th>Employee Name</th>
+								<th>Sex</th>
 								<th>Role</th>
 								{isAttractionsDept && <th>Assigned Attractions</th>}
 								<th>Billing Address</th>
@@ -263,6 +264,7 @@ function MgrView({ userEmail }) {
 											<td>{item.head_of_dept}</td>
 											<td>{item.department_name}</td>
 											<td>{item.name}</td>
+											<td>{item.sex || '—'}</td>
 											<td>
 												{editingId === item.employee_ID ? (
 													<input
@@ -354,7 +356,7 @@ function MgrView({ userEmail }) {
 									))
 								) : (
 									<tr>
-										<td colSpan={isAttractionsDept ? 12 : 11} style={{ textAlign: 'center', padding: '2rem' }}>
+										<td colSpan={isAttractionsDept ? 13 : 12} style={{ textAlign: 'center', padding: '2rem' }}>
 											{error ? (
 												<span style={{ color: 'red' }}>Error loading data: {error}</span>
 											) : searchTerm.trim() ? (

@@ -11,7 +11,6 @@ function PayrollReport({ role, userEmail }) {
 	const [error, setError] = useState('');
 
 	const isFinHR =
-		userEmail === 'taylor.hemsworth@zoo.com' ||
 		Number(localStorage.getItem('user_dept')) === 1;
 
 	const targetHeadcounts = {

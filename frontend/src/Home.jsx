@@ -191,7 +191,7 @@ function formatOrderDate(dateStr) {
 	return dateStr;
 }
 
-function Home({ role, userEmail }) {
+function Home({ role, userEmail, userDept }) {
 	const effectiveEmail = userEmail || localStorage.getItem('user_email') || '';
 	const [fullName, setFullName] = useState(() => {
 		const fn = localStorage.getItem('user_first_name') || '';
@@ -205,11 +205,59 @@ function Home({ role, userEmail }) {
 	const [orders, setOrders] = useState([]);
 	const [loadingOrders, setLoadingOrders] = useState(false);
 	const [ordersError, setOrdersError] = useState('');
+	const [coupons, setCoupons] = useState([]);
+
+	const deptNumber = userDept !== undefined && userDept !== null
+		? Number(userDept)
+		: Number(localStorage.getItem('user_dept'));
+
+	const isCommercialManager =
+		(role === 'manager' && deptNumber === 3) ||
+		role === 'admin' ||
+		effectiveEmail === 'emma.watson@zoo.com' ||
+		effectiveEmail === 'gordon.ramsay@zoo.com';
+
+	const isGuestOpsManager =
+		(role === 'manager' && deptNumber === 4) ||
+		effectiveEmail === 'rachel.green@zoo.com';
+
+	const [commercialAlerts, setCommercialAlerts] = useState([]);
+	const [guestOpsAlerts, setGuestOpsAlerts] = useState([]);
+
+	const handleAlertStatusChange = async (alertId, newStatus, currentStatus) => {
+		if (newStatus === currentStatus) return;
+
+		if (newStatus === 'dismissed') {
+			const confirmed = window.confirm('Are you sure you want to dismiss this alert?');
+			if (!confirmed) return;
+		}
+
+		try {
+			const res = await apiFetch(`/api/alerts/low-stock/${alertId}`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ status: newStatus })
+			});
+
+			if (!res.ok) {
+				throw new Error('Failed to update alert status.');
+			}
+
+			setCommercialAlerts((prev) =>
+				prev
+					.map((a) => (a.alert_ID === alertId ? { ...a, status: newStatus } : a))
+					.filter((a) => a.status !== 'dismissed')
+			);
+		} catch (err) {
+			alert(err.message || 'Could not update alert status.');
+		}
+	};
 
 	useEffect(() => {
 		if (!role || !effectiveEmail) {
 			setUpcomingVisits([]);
 			setOrders([]);
+			setCoupons([]);
 			setFullName('');
 			return;
 		}
@@ -279,14 +327,64 @@ function Home({ role, userEmail }) {
 			}
 		}
 
+		async function fetchCommercialAlerts() {
+			if (!isCommercialManager) return;
+			try {
+				const res = await apiFetch('/api/alerts/low-stock');
+				if (res.ok) {
+					const data = await res.json();
+					const active = Array.isArray(data)
+						? data.filter((a) => a.status !== 'dismissed')
+						: [];
+					if (isMounted) {
+						setCommercialAlerts(active);
+					}
+				}
+			} catch {
+				// Silently fallback
+			}
+		}
+
+		async function fetchGuestOpsAlerts() {
+			if (!isGuestOpsManager) return;
+			try {
+				const res = await apiFetch('/api/alerts/upcoming-events');
+				if (res.ok) {
+					const data = await res.json();
+					if (isMounted && Array.isArray(data)) {
+						setGuestOpsAlerts(data);
+					}
+				}
+			} catch {
+				// Silently fallback
+			}
+		}
+
+		async function fetchCoupons() {
+			try {
+				const res = await apiFetch(`/api/coupons?email=${encodeURIComponent(effectiveEmail)}`);
+				if (res.ok) {
+					const data = await res.json();
+					if (isMounted && Array.isArray(data)) {
+						setCoupons(data);
+					}
+				}
+			} catch {
+				// Silently fallback
+			}
+		}
+
 		fetchUserProfile();
 		fetchUpcomingVisits();
 		fetchUserOrders();
+		fetchCoupons();
+		fetchCommercialAlerts();
+		fetchGuestOpsAlerts();
 
 		return () => {
 			isMounted = false;
 		};
-	}, [role, effectiveEmail]);
+	}, [role, effectiveEmail, isCommercialManager, isGuestOpsManager]);
 
 	return (
 		<div className="home-container">
@@ -297,6 +395,138 @@ function Home({ role, userEmail }) {
 				<div><strong>Hours:</strong> Open Mon-Fri, 9:00 AM – 5:00 PM</div>
 			</section>
 
+			{coupons.length > 0 && (
+				<div style={{
+					margin: '16px 0 0',
+					padding: '10px 16px',
+					backgroundColor: '#f0fdf4',
+					border: '1px solid #bbf7d0',
+					borderRadius: '6px',
+					color: '#166534',
+					fontSize: '0.875rem'
+				}}>
+					<span>Available Coupon: </span>
+					{coupons.map((c, idx) => (
+						<span key={c.coupon_ID}>
+							{idx > 0 && <span style={{ margin: '0 6px', color: '#86efac' }}>|</span>}
+							<strong style={{ fontFamily: 'monospace', letterSpacing: '0.5px' }}>{c.code}</strong>
+							<span> (apply at checkout) - {c.discount_percent}% off in Gift Shop</span>
+						</span>
+					))}
+				</div>
+			)}
+
+			{isCommercialManager && commercialAlerts.length > 0 && (
+				<section style={{
+					margin: '20px 0',
+					padding: '16px 20px',
+					backgroundColor: '#ffffff',
+					border: '1px solid #d0d7de',
+					borderRadius: '6px'
+				}}>
+					<h3 style={{ margin: '0 0 12px 0', color: '#24292f' }}>
+						Low Stock Alerts
+					</h3>
+
+					<table border="1" cellPadding="8" style={{ width: '100%', borderCollapse: 'collapse', backgroundColor: '#ffffff', textAlign: 'left' }}>
+						<thead>
+							<tr style={{ backgroundColor: '#f6f8fa' }}>
+								<th>SKU</th>
+								<th>Product</th>
+								<th>Time of Alert</th>
+								<th>Current Stock</th>
+								<th>Status</th>
+								<th>Adjust Status</th>
+							</tr>
+						</thead>
+						<tbody>
+							{commercialAlerts.map((a) => (
+								<tr key={a.alert_ID}>
+									<td><strong>{a.sku || 'N/A'}</strong></td>
+									<td>{a.product_name}</td>
+									<td>{a.created_at ? new Date(a.created_at).toLocaleString() : '—'}</td>
+									<td>{a.current_stock}</td>
+									<td>
+										{a.status === 'unaddressed' ? (
+											<span style={{ color: '#d32f2f', fontWeight: 'bold' }}>unaddressed</span>
+										) : a.status === 'order placed' ? (
+											<span style={{ color: '#2e7d32', fontWeight: 'bold' }}>order placed</span>
+										) : null}
+									</td>
+									<td>
+										<select
+											value={a.status}
+											onChange={(e) => handleAlertStatusChange(a.alert_ID, e.target.value, a.status)}
+											style={{ padding: '4px 8px' }}
+										>
+											<option value="unaddressed">unaddressed</option>
+											<option value="order placed">order placed</option>
+											<option value="dismissed">dismissed</option>
+										</select>
+									</td>
+								</tr>
+							))}
+						</tbody>
+					</table>
+				</section>
+			)}
+
+			{isGuestOpsManager && guestOpsAlerts.length > 0 && (
+				<section style={{
+					margin: '20px 0',
+					padding: '16px 20px',
+					backgroundColor: '#ffffff',
+					border: '1px solid #d0d7de',
+					borderRadius: '6px'
+				}}>
+					<h3 style={{ margin: '0 0 12px 0', color: '#24292f' }}>
+						Upcoming Events
+					</h3>
+
+					<table border="1" cellPadding="8" style={{ width: '100%', borderCollapse: 'collapse', backgroundColor: '#ffffff', textAlign: 'left' }}>
+						<thead>
+							<tr style={{ backgroundColor: '#f6f8fa' }}>
+								<th>Event / Attraction</th>
+								<th>Type</th>
+								<th>Date & Time</th>
+								<th>Location</th>
+								<th>Capacity</th>
+								<th>Assigned Staff</th>
+							</tr>
+						</thead>
+						<tbody>
+							{guestOpsAlerts.map((event) => (
+								<tr key={event.attr_ID}>
+									<td><strong>{event.name}</strong></td>
+									<td>{event.type || '—'}</td>
+									<td>
+										{event.attr_datetime
+											? new Date(event.attr_datetime).toLocaleDateString(undefined, {
+												weekday: 'short',
+												month: 'short',
+												day: 'numeric',
+												year: 'numeric'
+											})
+											: '—'}
+									</td>
+									<td>{event.location || '—'}</td>
+									<td>{event.capacity != null ? event.capacity : 'Unlimited'}</td>
+									<td>
+										{event.staffed_employees ? (
+											<span>{event.staffed_employees}</span>
+										) : (
+											<span style={{ color: '#d32f2f', fontWeight: 'bold' }}>
+												No one is staffed at this event
+											</span>
+										)}
+									</td>
+								</tr>
+							))}
+						</tbody>
+					</table>
+				</section>
+			)}
+
 			<br />
 
 			<section className="account-section">
@@ -305,6 +535,17 @@ function Home({ role, userEmail }) {
 					{role ? (
 						<div>
 							<p>Logged in as: <strong>{fullName ? `${fullName} (${effectiveEmail})` : effectiveEmail || role}</strong></p>
+
+							{coupons.length > 0 && (
+								<p style={{ margin: '4px 0 14px 0', fontSize: '0.9rem', color: '#166534' }}>
+									Active Gift Shop Coupon: {coupons.map((c, idx) => (
+										<span key={c.coupon_ID}>
+											{idx > 0 && ', '}
+											<strong style={{ fontFamily: 'monospace' }}>{c.code}</strong> (apply at checkout) - {c.discount_percent}% off
+										</span>
+									))}
+								</p>
+							)}
 
 							<div className="upcoming-visits-section">
 								<h3>Upcoming Visits</h3>

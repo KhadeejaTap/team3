@@ -24,9 +24,11 @@ async function handleAccess(req, res, pool, send, readBody) {
     }
 
     const [users] = await pool.execute(
-      `SELECT u.userID, u.email, u.role, u.first_name, u.last_name, e.department_ID
+      `SELECT u.userID, u.email, u.role, u.first_name, u.last_name, e.department_ID,
+              (e.employee_ID IS NOT NULL AND e.employee_ID = d.head_employee_ID) AS is_dept_head
        FROM users u
        LEFT JOIN employee e ON u.email = e.email
+       LEFT JOIN department d ON e.department_ID = d.department_ID
        WHERE u.email = ? AND u.password = ?`,
       [data.email.trim(), data.password]
     );
@@ -50,6 +52,7 @@ async function handleAccess(req, res, pool, send, readBody) {
       last_name: user.last_name || '',
       role: user.role,
       department_ID: user.department_ID ? Number(user.department_ID) : null,
+      is_dept_head: Boolean(user.is_dept_head),
       token
     });
     return true;
