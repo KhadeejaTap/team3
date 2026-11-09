@@ -878,6 +878,8 @@ const server = http.createServer(async (req, res) => {
 
         const connection = await pool.getConnection();
         let ticketID;
+        let transactionID;
+        let total;
 
         try {
           await connection.beginTransaction();
@@ -938,9 +940,23 @@ const server = http.createServer(async (req, res) => {
               ticket.visit_date
             ]
           );
+          ticketID = result.insertId;
+          total = (price * 1.0825).toFixed(2);
+          const [transaction] = await connection.query(
+            `INSERT INTO CUST_TRANSACTION
+             (visitor_ID, total, payment_method, transaction_date)
+             VALUES (?, ?, 'credit', CURRENT_DATE)`,
+            [visitorID, total]
+          );
+          await connection.query(
+            `INSERT INTO TRANSACTION_ITEM
+             (transaction_ID, item_type, item_ID, quantity, price)
+             VALUES (?, 'ticket', ?, 1, ?)`,
+            [transaction.insertId, ticketID, price]
+          );
 
           await connection.commit();
-          ticketID = result.insertId;
+          transactionID = transaction.insertId;
         } catch (err) {
           await connection.rollback();
           throw err;
@@ -952,7 +968,9 @@ const server = http.createServer(async (req, res) => {
         res.end(
           JSON.stringify({
             message: 'Ticket purchased successfully',
-            ticket_ID: ticketID
+            ticket_ID: ticketID,
+            transaction_ID: transactionID,
+            total
           })
         );
       } catch (err) {

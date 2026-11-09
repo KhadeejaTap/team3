@@ -1,6 +1,7 @@
 import './App.css';
 import { useState } from 'react';
 import { apiFetch } from './api';
+import zooLogo from './images/animals/Marketing/Finished Cougar Zoo logo.png';
 
 import LoginPage from './khadeeja/login';
 import ReturnDir from './khadeeja/employee_directory';
@@ -132,6 +133,9 @@ function AppContent() {
   return (
     <>
       <nav className="navbar">
+        <Link to="/" className="navbar-logo">
+          <img src={zooLogo} alt="Cougar Zoo" />
+        </Link>
         <ul className="nav-list">
           <li className="nav-item">
             <Link to="/">Home</Link>

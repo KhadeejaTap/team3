@@ -6,7 +6,7 @@ export default function CardCheckoutModal({
   isOpen,
   onClose,
   items = [],
-  itemType = 'product', // 'product' (Gift Shop), 'food' (Concessions), or 'donation'
+  itemType = 'product', // 'product' (Gift Shop), 'food' (Concessions), 'ticket', or 'donation'
   onSuccess,
   userEmail = '',
   customCardName = '',
@@ -46,9 +46,11 @@ export default function CardCheckoutModal({
   }, [isOpen, userEmail, customCardName, initialCouponCode]);
 
   const isDonation = itemType === 'donation';
+  const isTicket = itemType === 'ticket';
+  const supportsCoupons = !isDonation && !isTicket;
 
   useEffect(() => {
-    if (isOpen && !isDonation && email && email.includes('@')) {
+    if (isOpen && supportsCoupons && email && email.includes('@')) {
       fetch(`${API_BASE}/api/coupons?email=${encodeURIComponent(email.trim())}`)
         .then(res => res.json())
         .then(data => {
@@ -59,10 +61,10 @@ export default function CardCheckoutModal({
           }
         })
         .catch(() => setAvailableCoupons([]));
-    } else if (!email || isDonation) {
+    } else if (!email || !supportsCoupons) {
       setAvailableCoupons([]);
     }
-  }, [isOpen, email, isDonation]);
+  }, [isOpen, email, supportsCoupons]);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -75,7 +77,7 @@ export default function CardCheckoutModal({
   const subtotal = directTotal != null
     ? Number(directTotal)
     : items.reduce((sum, item) => sum + Number(item.price) * Number(item.quantity), 0);
-  const discount = !isDonation && appliedCoupon ? subtotal * ((appliedCoupon.discount_percent || 15) / 100) : 0;
+  const discount = supportsCoupons && appliedCoupon ? subtotal * ((appliedCoupon.discount_percent || 15) / 100) : 0;
   const discountedSubtotal = Math.max(0, subtotal - discount);
   const tax = isDonation ? 0 : discountedSubtotal * 0.0825;
   const total = isDonation ? subtotal : discountedSubtotal + tax;
@@ -153,7 +155,8 @@ export default function CardCheckoutModal({
           cardNumber: cleanCard,
           expDate,
           cvv,
-          zipCode
+          zipCode,
+          email: email.trim()
         });
       } else {
         const response = await fetch(`${API_BASE}/api/checkout`, {
@@ -239,10 +242,19 @@ export default function CardCheckoutModal({
         {success ? (
           <div style={{ textAlign: 'center', padding: '24px 8px' }}>
             <h2 style={{ color: '#204228', marginTop: 0, marginBottom: '12px' }}>
-              {isDonation ? 'Donation Processed Successfully!' : 'Order Placed Successfully!'}
+              {isDonation
+                ? 'Donation Processed Successfully!'
+                : isTicket
+                  ? 'Ticket Purchase Completed!'
+                  : 'Order Placed Successfully!'}
             </h2>
             <p style={{ color: '#444', fontSize: '1rem', marginBottom: '8px' }}>
-              {isDonation ? 'Donation' : 'Order'} <strong>#{successData?.donation_ID || successData?.transaction_ID}</strong>
+              {isDonation
+                ? 'Donation'
+                : isTicket
+                  ? 'Ticket'
+                  : 'Order'}{' '}
+              <strong>#{isTicket ? successData?.ticket_ID : successData?.donation_ID || successData?.transaction_ID}</strong>
             </p>
             {successData?.coupon_code && (
               <div style={{ marginTop: '14px', marginBottom: '14px', padding: '12px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '4px', textAlign: 'left', color: '#166534' }}>
@@ -263,6 +275,8 @@ export default function CardCheckoutModal({
             <p style={{ color: '#555', fontSize: '0.95rem', marginBottom: '24px' }}>
               {isDonation
                 ? 'Thank you for your generous contribution to Cougar Zoo!'
+                : isTicket
+                  ? 'Your ticket is confirmed. We look forward to seeing you at Cougar Zoo!'
                 : 'Your purchase has been confirmed and saved to your Account.'}
             </p>
             <button
@@ -378,7 +392,7 @@ export default function CardCheckoutModal({
                   placeholder="visitor@example.com"
                   style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}
                 />
-                {!isDonation && availableCoupons.length > 0 && (
+                {supportsCoupons && availableCoupons.length > 0 && (
                   <div style={{ fontSize: '0.8rem', color: '#166534', marginTop: '6px', background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '6px 8px', borderRadius: '4px' }}>
                     Available Sponsor Coupon: <strong>{availableCoupons[0].code}</strong> ({availableCoupons[0].discount_percent}% off)
                   </div>
@@ -386,7 +400,7 @@ export default function CardCheckoutModal({
               </div>
 
               {/* Coupon Code Input */}
-              {!isDonation && (
+              {supportsCoupons && (
                 <div style={{ marginBottom: '12px' }}>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '4px' }}>
                     Coupon Code

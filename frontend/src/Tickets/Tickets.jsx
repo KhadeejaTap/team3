@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import CardCheckoutModal from '../components/CardCheckoutModal';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -56,6 +57,7 @@ function Tickets({ userEmail }) {
         }
     }, [userEmail]);
     const [message, setMessage] = useState('');
+    const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
     const price = ticketPrices[formData.ticket_type];
 
     function handleChange(event) {
@@ -86,37 +88,46 @@ function Tickets({ userEmail }) {
             return;
         }
 
-        try {
-            const loggedInEmail = userEmail || localStorage.getItem('user_email') || null;
+        setIsCheckoutOpen(true);
+    }
 
-            const response = await fetch(`${API_URL}/api/tickets`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    ticket_type: formData.ticket_type,
-                    visit_date: formData.visit_date,
-                    visitor_name: visitorName,
-                    email: loggedInEmail,
-                }),
-            });
-            const result = await response.json();
-            if (!response.ok) {
-                throw new Error(result.error || 'Could not purchase ticket.');
-            }
+    async function handleTicketCheckout({ email }) {
+        const firstName = formData.first_name.trim();
+        const middleInitial = formData.middle_initial.trim();
+        const lastName = formData.last_name.trim();
+        const visitorName = [firstName, middleInitial, lastName]
+            .filter(Boolean)
+            .join(' ');
 
-            setMessage(`Ticket purchased successfully! Ticket ID: ${result.ticket_ID}`);
-            setFormData({
-                first_name: '',
-                middle_initial: '',
-                last_name: '',
-                ticket_type: '',
-                visit_date: '',
-            });
-        } catch (error) {
-            setMessage(`Error: ${error.message}`);
+        const response = await fetch(`${API_URL}/api/tickets`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                ticket_type: formData.ticket_type,
+                visit_date: formData.visit_date,
+                visitor_name: visitorName,
+                email: email || null,
+            }),
+        });
+        const result = await response.json();
+        if (!response.ok) {
+            throw new Error(result.error || 'Could not purchase ticket.');
         }
+
+        return result;
+    }
+
+    function handleTicketSuccess(result) {
+        setMessage(`Ticket purchased successfully! Ticket ID: ${result.ticket_ID}`);
+        setFormData({
+            first_name: '',
+            middle_initial: '',
+            last_name: '',
+            ticket_type: '',
+            visit_date: '',
+        });
     }
 
     return (
@@ -198,9 +209,24 @@ function Tickets({ userEmail }) {
                     />
                 </div>
 
-                <button type="submit">Purchase Ticket</button>
+                <button type="submit">Continue to Checkout</button>
             </form>
             {message && <p role="status">{message}</p>}
+            <CardCheckoutModal
+                isOpen={isCheckoutOpen}
+                onClose={() => setIsCheckoutOpen(false)}
+                itemType="ticket"
+                items={[{
+                    name: `${formData.ticket_type} Ticket - Visit ${formData.visit_date}`,
+                    price,
+                    quantity: 1,
+                }]}
+                userEmail={userEmail || localStorage.getItem('user_email') || ''}
+                customCardName={`${formData.first_name} ${formData.last_name}`.trim()}
+                customSubmit={handleTicketCheckout}
+                onSuccess={handleTicketSuccess}
+                title="Ticket Checkout"
+            />
         </div>
     );
 }
