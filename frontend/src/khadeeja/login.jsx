@@ -1,9 +1,11 @@
 import '../App.css';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 const API = `${(import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/+$/, '')}/api`;
 
 function LoginPage({ onLogin }) {
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
@@ -75,9 +77,20 @@ function LoginPage({ onLogin }) {
       } else {
         localStorage.removeItem('user_dept');
       }
-      onLogin(data.role, data.email, data.department_ID ? Number(data.department_ID) : null);
+      if (data.is_dept_head !== undefined) {
+        localStorage.setItem('is_dept_head', data.is_dept_head ? 'true' : 'false');
+      } else {
+        localStorage.removeItem('is_dept_head');
+      }
+      onLogin(
+        data.role,
+        data.email,
+        data.department_ID ? Number(data.department_ID) : null,
+        Boolean(data.is_dept_head)
+      );
       setPassword('');
       setMessage(`Logged in as ${data.role}.`);
+      navigate('/');
     } catch (err) {
       setError(err.message || 'Could not connect to the server.');
     } finally {

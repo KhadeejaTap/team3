@@ -7,6 +7,7 @@ const initialFormData = {
 	first_name: '',
 	minit: '',
 	last_name: '',
+	sex: 'M',
 	street_address: '',
 	city: '',
 	state: '',
@@ -24,7 +25,12 @@ const initialFormData = {
 	user_role: 'employee'
 };
 
-function AdminView() {
+function AdminView({ isDirector }) {
+	const userRole = localStorage.getItem('user_role');
+	const userDept = Number(localStorage.getItem('user_dept'));
+	const isDeptHead = localStorage.getItem('is_dept_head') === 'true';
+	const canDelete = isDirector !== undefined ? isDirector : (userDept === 1 && isDeptHead);
+
 	const [employees, setEmployees] = useState([]);
 	const [searchTerm, setSearchTerm] = useState('');
 	const [selectedDept, setSelectedDept] = useState('all');
@@ -92,6 +98,7 @@ function AdminView() {
 			first_name: emp.first_name || '',
 			minit: emp.minit || '',
 			last_name: emp.last_name || '',
+			sex: emp.sex || 'Other',
 			email: emp.email || '',
 			phone_number: emp.phone_number || '',
 			street_address: emp.street_address || '',
@@ -160,7 +167,12 @@ function AdminView() {
 
 		try {
 			const res = await fetch(`${API_URL}/api/employees/${employeeID}`, {
-				method: 'DELETE'
+				method: 'DELETE',
+				headers: {
+					'Content-Type': 'application/json',
+					'x-user-email': localStorage.getItem('user_email') || '',
+					'Authorization': `Bearer ${localStorage.getItem('user_token') || ''}`
+				}
 			});
 			const data = await res.json().catch(() => ({}));
 
@@ -233,6 +245,14 @@ function AdminView() {
 							<div>
 								<label>Last Name: </label>
 								<input type="text" name="last_name" value={formData.last_name} onChange={handleChange} required />
+							</div>
+							<div>
+								<label>Sex: </label>
+								<select name="sex" value={formData.sex} onChange={handleChange} required>
+									<option value="M">Male (M)</option>
+									<option value="F">Female (F)</option>
+									<option value="Other">Other</option>
+								</select>
 							</div>
 							<div>
 								<label>Email: </label>
@@ -397,6 +417,7 @@ function AdminView() {
 							<th>Manager Name</th>
 							<th>Department</th>
 							<th>Employee Name</th>
+							<th>Sex</th>
 							<th>Address</th>
 							<th>Email</th>
 							<th>Phone Number</th>
@@ -415,6 +436,7 @@ function AdminView() {
 									<td>{item.manager_name || 'None (Dept Head)'}</td>
 									<td>{item.department_name}</td>
 									<td>{item.name}</td>
+									<td>{item.sex || '—'}</td>
 									<td>{item.address}</td>
 									<td>{item.email}</td>
 									<td>{item.phone_number}</td>
@@ -432,13 +454,17 @@ function AdminView() {
 												>
 													Edit
 												</button>
-												&nbsp;
-												<button
-													type="button"
-													onClick={() => handleDelete(item.employee_ID, item.name)}
-												>
-													Delete
-												</button>
+												{canDelete && (
+													<>
+														&nbsp;
+														<button
+															type="button"
+															onClick={() => handleDelete(item.employee_ID, item.name)}
+														>
+															Delete
+														</button>
+													</>
+												)}
 											</>
 										) : (
 											<span>Inactive</span>
@@ -448,7 +474,7 @@ function AdminView() {
 							))
 						) : (
 							<tr>
-								<td colSpan="12" style={{ textAlign: 'center', padding: '2rem' }}>
+								<td colSpan="13" style={{ textAlign: 'center', padding: '2rem' }}>
 									{error ? (
 										<span style={{ color: 'red' }}>Could not load directory data: {error}</span>
 									) : searchTerm.trim() ? (
