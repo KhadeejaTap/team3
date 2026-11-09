@@ -6,7 +6,7 @@ import './VisitorAnimalDirectory.css';
 const API_URL = 'http://localhost:5000';
 
 const animalImageFiles = import.meta.glob(
-  '../images/animals/*.{jpg,jpeg,png,webp}',
+  './images/animals/*.{jpg,jpeg,png,webp}',
   {
     eager: true,
     query: '?url',
