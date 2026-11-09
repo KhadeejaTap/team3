@@ -5,7 +5,7 @@ import AdminView from './admin_view';
 import EmpView from './employee_view';
 import PayrollReport from './PayrollReport';
 
-function ReturnDir({ role, userEmail }) {
+function ReturnDir({ role, userEmail, userDept, isDeptHead }) {
 	const [currentTab, setCurrentTab] = useState('directory');
 
 	if (!role) {
@@ -26,38 +26,46 @@ function ReturnDir({ role, userEmail }) {
 		);
 	}
 
-	if (role === 'employee') {
-		return <EmpView />;
+	const effectiveDept = userDept ? Number(userDept) : Number(localStorage.getItem('user_dept'));
+	const isFinHR = effectiveDept === 1;
+	const isDirector = isFinHR && (Boolean(isDeptHead) || localStorage.getItem('is_dept_head') === 'true');
+
+	// Financial and HR personnel (Dept 1) have access to both Staff Management and Payroll Reports
+	if (isFinHR) {
+		return (
+			<div>
+				<div>
+					<button
+						type="button"
+						onClick={() => setCurrentTab('directory')}
+					>
+						{currentTab === 'directory' ? <strong>Staff Directory</strong> : 'Staff Directory'}
+					</button>
+					&nbsp;&nbsp;
+					<button
+						type="button"
+						onClick={() => setCurrentTab('report')}
+					>
+						{currentTab === 'report' ? <strong>Payroll & Headcount Report</strong> : 'Payroll & Headcount Report'}
+					</button>
+				</div>
+				<hr />
+
+				{currentTab === 'report' ? (
+					<PayrollReport role={role} userEmail={userEmail} />
+				) : (
+					<AdminView isDirector={isDirector} />
+				)}
+			</div>
+		);
 	}
 
-	return (
-		<div>
-			<div>
-				<button
-					type="button"
-					onClick={() => setCurrentTab('directory')}
-				>
-					{currentTab === 'directory' ? <strong>Employee Directory</strong> : 'Employee Directory'}
-				</button>
-				&nbsp;&nbsp;
-				<button
-					type="button"
-					onClick={() => setCurrentTab('report')}
-				>
-					{currentTab === 'report' ? <strong>Payroll & Headcount Report</strong> : 'Payroll & Headcount Report'}
-				</button>
-			</div>
-			<hr />
+	// Non-HR department heads manage their own department team
+	if (role === 'manager') {
+		return <MgrView userEmail={userEmail} />;
+	}
 
-			{currentTab === 'report' ? (
-				<PayrollReport role={role} userEmail={userEmail} />
-			) : role === 'manager' ? (
-				<MgrView userEmail={userEmail} />
-			) : (
-				<AdminView />
-			)}
-		</div>
-	);
+	return <EmpView />;
 }
 
 export default ReturnDir;

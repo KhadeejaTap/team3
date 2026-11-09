@@ -70,7 +70,18 @@ CREATE TABLE DONATION (
     donor_ID  INT NOT NULL, -- this will be a foreign key referencing the VISITOR table
     amount  DECIMAL(10,2) NOT NULL CHECK(amount >= 0),
     donation_date  DATE NOT NULL,
-    purpose VARCHAR(225) NOT NULL
+    purpose VARCHAR(225) NOT NULL,
+    animal_ID INT NULL,
+    FOREIGN KEY (animal_ID) REFERENCES ANIMAL(animal_ID) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS COUPON (
+    coupon_ID INT AUTO_INCREMENT PRIMARY KEY,
+    donor_email VARCHAR(100) NOT NULL,
+    code VARCHAR(50) NOT NULL UNIQUE,
+    discount_percent INT NOT NULL DEFAULT 15,
+    is_used BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE donor (
     donor_ID  INT AUTO_INCREMENT PRIMARY KEY,
@@ -85,6 +96,7 @@ CREATE TABLE EMPLOYEE(
 	first_name varchar(30) NOT NULL,
 	minit varchar(1),
 	last_name varchar(30) NOT NULL,
+	sex ENUM('M', 'F', 'Other') NOT NULL DEFAULT 'Other',
 	street_address varchar(50) NOT NULL,
 	city varchar(30) NOT NULL,
 	state varchar(20) NOT NULL,
@@ -257,6 +269,8 @@ CREATE TABLE TRANSACTION_ITEM (
 CREATE TABLE users (
 	userID INT AUTO_INCREMENT PRIMARY KEY,
 	email VARCHAR(100) UNIQUE NOT NULL,
+	first_name VARCHAR(50) DEFAULT NULL,
+	last_name VARCHAR(50) DEFAULT NULL,
 	password VARCHAR(255) NOT NULL,
 	role VARCHAR(20) NOT NULL CHECK (role IN ('admin', 'manager', 'employee', 'visitor'))
 );
@@ -401,6 +415,26 @@ BEGIN
     THEN
         SIGNAL SQLSTATE '45000'
             SET MESSAGE_TEXT = 'Donation does not exist';
+    END IF;
+END$$
+
+CREATE TABLE IF NOT EXISTS LOW_STOCK_ALERT (
+    alert_ID INT AUTO_INCREMENT PRIMARY KEY,
+    product_ID INT NOT NULL,
+    stock_at_alert INT NOT NULL,
+    status ENUM('unaddressed', 'order placed', 'dismissed') NOT NULL DEFAULT 'unaddressed',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (product_ID) REFERENCES PRODUCT(product_ID) ON DELETE CASCADE
+)$$
+
+DROP TRIGGER IF EXISTS trg_low_stock_alert$$
+CREATE TRIGGER trg_low_stock_alert
+AFTER UPDATE ON PRODUCT
+FOR EACH ROW
+BEGIN
+    IF NEW.quantity_in_stock <= COALESCE(NEW.reorder_level, 5) AND OLD.quantity_in_stock > COALESCE(OLD.reorder_level, 5) THEN
+        INSERT INTO LOW_STOCK_ALERT (product_ID, stock_at_alert, status)
+        VALUES (NEW.product_ID, NEW.quantity_in_stock, 'unaddressed');
     END IF;
 END$$
 

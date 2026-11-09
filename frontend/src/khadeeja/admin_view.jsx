@@ -7,6 +7,7 @@ const initialFormData = {
 	first_name: '',
 	minit: '',
 	last_name: '',
+	sex: 'M',
 	street_address: '',
 	city: '',
 	state: '',
@@ -24,9 +25,15 @@ const initialFormData = {
 	user_role: 'employee'
 };
 
-function AdminView() {
+function AdminView({ isDirector }) {
+	const userRole = localStorage.getItem('user_role');
+	const userDept = Number(localStorage.getItem('user_dept'));
+	const isDeptHead = localStorage.getItem('is_dept_head') === 'true';
+	const canDelete = isDirector !== undefined ? isDirector : (userDept === 1 && isDeptHead);
+
 	const [employees, setEmployees] = useState([]);
 	const [searchTerm, setSearchTerm] = useState('');
+	const [selectedDept, setSelectedDept] = useState('all');
 	const [error, setError] = useState('');
 	const [successMsg, setSuccessMsg] = useState('');
 	const [showForm, setShowForm] = useState(false);
@@ -66,10 +73,22 @@ function AdminView() {
 	}, []);
 
 	const handleChange = (e) => {
-		setFormData({
+		const { name, value } = e.target;
+		const updated = {
 			...formData,
-			[e.target.name]: e.target.value
-		});
+			[name]: value
+		};
+
+		// Auto-populate email as first.last@gmail.com when adding a new employee
+		if (!editingEmployeeId && (name === 'first_name' || name === 'last_name')) {
+			const first = (name === 'first_name' ? value : formData.first_name).trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+			const last = (name === 'last_name' ? value : formData.last_name).trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+			if (first && last) {
+				updated.email = `${first}.${last}@gmail.com`;
+			}
+		}
+
+		setFormData(updated);
 	};
 
 	const handleStartEdit = (emp) => {
@@ -79,6 +98,7 @@ function AdminView() {
 			first_name: emp.first_name || '',
 			minit: emp.minit || '',
 			last_name: emp.last_name || '',
+			sex: emp.sex || 'Other',
 			email: emp.email || '',
 			phone_number: emp.phone_number || '',
 			street_address: emp.street_address || '',
@@ -147,7 +167,12 @@ function AdminView() {
 
 		try {
 			const res = await fetch(`${API_URL}/api/employees/${employeeID}`, {
-				method: 'DELETE'
+				method: 'DELETE',
+				headers: {
+					'Content-Type': 'application/json',
+					'x-user-email': localStorage.getItem('user_email') || '',
+					'Authorization': `Bearer ${localStorage.getItem('user_token') || ''}`
+				}
 			});
 			const data = await res.json().catch(() => ({}));
 
@@ -166,11 +191,13 @@ function AdminView() {
 	};
 
 	const filteredEmployees = employees.filter((emp) => {
+		const matchesDept = selectedDept === 'all' || String(emp.department_ID) === String(selectedDept);
 		const term = searchTerm.trim().toLowerCase();
-		if (!term) return true;
+		if (!term) return matchesDept;
 		const matchesName = emp.name ? emp.name.toLowerCase().includes(term) : false;
 		const matchesID = emp.employee_ID ? emp.employee_ID.toString() === term || emp.employee_ID.toString().includes(term) : false;
-		return matchesName || matchesID;
+		const matchesRole = emp.role ? emp.role.toLowerCase().includes(term) : false;
+		return matchesDept && (matchesName || matchesID || matchesRole);
 	});
 
 	return (
@@ -178,7 +205,7 @@ function AdminView() {
 			<div>
 				<h2>Executive Administration — Staff Directory</h2>
 				<p style={{ color: '#555' }}>
-					Manage personnel records, department assignments, compensations, and new staff onboarding across all 8 zoo departments.
+					Manage personnel records, department assignments, compensations, and new staff onboarding across all 4 zoo departments: Financial and HR, Animal Operations, Commercial Operations, and Guest Operations.
 				</p>
 
 				{error && <p style={{ color: 'red' }}><strong>Error: </strong>{error}</p>}
@@ -220,8 +247,25 @@ function AdminView() {
 								<input type="text" name="last_name" value={formData.last_name} onChange={handleChange} required />
 							</div>
 							<div>
+								<label>Sex: </label>
+								<select name="sex" value={formData.sex} onChange={handleChange} required>
+									<option value="M">Male (M)</option>
+									<option value="F">Female (F)</option>
+									<option value="Other">Other</option>
+								</select>
+							</div>
+							<div>
 								<label>Email: </label>
-								<input type="email" name="email" value={formData.email} onChange={handleChange} required />
+								<input
+									type="email"
+									name="email"
+									value={formData.email}
+									onChange={handleChange}
+									placeholder="e.g. first.last@gmail.com (auto-generated)"
+								/>
+								<small style={{ marginLeft: '8px', color: '#666' }}>
+									(Auto-generated as @gmail.com from name, or enter custom)
+								</small>
 							</div>
 							<div>
 								<label>Phone: </label>
@@ -251,13 +295,10 @@ function AdminView() {
 								<label>Department: </label>
 								<select name="department_ID" value={formData.department_ID} onChange={handleChange} required>
 									<option value="">-- Select Department --</option>
-									<option value="1">1 - HR</option>
-									<option value="2">2 - Animal Care</option>
-									<option value="3">3 - Veterinary</option>
-									<option value="6">6 - Retail</option>
-									<option value="7">7 - Food Services</option>
-									<option value="8">8 - Parking</option>
-									<option value="9">9 - Events & Attractions</option>
+									<option value="1">1 - Financial and HR</option>
+									<option value="2">2 - Animal Operations</option>
+									<option value="3">3 - Commercial Operations</option>
+									<option value="4">4 - Guest Operations</option>
 								</select>
 							</div>
 							<div>
@@ -285,11 +326,20 @@ function AdminView() {
 							</div>
 							<div>
 								<label>Manager ID: </label>
-								<input type="number" name="manager_ID" placeholder="Optional" value={formData.manager_ID} onChange={handleChange} />
+								<input
+									type="number"
+									name="manager_ID"
+									placeholder="Optional (defaults to Dept Head)"
+									value={formData.manager_ID}
+									onChange={handleChange}
+								/>
+								<small style={{ display: 'block', color: '#666', marginTop: '2px', fontSize: '0.82rem' }}>
+									Leave blank to auto-assign to Department Head (only 1 Dept Head permitted per department).
+								</small>
 							</div>
 							{!editingEmployeeId && (
 								<>
-									{['2', '9'].includes(String(formData.department_ID)) ? (
+									{['2', '4'].includes(String(formData.department_ID)) ? (
 										<div>
 											<label>Staffed at Attraction: </label>
 											<select name="attr_ID" value={formData.attr_ID} onChange={handleChange}>
@@ -303,7 +353,7 @@ function AdminView() {
 										</div>
 									) : (
 										<p style={{ fontSize: '0.88rem', color: '#666', margin: '4px 0 10px 0' }}>
-											<em>(Attraction assignment only applies to Events & Attractions and Animal Care staff)</em>
+											<em>(Attraction assignment only applies to Guest Operations and Animal Operations staff)</em>
 										</p>
 									)}
 
@@ -336,14 +386,27 @@ function AdminView() {
 
 				<br />
 
-				<div>
-					<label><strong> Search Employee (by Name or ID): </strong></label>
-					<input
-						type="text"
-						placeholder="e.g. Katy or 9..."
-						value={searchTerm}
-						onChange={(e) => setSearchTerm(e.target.value)}
-					/>
+				<div style={{ display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap' }}>
+					<div>
+						<label><strong>Department: </strong></label>
+						<select value={selectedDept} onChange={(e) => setSelectedDept(e.target.value)}>
+							<option value="all">All Departments (4)</option>
+							<option value="1">1 - Financial and HR</option>
+							<option value="2">2 - Animal Operations</option>
+							<option value="3">3 - Commercial Operations</option>
+							<option value="4">4 - Guest Operations</option>
+						</select>
+					</div>
+
+					<div>
+						<label><strong> Search Employee: </strong></label>
+						<input
+							type="text"
+							placeholder="e.g. Katy, 9, or Keeper..."
+							value={searchTerm}
+							onChange={(e) => setSearchTerm(e.target.value)}
+						/>
+					</div>
 				</div>
 
 				<br />
@@ -354,6 +417,7 @@ function AdminView() {
 							<th>Manager Name</th>
 							<th>Department</th>
 							<th>Employee Name</th>
+							<th>Sex</th>
 							<th>Address</th>
 							<th>Email</th>
 							<th>Phone Number</th>
@@ -372,6 +436,7 @@ function AdminView() {
 									<td>{item.manager_name || 'None (Dept Head)'}</td>
 									<td>{item.department_name}</td>
 									<td>{item.name}</td>
+									<td>{item.sex || '—'}</td>
 									<td>{item.address}</td>
 									<td>{item.email}</td>
 									<td>{item.phone_number}</td>
@@ -389,13 +454,17 @@ function AdminView() {
 												>
 													Edit
 												</button>
-												&nbsp;
-												<button
-													type="button"
-													onClick={() => handleDelete(item.employee_ID, item.name)}
-												>
-													Delete
-												</button>
+												{canDelete && (
+													<>
+														&nbsp;
+														<button
+															type="button"
+															onClick={() => handleDelete(item.employee_ID, item.name)}
+														>
+															Delete
+														</button>
+													</>
+												)}
 											</>
 										) : (
 											<span>Inactive</span>
@@ -405,7 +474,7 @@ function AdminView() {
 							))
 						) : (
 							<tr>
-								<td colSpan="12" style={{ textAlign: 'center', padding: '2rem' }}>
+								<td colSpan="13" style={{ textAlign: 'center', padding: '2rem' }}>
 									{error ? (
 										<span style={{ color: 'red' }}>Could not load directory data: {error}</span>
 									) : searchTerm.trim() ? (

@@ -28,7 +28,7 @@ function SpeciesReport({ role, userEmail }) {
 			.then(async (res) => {
 				if (res.status === 403) {
 					setAccessDenied(true);
-					throw new Error('Access restricted to Zoo Administrators, Animal Care, and Veterinary personnel.');
+					throw new Error('Access restricted to Zoo Administrators and Animal Operations personnel.');
 				}
 				if (!res.ok) {
 					const body = await res.json().catch(() => ({}));
@@ -101,7 +101,7 @@ function SpeciesReport({ role, userEmail }) {
 		return (
 			<div>
 				<h2>Access Denied</h2>
-				<p>This report is restricted to Zoo Administrators, Animal Care staff, and Veterinary personnel.</p>
+				<p>This report is restricted to Zoo Administrators and Animal Operations personnel.</p>
 			</div>
 		);
 	}

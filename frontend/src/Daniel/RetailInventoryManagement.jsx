@@ -42,7 +42,6 @@ export default function RetailInventoryManagement({ products = [], onRefresh }) 
   // Summary counts
   const totalItems = products.length;
   const totalUnits = products.reduce((sum, p) => sum + (Number(p.quantity_in_stock) || 0), 0);
-  const lowStockCount = products.filter(p => Number(p.quantity_in_stock) <= Number(p.reorder_level)).length;
 
   function handleInputChange(e) {
     const { name, value } = e.target;
@@ -185,12 +184,6 @@ export default function RetailInventoryManagement({ products = [], onRefresh }) 
         <div style={{ border: '1px solid #ccc', padding: '10px 16px', borderRadius: '4px', background: '#fff' }}>
           <div style={{ fontSize: '12px', color: '#666' }}>Total Inventory Units</div>
           <div style={{ fontSize: '20px', fontWeight: 'bold' }}>{totalUnits}</div>
-        </div>
-        <div style={{ border: '1px solid #ccc', padding: '10px 16px', borderRadius: '4px', background: '#fff' }}>
-          <div style={{ fontSize: '12px', color: '#666' }}>Low Stock Items</div>
-          <div style={{ fontSize: '20px', fontWeight: 'bold', color: lowStockCount > 0 ? '#c00' : '#204228' }}>
-            {lowStockCount}
-          </div>
         </div>
       </div>
 
@@ -527,7 +520,6 @@ export default function RetailInventoryManagement({ products = [], onRefresh }) 
               </tr>
             ) : (
               filteredProducts.map(p => {
-                const isLowStock = Number(p.quantity_in_stock) <= Number(p.reorder_level);
                 const cost = Number(p.cost_price) || 0;
                 const price = Number(p.price) || 0;
                 const marginPercent = price > 0 ? (((price - cost) / price) * 100).toFixed(0) : '0';
@@ -542,9 +534,8 @@ export default function RetailInventoryManagement({ products = [], onRefresh }) 
                     <td style={{ padding: '10px' }}>${cost.toFixed(2)}</td>
                     <td style={{ padding: '10px' }}>${price.toFixed(2)}</td>
                     <td style={{ padding: '10px', color: '#204228' }}>{marginPercent}%</td>
-                    <td style={{ padding: '10px', fontWeight: isLowStock ? 'bold' : 'normal', color: isLowStock ? '#c00' : '#000' }}>
+                    <td style={{ padding: '10px' }}>
                       {p.quantity_in_stock}
-                      {isLowStock && <span style={{ fontSize: '11px', display: 'block', color: '#c00' }}>Low Stock</span>}
                     </td>
                     <td style={{ padding: '10px' }}>{p.reorder_level}</td>
                     <td style={{ padding: '10px' }}>
