@@ -13,6 +13,7 @@
 	"description": "",
 	"dependencies": {
 		"dotenv": "^18.0.8",
-		"mysql2": "^3.24.6"
+		"mysql2": "^3.24.6",
+		"nodemailer": "^10.4.0"
 	}
 }

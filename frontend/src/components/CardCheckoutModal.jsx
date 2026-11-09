@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/+$/, '');
 
@@ -7,18 +7,29 @@ export default function CardCheckoutModal({
   onClose,
   items = [],
   itemType = 'product', // 'product' (Gift Shop) or 'food' (Concessions)
-  onSuccess
+  onSuccess,
+  userEmail = ''
 }) {
   const [cardName, setCardName] = useState('');
   const [cardNumber, setCardNumber] = useState('');
   const [expDate, setExpDate] = useState('');
   const [cvv, setCvv] = useState('');
   const [zipCode, setZipCode] = useState('');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(() => userEmail || localStorage.getItem('user_email') || '');
+
+  useEffect(() => {
+    if (isOpen) {
+      const activeEmail = userEmail || localStorage.getItem('user_email') || '';
+      if (activeEmail) {
+        setEmail(activeEmail);
+      }
+    }
+  }, [isOpen, userEmail]);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [receipt, setReceipt] = useState(null);
+  const [success, setSuccess] = useState(false);
+  const [successData, setSuccessData] = useState(null);
 
   if (!isOpen) return null;
 
@@ -79,6 +90,7 @@ export default function CardCheckoutModal({
           item_type: itemType,
           payment_method: 'credit',
           visitor_ID: null,
+          email: email.trim() || null,
           total: total.toFixed(2),
           items: items.map(item => ({
             item_ID: item.item_ID,
@@ -102,9 +114,10 @@ export default function CardCheckoutModal({
         email: email || 'Guest'
       };
 
-      setReceipt(receiptData);
+      setSuccess(true);
+      setSuccessData(data);
       if (onSuccess) {
-        onSuccess(receiptData);
+        onSuccess(data);
       }
     } catch (err) {
       setError(err.message);
@@ -114,7 +127,13 @@ export default function CardCheckoutModal({
   }
 
   function handleFinish() {
-    setReceipt(null);
+    setSuccess(false);
+    setSuccessData(null);
+    setCardNumber('');
+    setCardName('');
+    setExpDate('');
+    setCvv('');
+    setZipCode('');
     onClose();
   }
 
@@ -146,63 +165,33 @@ export default function CardCheckoutModal({
           boxShadow: '0 4px 20px rgba(0,0,0,0.2)'
         }}
       >
-        {/* If receipt exists, show official confirmation receipt */}
-        {receipt ? (
-          <div>
-            <h2 style={{ color: '#204228', marginTop: 0 }}>Payment Successful!</h2>
-            <div
+        {/* If purchase succeeds, show clean confirmation */}
+        {success ? (
+          <div style={{ textAlign: 'center', padding: '24px 8px' }}>
+            <h2 style={{ color: '#204228', marginTop: 0, marginBottom: '12px' }}>
+              Order Placed Successfully!
+            </h2>
+            <p style={{ color: '#444', fontSize: '1rem', marginBottom: '8px' }}>
+              Order <strong>#{successData?.transaction_ID}</strong>
+            </p>
+            <p style={{ color: '#555', fontSize: '0.95rem', marginBottom: '24px' }}>
+              Your purchase has been confirmed and saved to your Account.
+            </p>
+            <button
+              type="button"
+              onClick={handleFinish}
               style={{
-                border: '1px dashed #777',
-                padding: '16px',
+                backgroundColor: '#204228',
+                color: '#fff',
+                border: 'none',
                 borderRadius: '6px',
-                backgroundColor: '#f9faf9',
-                margin: '16px 0',
-                fontFamily: 'monospace'
+                padding: '10px 24px',
+                fontSize: '0.95rem',
+                cursor: 'pointer'
               }}
             >
-              <div style={{ textAlign: 'center', borderBottom: '1px solid #ccc', paddingBottom: '8px', marginBottom: '12px' }}>
-                <strong style={{ fontSize: '1.1rem' }}>COUGAR ZOO</strong>
-                <div>{itemType === 'product' ? 'Safari Gifts Shop' : 'Food Concessions'}</div>
-                <div style={{ fontSize: '0.85rem', color: '#666' }}>Houston, TX</div>
-              </div>
-
-              <div style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
-                <div><strong>Transaction #:</strong> TX-{receipt.transaction_ID}</div>
-                <div><strong>Date:</strong> {new Date(receipt.date).toLocaleString()}</div>
-                <div><strong>Payment:</strong> Credit Card (ending in {receipt.cardLast4})</div>
-                <div><strong>Cardholder:</strong> {receipt.cardName}</div>
-              </div>
-
-              <div style={{ borderTop: '1px solid #ddd', borderBottom: '1px solid #ddd', padding: '8px 0', margin: '8px 0' }}>
-                {receipt.items.map((it, idx) => (
-                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', margin: '4px 0' }}>
-                    <span>{it.quantity}x {it.name} {it.color ? `(${it.color})` : ''} {it.size ? `Size: ${it.size}` : ''}</span>
-                    <span>${(Number(it.price) * it.quantity).toFixed(2)}</span>
-                  </div>
-                ))}
-              </div>
-
-              <div style={{ textAlign: 'right', fontSize: '0.9rem', lineHeight: '1.4' }}>
-                <div>Subtotal: ${Number(receipt.subtotal).toFixed(2)}</div>
-                <div>Tax (8.25%): ${Number(receipt.tax).toFixed(2)}</div>
-                <div style={{ fontSize: '1.1rem', fontWeight: 'bold', marginTop: '4px' }}>
-                  Total Paid: ${Number(receipt.total).toFixed(2)}
-                </div>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
-              <button type="button" onClick={() => window.print()} style={{ flex: 1, padding: '10px' }}>
-                Print Receipt
-              </button>
-              <button
-                type="button"
-                onClick={handleFinish}
-                style={{ flex: 1, padding: '10px', backgroundColor: '#204228', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-              >
-                Done
-              </button>
-            </div>
+              Done
+            </button>
           </div>
         ) : (
           /* Payment Input Form */

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -7,16 +7,54 @@ const ticketPrices = {
     Child: 15,
 };
 
-function Tickets() {
+function Tickets({ userEmail }) {
     const now = new Date();
     const minVisitDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const initialFirst = localStorage.getItem('user_first_name') || '';
+    const initialLast = localStorage.getItem('user_last_name') || '';
+
     const [formData, setFormData] = useState({
-        first_name: '',
+        first_name: initialFirst,
         middle_initial: '',
-        last_name: '',
+        last_name: initialLast,
         ticket_type: '',
         visit_date: '',
     });
+
+    useEffect(() => {
+        const activeEmail = userEmail || localStorage.getItem('user_email') || '';
+        const savedFirst = localStorage.getItem('user_first_name') || '';
+        const savedLast = localStorage.getItem('user_last_name') || '';
+
+        if (savedFirst || savedLast) {
+            setFormData(prev => ({
+                ...prev,
+                first_name: prev.first_name || savedFirst,
+                last_name: prev.last_name || savedLast,
+            }));
+        }
+
+        if (activeEmail) {
+            async function fetchVisitorProfile() {
+                try {
+                    const res = await fetch(`${API_URL}/api/user/profile?email=${encodeURIComponent(activeEmail)}`);
+                    if (res.ok) {
+                        const profile = await res.json();
+                        setFormData(prev => ({
+                            ...prev,
+                            first_name: prev.first_name || profile.first_name || '',
+                            last_name: prev.last_name || profile.last_name || '',
+                        }));
+                        if (profile.first_name) localStorage.setItem('user_first_name', profile.first_name);
+                        if (profile.last_name) localStorage.setItem('user_last_name', profile.last_name);
+                    }
+                } catch {
+                    // Ignore profile fetch error
+                }
+            }
+            fetchVisitorProfile();
+        }
+    }, [userEmail]);
     const [message, setMessage] = useState('');
     const price = ticketPrices[formData.ticket_type];
 
@@ -49,6 +87,8 @@ function Tickets() {
         }
 
         try {
+            const loggedInEmail = userEmail || localStorage.getItem('user_email') || null;
+
             const response = await fetch(`${API_URL}/api/tickets`, {
                 method: 'POST',
                 headers: {
@@ -58,6 +98,7 @@ function Tickets() {
                     ticket_type: formData.ticket_type,
                     visit_date: formData.visit_date,
                     visitor_name: visitorName,
+                    email: loggedInEmail,
                 }),
             });
             const result = await response.json();

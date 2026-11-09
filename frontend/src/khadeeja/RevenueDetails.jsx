@@ -29,11 +29,15 @@ function RevenueDetails({ role }) {
 	const [error, setError] = useState('');
 	const [lastUpdated, setLastUpdated] = useState('');
 
-	if (role !== 'admin') {
+	const isFinAdmin =
+		userEmail === 'taylor.hemsworth@zoo.com' ||
+		Number(localStorage.getItem('user_dept')) === 1;
+
+	if (!isFinAdmin) {
 		return (
 			<div>
 				<h2>Access Denied</h2>
-				<p>Revenue Details report is restricted to Zoo Administrators.</p>
+				<p>Revenue Details report is restricted to Financial & HR personnel.</p>
 			</div>
 		);
 	}

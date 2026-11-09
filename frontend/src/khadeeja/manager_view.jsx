@@ -17,7 +17,7 @@ function MgrView({ userEmail }) {
 	const [editFormData, setEditFormData] = useState({});
 
 	const managerDept = employees.length > 0 ? employees[0].department_name : '';
-	const isAttractionsDept = managerDept === 'Events & Attractions' || managerDept === 'Animal Care';
+	const isAttractionsDept = managerDept === 'Guest Operations' || managerDept === 'Animal Operations';
 
 	const fetchManagerData = () => {
 		const endpoint = userEmail
@@ -172,91 +172,90 @@ function MgrView({ userEmail }) {
 	});
 
 	return (
-		<>
+		<div>
+			<h2>{managerDept ? `${managerDept} Department Hub` : 'Department Manager Hub'}</h2>
+			<p style={{ color: '#555' }}>
+				{isAttractionsDept
+					? `Overseeing active staff, schedules, and exhibit attraction assignments for ${managerDept || 'your department'}.`
+					: `Overseeing active staff, schedules, and operations for ${managerDept || 'your department'}.`}
+			</p>
+
 			<div>
-				<h2>{managerDept ? `${managerDept} Department Hub` : 'Department Manager Hub'}</h2>
-				<p style={{ color: '#555' }}>
-					{isAttractionsDept
-						? `Overseeing active staff, schedules, and exhibit attraction assignments for ${managerDept || 'your department'}.`
-						: `Overseeing active staff, schedules, and operations for ${managerDept || 'your department'}.`}
-				</p>
+				<button type="button" onClick={() => setActiveTab('team')}>
+					{activeTab === 'team' ? <strong>My Team</strong> : 'My Team'}
+				</button>
+				&nbsp;
+				<button type="button" onClick={() => setActiveTab('directory')}>
+					{activeTab === 'directory' ? <strong>Zoo Directory</strong> : 'Zoo Directory'}
+				</button>
+			</div>
 
+			<br />
+
+			{activeTab === 'directory' ? (
+				<EmpView />
+			) : (
 				<div>
-					<button type="button" onClick={() => setActiveTab('team')}>
-						{activeTab === 'team' ? <strong>My Team</strong> : 'My Team'}
-					</button>
-					&nbsp;
-					<button type="button" onClick={() => setActiveTab('directory')}>
-						{activeTab === 'directory' ? <strong>Zoo Directory</strong> : 'Zoo Directory'}
-					</button>
-				</div>
+					{error && <p style={{ color: 'red' }}><strong>Error: </strong>{error}</p>}
+					{successMsg && <p style={{ color: 'green' }}><strong>Success: </strong>{successMsg}</p>}
 
-				<br />
-
-				{activeTab === 'directory' ? (
-					<EmpView />
-				) : (
 					<div>
-						{error && <p style={{ color: 'red' }}><strong>Error: </strong>{error}</p>}
-						{successMsg && <p style={{ color: 'green' }}><strong>Success: </strong>{successMsg}</p>}
+						<label><strong>Department: </strong></label>
+						<select value={managerDept} disabled>
+							<option value={managerDept}>{managerDept || 'Loading department...'}</option>
+						</select>
+						<span style={{ marginLeft: '8px', fontSize: '0.9em', color: '#666' }}>
+							(Locked to your department)
+						</span>
 
-						<div>
-							<label><strong>Department: </strong></label>
-							<select value={managerDept} disabled>
-								<option value={managerDept}>{managerDept || 'Loading department...'}</option>
-							</select>
-							<span style={{ marginLeft: '8px', fontSize: '0.9em', color: '#666' }}>
-								(Locked to your department)
-							</span>
+						{isAttractionsDept && (
+							<>
+								&nbsp;&nbsp;&nbsp;
+								<label><strong>Filter by Attraction: </strong></label>
+								<select value={selectedAttr} onChange={(e) => setSelectedAttr(e.target.value)}>
+									<option value="">All Attractions</option>
+									<option value="Unassigned">Unassigned</option>
+									{attractionsList.map((a) => (
+										<option key={a.attr_ID} value={a.name}>
+											{a.name}
+										</option>
+									))}
+								</select>
+							</>
+						)}
+					</div>
 
-							{isAttractionsDept && (
-								<>
-									&nbsp;&nbsp;&nbsp;
-									<label><strong>Filter by Attraction: </strong></label>
-									<select value={selectedAttr} onChange={(e) => setSelectedAttr(e.target.value)}>
-										<option value="">All Attractions</option>
-										<option value="Unassigned">Unassigned</option>
-										{attractionsList.map((a) => (
-											<option key={a.attr_ID} value={a.name}>
-												{a.name}
-											</option>
-										))}
-									</select>
-								</>
-							)}
-						</div>
+					<br />
 
-						<br />
+					<div>
+						<label><strong> Search Employee (by Name, ID, or Role): </strong></label>
+						<input
+							type="text"
+							placeholder="e.g. Katy, 9, or Keeper..."
+							value={searchTerm}
+							onChange={(e) => setSearchTerm(e.target.value)}
+						/>
+					</div>
 
-						<div>
-							<label><strong> Search Employee (by Name, ID, or Role): </strong></label>
-							<input
-								type="text"
-								placeholder="e.g. Katy, 9, or Keeper..."
-								value={searchTerm}
-								onChange={(e) => setSearchTerm(e.target.value)}
-							/>
-						</div>
+					<br />
 
-						<br />
-
-						<table border="1" cellPadding="8">
-							<thead>
-								<tr>
-									<th>Dept Head</th>
-									<th>Department</th>
-									<th>Employee Name</th>
-									<th>Role</th>
-									{isAttractionsDept && <th>Assigned Attractions</th>}
-									<th>Billing Address</th>
-									<th>Email</th>
-									<th>Phone</th>
-									<th>Salary</th>
-									<th>Hire Date</th>
-									<th>Weekly Hours</th>
-									<th>Action</th>
-								</tr>
-							</thead>
+					<table border="1" cellPadding="8">
+						<thead>
+							<tr>
+								<th>Dept Head</th>
+								<th>Department</th>
+								<th>Employee Name</th>
+								<th>Role</th>
+								{isAttractionsDept && <th>Assigned Attractions</th>}
+								<th>Billing Address</th>
+								<th>Email</th>
+								<th>Phone</th>
+								<th>Salary</th>
+								<th>Hire Date</th>
+								<th>Weekly Hours</th>
+								<th>Action</th>
+							</tr>
+						</thead>
 							<tbody>
 								{filteredEmployees.length > 0 ? (
 									filteredEmployees.map((item, index) => (
@@ -373,7 +372,6 @@ function MgrView({ userEmail }) {
 					</div>
 				)}
 			</div>
-		</>
 	);
 }
 

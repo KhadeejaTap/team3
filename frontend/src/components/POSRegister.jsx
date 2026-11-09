@@ -17,6 +17,7 @@ export default function POSRegister({
   const [cashTendered, setCashTendered] = useState('');
   const [cardName, setCardName] = useState('');
   const [cardNumber, setCardNumber] = useState('');
+  const [customerEmail, setCustomerEmail] = useState('');
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -125,6 +126,7 @@ export default function POSRegister({
     setCashTendered('');
     setCardName('');
     setCardNumber('');
+    setCustomerEmail('');
     setError('');
   }
 
@@ -158,6 +160,7 @@ export default function POSRegister({
           cash_tendered: paymentMethod === 'cash' ? tenderedAmount.toFixed(2) : null,
           change_due: paymentMethod === 'cash' ? changeDue.toFixed(2) : null,
           total: total.toFixed(2),
+          email: customerEmail.trim() || null,
           items: ticket.map(t => ({
             item_ID: t.id,
             quantity: t.quantity,
@@ -176,6 +179,7 @@ export default function POSRegister({
         ...data,
         items: [...ticket],
         cashierRole: staffRole,
+        customerEmail: customerEmail.trim() || null,
         paymentMethod,
         cashTendered: tenderedAmount,
         changeDue,
@@ -218,9 +222,10 @@ export default function POSRegister({
                 <strong>COUGAR ZOO</strong>
                 <div>{itemType === 'product' ? 'Gift Shop POS Register' : 'Food Stall POS Register'}</div>
               </div>
-              <div>Transaction #: TX-{receipt.transaction_ID}</div>
+              <div>Order #: {receipt.transaction_ID}</div>
               <div>Date: {new Date(receipt.date).toLocaleString()}</div>
               <div>Register Staff: {receipt.cashierRole}</div>
+              {receipt.customerEmail && <div>Customer: {receipt.customerEmail}</div>}
               <div style={{ borderTop: '1px solid #ddd', borderBottom: '1px solid #ddd', padding: '6px 0', margin: '8px 0' }}>
                 {receipt.items.map((it, idx) => (
                   <div key={idx} style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -454,6 +459,27 @@ export default function POSRegister({
               <span>Total Due:</span>
               <span>${total.toFixed(2)}</span>
             </div>
+          </div>
+
+          {/* Customer Zoo Account (Optional) */}
+          <div style={{ marginBottom: '12px' }}>
+            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#333', marginBottom: '4px' }}>
+              Customer Email (Optional):
+            </label>
+            <input
+              type="email"
+              placeholder="visitor@example.com (links to account)"
+              value={customerEmail}
+              onChange={e => setCustomerEmail(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '6px 8px',
+                fontSize: '0.85rem',
+                border: '1px solid #ccc',
+                borderRadius: '4px',
+                boxSizing: 'border-box'
+              }}
+            />
           </div>
 
           {/* Payment Tender Form */}

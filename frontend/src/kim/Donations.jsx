@@ -8,17 +8,59 @@ function Donations({ role, userEmail, userID, token }) {
     console.log("Current userID:", userID);
     console.log("Current token:", token);
 
+    const activeEmail = userEmail || localStorage.getItem('user_email') || "";
+    const savedFirst = localStorage.getItem('user_first_name') || "";
+    const savedLast = localStorage.getItem('user_last_name') || "";
+
     // state to hold form data
     const [donationForm, setDonationForm] = useState({
-        donor_first: "", 
-        donor_last: "", 
-        donor_email: "", 
+        donor_first: savedFirst, 
+        donor_last: savedLast, 
+        donor_email: activeEmail, 
         donor_phone: "", 
         donation_amt: "", 
         donation_date: new Date().toISOString().split("T")[0],
         purpose: "", 
         payment_method: "credit"
     }); 
+
+    // Autopopulate user name and email from profile
+    useEffect(() => {
+        const emailToLookup = userEmail || localStorage.getItem('user_email') || "";
+        const localFirst = localStorage.getItem('user_first_name') || "";
+        const localLast = localStorage.getItem('user_last_name') || "";
+
+        if (localFirst || localLast || emailToLookup) {
+            setDonationForm(prev => ({
+                ...prev,
+                donor_first: prev.donor_first || localFirst,
+                donor_last: prev.donor_last || localLast,
+                donor_email: prev.donor_email || emailToLookup,
+            }));
+        }
+
+        if (emailToLookup) {
+            async function fetchDonorProfile() {
+                try {
+                    const res = await fetch(`${API_URL}/api/user/profile?email=${encodeURIComponent(emailToLookup)}`);
+                    if (res.ok) {
+                        const profile = await res.json();
+                        setDonationForm(prev => ({
+                            ...prev,
+                            donor_first: profile.first_name || prev.donor_first || "",
+                            donor_last: profile.last_name || prev.donor_last || "",
+                            donor_email: profile.email || prev.donor_email || emailToLookup,
+                        }));
+                        if (profile.first_name) localStorage.setItem('user_first_name', profile.first_name);
+                        if (profile.last_name) localStorage.setItem('user_last_name', profile.last_name);
+                    }
+                } catch {
+                    // Ignore profile fetch error
+                }
+            }
+            fetchDonorProfile();
+        }
+    }, [userEmail]); 
 
     // history state and fetch for user's donations 
     const [donationHistory, setDonationHistory] = useState([]);

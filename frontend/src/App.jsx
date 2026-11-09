@@ -13,6 +13,7 @@ import AnimalManagement from './animals/AnimalManagement';
 import EnclosureManagement from './animals/EnclosureManagement';
 import VisitorAnimalDirectory from './VisitorAnimalDirectory';
 import AttractionManagement from './Attractions/attractionManagement';
+import VisitorAttractions from './Attractions/VisitorAttractions';
 import Tickets from './Tickets/Tickets';
 import RevenueDetails from './khadeeja/RevenueDetails';
 import SpeciesReport from './animals/SpeciesReport';
@@ -22,10 +23,11 @@ import {
   Routes,
   Route,
   Link,
-  Navigate
+  Navigate,
+  useLocation
 } from 'react-router-dom';
 
-function App() {
+function AppContent() {
   const [role, setRole] = useState(() =>
     localStorage.getItem('user_token')
       ? localStorage.getItem('user_role')
@@ -72,6 +74,8 @@ function App() {
       localStorage.removeItem('user_role');
       localStorage.removeItem('user_email');
       localStorage.removeItem('user_dept');
+      localStorage.removeItem('user_first_name');
+      localStorage.removeItem('user_last_name');
     }
   }
 
@@ -103,152 +107,161 @@ function App() {
     }
   }
 
-  const isStaff = ['admin', 'manager', 'employee'].includes(role);
-  const isAdmin = role === 'admin';
+  const isStaff = ['manager', 'employee', 'admin'].includes(role);
   const isVisitor = !role || role === 'visitor';
 
-  const isRetailStaff =
-    userDept === 6 ||
-    userEmail === 'emma.watson@zoo.com' ||
-    userEmail === 'tom.hardy@zoo.com';
+  // Department 1: Financial and HR
+  const isFinHR =
+    userDept === 1 ||
+    userEmail === 'taylor.hemsworth@zoo.com' ||
+    userEmail === 'jim.cruise@zoo.com' ||
+    userEmail === 'sarah.connor@zoo.com';
 
-  const isFoodStaff =
+  // Department 3: Commercial Operations (Gift Shop, Food, Parking)
+  const isCommercialStaff =
+    userDept === 3 ||
+    userDept === 6 ||
     userDept === 7 ||
+    userDept === 8 ||
+    userEmail === 'emma.watson@zoo.com' ||
     userEmail === 'gordon.ramsay@zoo.com' ||
+    userEmail === 'vin.diesel@zoo.com' ||
+    userEmail === 'tom.hardy@zoo.com' ||
     userEmail === 'mia.goth@zoo.com';
 
-  const isParkingStaff =
-    userDept === 8 ||
-    userEmail === 'al.bundy@zoo.com' ||
-    userEmail === 'kevin.hart@zoo.com';
+  // Department 4: Guest Operations (Attractions, Tours, Educational Shows)
+  const isGuestOpsStaff =
+    userDept === 4 ||
+    userDept === 9 ||
+    userEmail === 'rachel.green@zoo.com' ||
+    userEmail === 'chris.pratt@zoo.com' ||
+    userEmail === 'zendaya.coleman@zoo.com';
+
+  const isGuestOpsHead =
+    (userDept === 4 && role === 'manager') ||
+    userEmail === 'rachel.green@zoo.com';
 
   return (
-    <Router>
+    <>
       <nav className="navbar">
         <ul className="nav-list">
           <li className="nav-item">
             <Link to="/">Home</Link>
           </li>
 
-          {/* Admin: Executive & Financial Oversight */}
-          {isAdmin && (
-            <>
-              <li className="nav-item">
-                <Link to="/directory">Staff & Payroll</Link>
-              </li>
-              <li className="nav-item">
-                <Link to="/revenue-details">Revenue Details</Link>
-              </li>
-            </>
-          )}
+            {/* Financial / HR: Executive & Financial Oversight */}
+            {isFinHR && (
+              <>
+                <li className="nav-item">
+                  <Link to="/directory">Staff & Payroll</Link>
+                </li>
+                <li className="nav-item">
+                  <Link to="/revenue-details">Revenue Details</Link>
+                </li>
+              </>
+            )}
 
-          {/* Retail Staff */}
-          {isRetailStaff && (
-            <>
-              <li className="nav-item">
-                <Link to="/directory">Directory</Link>
-              </li>
-              <li className="nav-item">
-                <Link to="/gift-shop">Gift Shop Operations</Link>
-              </li>
-            </>
-          )}
-
-          {/* Food Services Staff */}
-          {isFoodStaff && (
-            <>
-              <li className="nav-item">
-                <Link to="/directory">Directory</Link>
-              </li>
-              <li className="nav-item">
-                <Link to="/food">Food Operations</Link>
-              </li>
-            </>
-          )}
-
-          {/* Parking Services Staff */}
-          {isParkingStaff && (
-            <>
-              <li className="nav-item">
-                <Link to="/directory">Directory</Link>
-              </li>
-              <li className="nav-item">
-                <Link to="/parking">Parking Operations</Link>
-              </li>
-            </>
-          )}
-
-          {/* Other Staff */}
-          {isStaff &&
-            !isAdmin &&
-            !isRetailStaff &&
-            !isFoodStaff &&
-            !isParkingStaff && (
+            {/* Commercial Operations Staff (Gift Shop, Dining) */}
+            {isCommercialStaff && !isFinHR && (
               <>
                 <li className="nav-item">
                   <Link to="/directory">Directory</Link>
                 </li>
                 <li className="nav-item">
-                  <Link to="/animals">Animal Management</Link>
+                  <Link to="/gift-shop">Gift Shop Operations</Link>
                 </li>
                 <li className="nav-item">
-                  <Link to="/enclosures">Enclosure Management</Link>
-                </li>
-                <li className="nav-item">
-                  <Link to="/attractions">Attraction Management</Link>
+                  <Link to="/food">Food Operations</Link>
                 </li>
               </>
             )}
 
-          {/* Public Visitors */}
-          {isVisitor && (
-            <>
-              <li className="nav-item">
-                <Link to="/animal-directory">Meet the Animals</Link>
-              </li>
-              <li className="nav-item">
-                <Link to="/tickets">Purchase a Ticket</Link>
-              </li>
-              <li className="nav-item">
-                <Link to="/gift-shop">Gift Shop</Link>
-              </li>
-              <li className="nav-item">
-                <Link to="/food">Food & Dining</Link>
-              </li>
-              <li className="nav-item">
-                <Link to="/parking">Parking</Link>
-              </li>
-              <li className="nav-item">
-                <Link to="/donations">Donations</Link>
-              </li>
-            </>
-          )}
+            {/* Guest Operations Staff (Tours, Shows, Attractions) */}
+            {isGuestOpsStaff && !isFinHR && !isCommercialStaff && (
+              <>
+                <li className="nav-item">
+                  <Link to="/directory">Directory</Link>
+                </li>
+                {isGuestOpsHead && (
+                  <li className="nav-item">
+                    <Link to="/attractions">Attraction Management</Link>
+                  </li>
+                )}
+              </>
+            )}
 
-          {role ? (
-            <li className="nav-item">
-              <button
-                type="button"
-                onClick={handleLogout}
-                disabled={loggingOut}
-              >
-                {loggingOut
-                  ? 'Logging out...'
-                  : `Log Out (${role})`}
-              </button>
-            </li>
-          ) : (
-            <li className="nav-item">
-              <Link to="/login">Login or Sign Up</Link>
-            </li>
-          )}
-        </ul>
-      </nav>
+            {/* Animal Operations & Other Field Staff */}
+            {isStaff &&
+              !isFinHR &&
+              !isCommercialStaff &&
+              !isGuestOpsStaff && (
+                <>
+                  <li className="nav-item">
+                    <Link to="/directory">Directory</Link>
+                  </li>
+                  <li className="nav-item">
+                    <Link to="/animals">Animal Management</Link>
+                  </li>
+                  <li className="nav-item">
+                    <Link to="/enclosures">Enclosure Management</Link>
+                  </li>
+                </>
+              )}
+
+            {/* Public Visitors */}
+            {isVisitor && (
+              <>
+                <li className="nav-item">
+                  <Link to="/animal-directory">Meet the Animals</Link>
+                </li>
+                <li className="nav-item">
+                  <Link to="/attractions">Exhibits & Shows</Link>
+                </li>
+                <li className="nav-item">
+                  <Link to="/tickets">Purchase a Ticket</Link>
+                </li>
+                <li className="nav-item">
+                  <Link to="/gift-shop">Gift Shop</Link>
+                </li>
+                <li className="nav-item">
+                  <Link to="/food">Food & Dining</Link>
+                </li>
+                <li className="nav-item">
+                  <Link to="/donations">Donations</Link>
+                </li>
+              </>
+            )}
+
+            {role ? (
+              <li className="nav-item">
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  disabled={loggingOut}
+                >
+                  {loggingOut
+                    ? 'Logging out...'
+                    : role === 'visitor'
+                      ? 'Log Out'
+                      : `Log Out (${role})`}
+                </button>
+              </li>
+            ) : (
+              <li className="nav-item">
+                <Link to="/login">Login or Sign Up</Link>
+              </li>
+            )}
+          </ul>
+        </nav>
 
       {authError && <p role="alert">{authError}</p>}
 
       <div className="content">
         <Routes>
-          <Route path="/" element={<Home role={role} />} />
+          <Route
+            path="/"
+            element={<Home role={role} userEmail={userEmail} />}
+          />
 
           {/* Public Visitor Animal Directory */}
           <Route
@@ -299,7 +312,9 @@ function App() {
           <Route
             path="/animals"
             element={
-              <AnimalManagement role={role} userEmail={userEmail} />
+              isStaff
+                ? <AnimalManagement role={role} userEmail={userEmail} />
+                : <Navigate to="/animal-directory" replace />
             }
           />
 
@@ -316,13 +331,19 @@ function App() {
           <Route
             path="/species-report"
             element={
-              <SpeciesReport role={role} userEmail={userEmail} />
+              isStaff
+                ? <SpeciesReport role={role} userEmail={userEmail} />
+                : <Navigate to="/animal-directory" replace />
             }
           />
 
           <Route
             path="/attractions"
-            element={<AttractionManagement />}
+            element={isStaff ? <AttractionManagement /> : <VisitorAttractions />}
+          />
+          <Route
+            path="/attractions-directory"
+            element={<VisitorAttractions />}
           />
 
           <Route
@@ -338,10 +359,18 @@ function App() {
 
           <Route
             path="/tickets"
-            element={<Tickets />}
+            element={<Tickets userEmail={userEmail} />}
           />
         </Routes>
       </div>
+    </>
+  );
+}
+
+function App() {
+  return (
+    <Router>
+      <AppContent />
     </Router>
   );
 }
