@@ -118,39 +118,13 @@ INSERT INTO users (email, password, role) VALUES
 ('zendaya.coleman@zoo.com',  'zendaya123','employee');
 
 -- 9. Views
-CREATE OR REPLACE VIEW guest_view AS
-SELECT department_name, department_description
-FROM DEPARTMENT;
-
-CREATE OR REPLACE VIEW employee_directory AS
-  SELECT e.employee_ID, CONCAT_WS(' ', e.first_name, e.last_name) AS name, e.email, e.phone_number, d.department_name, e.role
-  FROM EMPLOYEE AS e
-  JOIN DEPARTMENT AS d ON e.department_ID = d.department_ID
-  WHERE e.`current` = 1;
-
-CREATE OR REPLACE VIEW manager_view AS
-  SELECT e.manager_ID, e.employee_ID, e.department_ID,
-  CONCAT_WS(' ', h.first_name, h.last_name) AS head_of_dept,
-  d.department_name,
-  CONCAT_WS(' ', e.first_name, e.last_name) AS name,
-  e.sex,
-  CONCAT_WS(', ', e.street_address, e.city, e.state, e.zip_code, e.country) AS address,
-  e.email, e.phone_number,
-  e.role, e.salary, e.hire_date, e.hours,
-  COALESCE(GROUP_CONCAT(DISTINCT a.name ORDER BY a.name SEPARATOR ', '), 'Unassigned') AS attractions
-  FROM EMPLOYEE AS e
-  JOIN DEPARTMENT as d ON e.department_ID = d.department_ID
-  LEFT JOIN EMPLOYEE AS h ON h.employee_ID = d.head_employee_ID
-  LEFT JOIN STAFFED_AT AS sa ON e.employee_ID = sa.employee_ID
-  LEFT JOIN ATTRACTION AS a ON sa.attr_ID = a.attr_ID
-  WHERE e.`current` = 1
-  GROUP BY e.employee_ID, e.manager_ID, e.department_ID, h.first_name, h.last_name, d.department_name, e.first_name, e.last_name, e.sex, e.street_address, e.city, e.state, e.zip_code, e.country, e.email, e.phone_number, e.role, e.salary, e.hire_date, e.hours;
 
 CREATE OR REPLACE VIEW admin_view AS
   SELECT e.manager_ID,
   CONCAT_WS(' ', h.first_name, h.last_name) AS manager_name,
+  (e.employee_ID IS NOT NULL AND e.employee_ID = d.head_employee_ID) AS is_dept_head,
   e.employee_ID, e.department_ID, d.department_name,
-  e.first_name, e.minit, e.last_name, e.sex,
+  e.first_name, e.minit, e.last_name, e.ssn, e.sex,
   CONCAT_WS(' ', e.first_name, e.last_name) AS name,
   e.street_address, e.city, e.state, e.zip_code, e.country,
   CONCAT_WS(', ', e.street_address, e.city, e.state, e.zip_code, e.country) AS address,
@@ -189,47 +163,6 @@ BEGIN
     IF emp_dept NOT IN (2, 4) THEN
         SIGNAL SQLSTATE '45000'
         SET MESSAGE_TEXT = 'Business Rule Violation: Only Guest Operations and Animal Operations staff are authorized to staff zoo attractions.';
-    END IF;
-END$$
-
-DROP TRIGGER IF EXISTS trg_employee_dept_head_insert$$
-CREATE TRIGGER trg_employee_dept_head_insert
-BEFORE INSERT ON EMPLOYEE
-FOR EACH ROW
-BEGIN
-    DECLARE head_count INT DEFAULT 0;
-    IF NEW.manager_ID IS NULL AND (NEW.`current` IS NULL OR NEW.`current` = 1) THEN
-        SELECT COUNT(*) INTO head_count
-        FROM EMPLOYEE
-        WHERE department_ID = NEW.department_ID
-          AND manager_ID IS NULL
-          AND `current` = 1;
-
-        IF head_count > 0 THEN
-            SIGNAL SQLSTATE '45000'
-            SET MESSAGE_TEXT = 'Business Rule Violation: There can only be 1 Department Head per department.';
-        END IF;
-    END IF;
-END$$
-
-DROP TRIGGER IF EXISTS trg_employee_dept_head_update$$
-CREATE TRIGGER trg_employee_dept_head_update
-BEFORE UPDATE ON EMPLOYEE
-FOR EACH ROW
-BEGIN
-    DECLARE head_count INT DEFAULT 0;
-    IF NEW.manager_ID IS NULL AND (NEW.`current` IS NULL OR NEW.`current` = 1) THEN
-        SELECT COUNT(*) INTO head_count
-        FROM EMPLOYEE
-        WHERE department_ID = NEW.department_ID
-          AND manager_ID IS NULL
-          AND employee_ID <> NEW.employee_ID
-          AND `current` = 1;
-
-        IF head_count > 0 THEN
-            SIGNAL SQLSTATE '45000'
-            SET MESSAGE_TEXT = 'Business Rule Violation: There can only be 1 Department Head per department.';
-        END IF;
     END IF;
 END$$
 

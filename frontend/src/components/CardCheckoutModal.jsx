@@ -171,6 +171,7 @@ export default function CardCheckoutModal({
             total: total.toFixed(2),
             items: items.map(item => ({
               item_ID: item.item_ID,
+              name: item.name || item.product_name || `Item #${item.item_ID}`,
               quantity: item.quantity,
               price: Number(item.price)
             }))
@@ -272,13 +273,18 @@ export default function CardCheckoutModal({
                 Coupon <strong>{successData.coupon_code}</strong> applied (-${Number(successData.discount).toFixed(2)})
               </p>
             )}
-            <p style={{ color: '#555', fontSize: '0.95rem', marginBottom: '24px' }}>
+            <p style={{ color: '#555', fontSize: '0.95rem', marginBottom: '16px' }}>
               {isDonation
                 ? 'Thank you for your generous contribution to Cougar Zoo!'
                 : isTicket
                   ? 'Your ticket is confirmed. We look forward to seeing you at Cougar Zoo!'
                 : 'Your purchase has been confirmed and saved to your Account.'}
             </p>
+            {email && (
+              <p style={{ color: '#166534', fontSize: '0.9rem', margin: '0 0 20px 0', fontWeight: 600 }}>
+                Electronic receipt emailed to {email.trim()}
+              </p>
+            )}
             <button
               type="button"
               onClick={handleFinish}

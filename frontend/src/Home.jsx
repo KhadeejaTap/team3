@@ -463,6 +463,9 @@ function Home({ role, userEmail, userDept }) {
 											<option value="order placed">order placed</option>
 											<option value="dismissed">dismissed</option>
 										</select>
+										<span style={{ fontSize: '0.78rem', color: '#166534', marginLeft: '8px', fontWeight: 500 }}>
+											Dept Head Notified
+										</span>
 									</td>
 								</tr>
 							))}
@@ -515,9 +518,14 @@ function Home({ role, userEmail, userDept }) {
 										{event.staffed_employees ? (
 											<span>{event.staffed_employees}</span>
 										) : (
-											<span style={{ color: '#d32f2f', fontWeight: 'bold' }}>
-												No one is staffed at this event
-											</span>
+											<div>
+												<span style={{ color: '#d32f2f', fontWeight: 'bold' }}>
+													No one is staffed at this event
+												</span>
+												<div style={{ marginTop: '4px', fontSize: '0.78rem', color: '#166534', fontWeight: 500 }}>
+													Dept Head Notified
+												</div>
+											</div>
 										)}
 									</td>
 								</tr>
