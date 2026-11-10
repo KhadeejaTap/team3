@@ -41,6 +41,23 @@ function formatDate(value) {
   return date.toLocaleDateString();
 }
 
+function formatTime(value) {
+  if (!value) return 'Time not listed';
+
+  const [hoursText, minutesText] = String(value).split(':');
+  const hours = Number(hoursText);
+  const minutes = minutesText || '00';
+
+  if (!Number.isInteger(hours) || hours < 0 || hours > 23) {
+    return String(value);
+  }
+
+  const period = hours >= 12 ? 'PM' : 'AM';
+  const displayHour = hours % 12 || 12;
+
+  return `${displayHour}:${minutes} ${period}`;
+}
+
 function getAnimalImage(animal) {
   if (animal.image_url) {
     if (/^https?:\/\//i.test(animal.image_url)) {
@@ -65,9 +82,7 @@ function VisitorAnimalDirectory() {
 
     async function loadAnimals() {
       try {
-        const response = await apiFetch(
-          `${API_URL}/api/public/animals`
-        );
+        const response = await apiFetch(`${API_URL}/api/public/animals`);
 
         if (!response.ok) {
           throw new Error(
@@ -94,10 +109,15 @@ function VisitorAnimalDirectory() {
     async function loadFeedingSchedule() {
       try {
         const response = await apiFetch(`${API_URL}/api/public/feeding-schedule`);
+
         if (!response.ok) {
-          throw new Error(`Unable to load feeding schedule. Server returned ${response.status}.`);
+          throw new Error(
+            `Unable to load feeding schedule. Server returned ${response.status}.`
+          );
         }
+
         const data = await response.json();
+
         if (!cancelled) {
           setFeedingSchedule(Array.isArray(data) ? data : []);
         }
@@ -115,6 +135,24 @@ function VisitorAnimalDirectory() {
       cancelled = true;
     };
   }, []);
+
+  const schedulesByEnclosure = feedingSchedule.reduce((groups, item) => {
+    const key = item.enclosure_ID ?? item.enclosure_name ?? 'unassigned';
+
+    if (!groups[key]) {
+      groups[key] = {
+        enclosureName: item.enclosure_name || 'Unassigned enclosure',
+        times: []
+      };
+    }
+
+    groups[key].times.push({
+      id: item.schedule_ID,
+      time: item.feeding_time
+    });
+
+    return groups;
+  }, {});
 
   if (loading) {
     return (
@@ -138,36 +176,43 @@ function VisitorAnimalDirectory() {
     <main className="visitor-animals">
       <header className="visitor-animals-header">
         <h1>Meet the Animals</h1>
-        <p>
-          Get to know the animals who call Cougar Zoo home.
-        </p>
+        <p>Get to know the animals who call Cougar Zoo home.</p>
       </header>
 
       <section className="visitor-feeding-schedule" style={{ margin: '24px 0 32px' }}>
         <h2>Daily Feeding Schedule</h2>
-        <p>See when the animals in each enclosure are scheduled to eat.</p>
+        <p>Feeding times are organized by enclosure.</p>
+
         {scheduleError ? (
           <p className="visitor-animals-error" role="alert">{scheduleError}</p>
-        ) : feedingSchedule.length === 0 ? (
+        ) : Object.keys(schedulesByEnclosure).length === 0 ? (
           <p>There are no feeding times listed right now.</p>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
-            {Object.entries(
-              feedingSchedule.reduce((groups, item) => {
-                const key = item.enclosure_name || 'Unassigned enclosure';
-                if (!groups[key]) groups[key] = [];
-                groups[key].push(item);
-                return groups;
-              }, {})
-            ).map(([enclosureName, items]) => (
-              <article key={enclosureName} style={{ border: '1px solid #d7dce2', borderRadius: 10, padding: 16, background: '#fff' }}>
-                <h3>{enclosureName}</h3>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+              gap: 16
+            }}
+          >
+            {Object.entries(schedulesByEnclosure).map(([key, schedule]) => (
+              <article
+                key={key}
+                style={{
+                  border: '1px solid #d7dce2',
+                  borderRadius: 10,
+                  padding: 16,
+                  background: '#fff'
+                }}
+              >
+                <h3>{schedule.enclosureName}</h3>
                 <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                  {items.map(item => (
-                    <li key={item.feeding_ID} style={{ padding: '10px 0', borderTop: '1px solid #e5e7eb' }}>
-                      <strong>{item.display_time || item.feeding_time || 'Time not listed'}</strong>
-                      <div>{item.animal_name}</div>
-                      <small>{item.food_name || 'Food not listed'}{item.amount != null ? ` · Amount: ${item.amount}` : ''}</small>
+                  {schedule.times.map((item) => (
+                    <li
+                      key={item.id}
+                      style={{ padding: '10px 0', borderTop: '1px solid #e5e7eb' }}
+                    >
+                      <strong>{formatTime(item.time)}</strong>
                     </li>
                   ))}
                 </ul>
