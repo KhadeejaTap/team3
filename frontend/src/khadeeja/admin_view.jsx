@@ -6,6 +6,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 const initialFormData = {
 	first_name: '',
 	minit: '',
+	ssn: '',
 	last_name: '',
 	sex: 'M',
 	street_address: '',
@@ -21,12 +22,12 @@ const initialFormData = {
 	hire_date: '',
 	hours: '',
 	manager_ID: '',
+	is_dept_head: false,
 	attr_ID: '',
 	user_role: 'employee'
 };
 
 function AdminView({ isDirector }) {
-	const userRole = localStorage.getItem('user_role');
 	const userDept = Number(localStorage.getItem('user_dept'));
 	const isDeptHead = localStorage.getItem('is_dept_head') === 'true';
 	const canDelete = isDirector !== undefined ? isDirector : (userDept === 1 && isDeptHead);
@@ -73,11 +74,15 @@ function AdminView({ isDirector }) {
 	}, []);
 
 	const handleChange = (e) => {
-		const { name, value } = e.target;
+		const { name, value, type, checked } = e.target;
 		const updated = {
 			...formData,
-			[name]: value
+			[name]: type === 'checkbox' ? checked : value
 		};
+
+		if (name === 'is_dept_head' && checked) {
+			updated.manager_ID = '';
+		}
 
 		// Auto-populate email as first.last@gmail.com when adding a new employee
 		if (!editingEmployeeId && (name === 'first_name' || name === 'last_name')) {
@@ -97,6 +102,7 @@ function AdminView({ isDirector }) {
 		setFormData({
 			first_name: emp.first_name || '',
 			minit: emp.minit || '',
+			ssn: emp.ssn || '',
 			last_name: emp.last_name || '',
 			sex: emp.sex || 'Other',
 			email: emp.email || '',
@@ -112,6 +118,7 @@ function AdminView({ isDirector }) {
 			hire_date: emp.hire_date ? emp.hire_date.split('T')[0] : '',
 			hours: emp.hours !== null && emp.hours !== undefined ? emp.hours : '',
 			manager_ID: emp.manager_ID || '',
+			is_dept_head: Boolean(emp.is_dept_head),
 			attr_ID: ''
 		});
 		window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -132,12 +139,17 @@ function AdminView({ isDirector }) {
 			? `${API_URL}/api/employees/${editingEmployeeId}`
 			: `${API_URL}/api/employees`;
 		const method = isEditing ? 'PUT' : 'POST';
+		const payload = {
+			...formData,
+			manager_ID: formData.manager_ID && Number(formData.manager_ID) > 0 ? Number(formData.manager_ID) : null,
+			hours: formData.hours !== '' && formData.hours !== null ? Number(formData.hours) : null
+		};
 
 		try {
 			const res = await fetch(endpoint, {
 				method,
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(formData)
+				body: JSON.stringify(payload)
 			});
 
 			const data = await res.json().catch(() => ({}));
@@ -145,9 +157,9 @@ function AdminView({ isDirector }) {
 			if (res.status === 200 || res.status === 201) {
 				setSuccessMsg(
 					data.message ||
-						(isEditing
-							? `Employee ID ${editingEmployeeId} updated successfully!`
-							: `Employee ${formData.first_name} added successfully!`)
+					(isEditing
+						? `Employee ID ${editingEmployeeId} updated successfully!`
+						: `Employee ${formData.first_name} added successfully!`)
 				);
 				fetchAdminData();
 				handleCancelForm();
@@ -187,6 +199,29 @@ function AdminView({ isDirector }) {
 		} catch (err) {
 			console.error('Error deleting employee:', err);
 			setError(`Connection error while deleting: ${err.message}. Please check if the server is running.`);
+		}
+	};
+
+	const handleSetDeptHead = async (employeeID, departmentID, employeeName, departmentName) => {
+		const confirmed = window.confirm(`Set ${employeeName} as Department Head of ${departmentName}?`);
+		if (!confirmed) return;
+
+		try {
+			const res = await fetch(`${API_URL}/api/department/set-head`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ employee_ID: employeeID, department_ID: departmentID })
+			});
+			const data = await res.json().catch(() => ({}));
+			if (res.ok) {
+				setSuccessMsg(data.message || `${employeeName} is now Department Head.`);
+				fetchAdminData();
+				setTimeout(() => setSuccessMsg(''), 6000);
+			} else {
+				setError(data.error || 'Failed to update department head.');
+			}
+		} catch (err) {
+			setError(`Connection error: ${err.message}`);
 		}
 	};
 
@@ -245,6 +280,19 @@ function AdminView({ isDirector }) {
 							<div>
 								<label>Last Name: </label>
 								<input type="text" name="last_name" value={formData.last_name} onChange={handleChange} required />
+							</div>
+							<div>
+								<label>SSN: </label>
+								<input
+									type="text"
+									name="ssn"
+									placeholder="e.g. 123-45-6789"
+									maxLength="11"
+									value={formData.ssn}
+									onChange={handleChange}
+									disabled={Boolean(editingEmployeeId)}
+									required
+								/>
 							</div>
 							<div>
 								<label>Sex: </label>
@@ -329,12 +377,29 @@ function AdminView({ isDirector }) {
 								<input
 									type="number"
 									name="manager_ID"
-									placeholder="Optional (defaults to Dept Head)"
-									value={formData.manager_ID}
+									placeholder={formData.is_dept_head ? 'None (Dept Head)' : 'Optional (leave blank if unassigned)'}
+									value={formData.is_dept_head ? '' : formData.manager_ID}
 									onChange={handleChange}
+									disabled={formData.is_dept_head}
 								/>
 								<small style={{ display: 'block', color: '#666', marginTop: '2px', fontSize: '0.82rem' }}>
-									Leave blank to auto-assign to Department Head (only 1 Dept Head permitted per department).
+									{formData.is_dept_head
+										? 'Department Heads report to no manager.'
+										: 'Leave blank if this employee does not have an assigned manager.'}
+								</small>
+							</div>
+							<div style={{ margin: '8px 0 12px 0' }}>
+								<label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 600 }}>
+									<input
+										type="checkbox"
+										name="is_dept_head"
+										checked={Boolean(formData.is_dept_head)}
+										onChange={handleChange}
+									/>
+									Designate as Department Head
+								</label>
+								<small style={{ display: 'block', color: '#666', marginTop: '2px', fontSize: '0.82rem' }}>
+									Check this to make this employee the official head of their department (clears manager ID).
 								</small>
 							</div>
 							{!editingEmployeeId && (
@@ -433,7 +498,15 @@ function AdminView({ isDirector }) {
 						{filteredEmployees.length > 0 ? (
 							filteredEmployees.map((item, index) => (
 								<tr key={index}>
-									<td>{item.manager_name || 'None (Dept Head)'}</td>
+									<td>
+										{item.is_dept_head ? (
+											<strong style={{ color: '#2e7d32' }}>Department Head</strong>
+										) : item.manager_name ? (
+											item.manager_name
+										) : (
+											<span style={{ color: '#888', fontStyle: 'italic' }}>Unassigned</span>
+										)}
+									</td>
 									<td>{item.department_name}</td>
 									<td>{item.name}</td>
 									<td>{item.sex || '—'}</td>
@@ -454,6 +527,18 @@ function AdminView({ isDirector }) {
 												>
 													Edit
 												</button>
+												{!item.is_dept_head && (
+													<>
+														&nbsp;
+														<button
+															type="button"
+															onClick={() => handleSetDeptHead(item.employee_ID, item.department_ID, item.name, item.department_name)}
+															title={`Set ${item.name} as Department Head`}
+														>
+															Make Head
+														</button>
+													</>
+												)}
 												{canDelete && (
 													<>
 														&nbsp;

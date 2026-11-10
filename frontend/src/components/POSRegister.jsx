@@ -189,6 +189,7 @@ export default function POSRegister({
           coupon_code: appliedCoupon ? appliedCoupon.code : (typedCoupon.trim() || null),
           items: ticket.map(t => ({
             item_ID: t.id,
+            name: t.name || `Item #${t.id}`,
             quantity: t.quantity,
             price: t.price
           }))
@@ -250,7 +251,14 @@ export default function POSRegister({
               <div>Order #: {receipt.transaction_ID}</div>
               <div>Date: {new Date(receipt.date).toLocaleString()}</div>
               <div>Register Staff: {receipt.cashierRole}</div>
-              {receipt.customerEmail && <div>Customer: {receipt.customerEmail}</div>}
+              {receipt.customerEmail && (
+                <>
+                  <div>Customer: {receipt.customerEmail}</div>
+                  <div style={{ color: '#166534', fontWeight: 600, marginTop: '2px' }}>
+                    Receipt emailed to {receipt.customerEmail}
+                  </div>
+                </>
+              )}
               <div style={{ borderTop: '1px solid #ddd', borderBottom: '1px solid #ddd', padding: '6px 0', margin: '8px 0' }}>
                 {receipt.items.map((it, idx) => (
                   <div key={idx} style={{ display: 'flex', justifyContent: 'space-between' }}>

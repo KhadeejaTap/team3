@@ -95,6 +95,7 @@ CREATE TABLE EMPLOYEE(
 	manager_ID INT,
 	first_name varchar(30) NOT NULL,
 	minit varchar(1),
+	ssn varchar(11) UNIQUE,
 	last_name varchar(30) NOT NULL,
 	sex ENUM('M', 'F', 'Other') NOT NULL DEFAULT 'Other',
 	street_address varchar(50) NOT NULL,
@@ -441,3 +442,14 @@ BEGIN
 END$$
 
 DELIMITER ;
+
+CREATE TABLE IF NOT EXISTS EMAIL_LOG (
+    email_ID INT AUTO_INCREMENT PRIMARY KEY,
+    recipient_email VARCHAR(100) NOT NULL,
+    email_type VARCHAR(20) NOT NULL CHECK (email_type IN ('receipt', 'alert')),
+    subject VARCHAR(255) NOT NULL,
+    body TEXT NOT NULL,
+    sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    reference_ID INT NOT NULL
+);
+

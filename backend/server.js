@@ -10,6 +10,7 @@ const handleParking = require('./parking');
 const handleAccess = require('./access');
 const handleCheckout = require('./checkout');
 const { requireRoles } = require('./auth');
+const { sendReceiptEmail, sendDepartmentAlert, getDepartmentHead, autoDispatchAlerts } = require('./mailer');
 
 const PORT = process.env.PORT || 5000;
 
@@ -426,6 +427,7 @@ const server = http.createServer(async (req, res) => {
     }
   } else if (req.url.startsWith('/api/alerts/low-stock') && req.method === 'GET') {
     try {
+      await autoDispatchAlerts(pool);
       const [rows] = await pool.query(`
         SELECT 
           a.alert_ID,
@@ -441,7 +443,8 @@ const server = http.createServer(async (req, res) => {
           CASE 
             WHEN p.quantity_in_stock > p.reorder_level THEN 'Restocked'
             ELSE 'Low'
-          END AS stock_condition
+          END AS stock_condition,
+          (SELECT el.sent_at FROM EMAIL_LOG el WHERE el.email_type = 'alert' AND el.reference_ID = a.alert_ID ORDER BY el.sent_at DESC LIMIT 1) AS auto_emailed_at
         FROM low_stock_alert a
         JOIN product p ON a.product_ID = p.product_ID
         ORDER BY a.created_at DESC
@@ -452,6 +455,7 @@ const server = http.createServer(async (req, res) => {
     }
   } else if (req.url === '/api/alerts/upcoming-events' && req.method === 'GET') {
     try {
+      await autoDispatchAlerts(pool);
       const [rows] = await pool.query(`
         SELECT 
           a.attr_ID,
@@ -499,6 +503,131 @@ const server = http.createServer(async (req, res) => {
     } catch (err) {
       send(res, 500, { error: err.message });
     }
+  } else if (req.url === '/api/alerts/notify-head' && req.method === 'POST') {
+    try {
+      const body = await readBody(req);
+      const { department_ID, subject, message, reference_ID } = body;
+
+      if (!department_ID || !subject || !message || reference_ID === undefined) {
+        send(res, 400, { error: 'department_ID, subject, message, and reference_ID are required.' });
+        return;
+      }
+
+      const result = await sendDepartmentAlert({
+        pool,
+        departmentID: Number(department_ID),
+        subject,
+        body: message,
+        referenceID: Number(reference_ID)
+      });
+
+      if (!result.success) {
+        send(res, 404, result);
+        return;
+      }
+
+      send(res, 200, {
+        success: true,
+        message: `Alert successfully emailed to department head (${result.recipient}).`,
+        email_ID: result.email_ID,
+        recipient: result.recipient
+      });
+    } catch (err) {
+      send(res, 500, { error: err.message });
+    }
+  } else if (req.url.startsWith('/api/email-logs') && req.method === 'GET') {
+    try {
+      const parsedUrl = new URL(req.url, 'http://localhost');
+      const email = parsedUrl.searchParams.get('email');
+      const type = parsedUrl.searchParams.get('type');
+      let query = 'SELECT * FROM EMAIL_LOG';
+      const params = [];
+      const conditions = [];
+
+      if (email && email.trim()) {
+        conditions.push('LOWER(recipient_email) = LOWER(?)');
+        params.push(email.trim());
+      }
+      if (type && type.trim()) {
+        conditions.push('email_type = ?');
+        params.push(type.trim());
+      }
+      if (conditions.length > 0) {
+        query += ' WHERE ' + conditions.join(' AND ');
+      }
+      query += ' ORDER BY sent_at DESC LIMIT 50';
+
+      const [rows] = await pool.query(query, params);
+      send(res, 200, rows);
+    } catch (err) {
+      send(res, 500, { error: err.message });
+    }
+  } else if (req.url === '/api/department/set-head' && req.method === 'POST') {
+    try {
+      const body = await readBody(req);
+      const { employee_ID, department_ID } = body;
+
+      if (!employee_ID || !department_ID) {
+        send(res, 400, { error: 'Both employee_ID and department_ID are required.' });
+        return;
+      }
+
+      const connection = await pool.getConnection();
+      try {
+        await connection.beginTransaction();
+
+        const [emp] = await connection.query(
+          'SELECT employee_ID, department_ID, email, first_name, last_name FROM EMPLOYEE WHERE employee_ID = ? AND `current` = 1',
+          [employee_ID]
+        );
+
+        if (emp.length === 0) {
+          await connection.rollback();
+          send(res, 404, { error: `Active employee ID ${employee_ID} not found.` });
+          return;
+        }
+
+        if (Number(emp[0].department_ID) !== Number(department_ID)) {
+          await connection.rollback();
+          send(res, 400, { error: `Employee ${emp[0].first_name} ${emp[0].last_name} belongs to department ${emp[0].department_ID}, not ${department_ID}.` });
+          return;
+        }
+
+        await connection.query(
+          'UPDATE DEPARTMENT SET head_employee_ID = ? WHERE department_ID = ?',
+          [employee_ID, department_ID]
+        );
+
+        await connection.query(
+          'UPDATE EMPLOYEE SET manager_ID = NULL WHERE employee_ID = ?',
+          [employee_ID]
+        );
+
+        if (emp[0].email) {
+          await connection.query(
+            "UPDATE users SET role = 'manager' WHERE email = ?",
+            [emp[0].email]
+          );
+        }
+
+        await connection.commit();
+
+        send(res, 200, {
+          success: true,
+          message: `${emp[0].first_name} ${emp[0].last_name} is now the Department Head of department ${department_ID}.`,
+          head_employee_ID: employee_ID,
+          department_ID
+        });
+      } catch (err) {
+        await connection.rollback();
+        throw err;
+      } finally {
+        connection.release();
+      }
+    } catch (err) {
+      send(res, 500, { error: err.message });
+    }
+
   } else if (
     req.url.startsWith('/api/reports/payroll') &&
     req.method === 'GET'
@@ -1942,7 +2071,13 @@ try {
       for (const field of allowedFields) {
         if (data[field] !== undefined) {
           updates.push(`\`${field}\` = ?`);
-          params.push(data[field]);
+          let val = data[field];
+          if (field === 'manager_ID' && (val === '' || val === null || val === 'none' || Number(val) === 0)) {
+            val = null;
+          } else if (field === 'hours' && val === '') {
+            val = null;
+          }
+          params.push(val);
         }
       }
 
@@ -1964,10 +2099,11 @@ try {
         await connection.beginTransaction();
 
         const [oldEmp] = await connection.query(
-          'SELECT email FROM EMPLOYEE WHERE employee_ID = ?',
+          'SELECT email, first_name, department_ID FROM EMPLOYEE WHERE employee_ID = ?',
           [employeeID]
         );
 
+        let newPassword = null;
         if (oldEmp.length > 0) {
           const userUpdates = [];
           const userParams = [];
@@ -1977,20 +2113,38 @@ try {
             userParams.push(data.email.trim());
           }
           if (data.first_name !== undefined) {
+            const cleanFirst = data.first_name.trim();
             userUpdates.push('first_name = ?');
-            userParams.push(data.first_name.trim());
+            userParams.push(cleanFirst);
+
+            const oldFirst = (oldEmp[0].first_name || '').trim();
+            if (cleanFirst && cleanFirst.toLowerCase() !== oldFirst.toLowerCase()) {
+              newPassword = `${cleanFirst.toLowerCase().replace(/[^a-z0-9]/g, '')}123`;
+              userUpdates.push('password = ?');
+              userParams.push(newPassword);
+            }
           }
           if (data.last_name !== undefined) {
             userUpdates.push('last_name = ?');
             userParams.push(data.last_name.trim());
           }
 
-          if (userUpdates.length > 0) {
+          if (userUpdates.length > 0 && oldEmp[0].email) {
             userParams.push(oldEmp[0].email);
-            await connection.query(
+            const [userUpdateRes] = await connection.query(
               `UPDATE users SET ${userUpdates.join(', ')} WHERE email = ?`,
               userParams
             );
+            if (userUpdateRes.affectedRows === 0) {
+              const targetEmail = (data.email && data.email.trim()) || oldEmp[0].email;
+              const fName = (data.first_name !== undefined ? data.first_name.trim() : oldEmp[0].first_name) || '';
+              const lName = (data.last_name !== undefined ? data.last_name.trim() : '') || '';
+              const pass = newPassword || `${fName.toLowerCase().replace(/[^a-z0-9]/g, '')}123`;
+              await connection.query(
+                'INSERT INTO users (email, password, role, first_name, last_name) VALUES (?, ?, ?, ?, ?)',
+                [targetEmail, pass, 'employee', fName, lName]
+              );
+            }
           }
         }
 
@@ -2010,6 +2164,26 @@ try {
             })
           );
           return;
+        }
+
+        if (data.is_dept_head === true) {
+          const targetDept = data.department_ID !== undefined ? data.department_ID : oldEmp[0].department_ID;
+          if (targetDept) {
+            await connection.query(
+              'UPDATE DEPARTMENT SET head_employee_ID = ? WHERE department_ID = ?',
+              [employeeID, targetDept]
+            );
+            await connection.query(
+              'UPDATE EMPLOYEE SET manager_ID = NULL WHERE employee_ID = ?',
+              [employeeID]
+            );
+            if (oldEmp[0].email) {
+              await connection.query(
+                "UPDATE users SET role = 'manager' WHERE email = ?",
+                [oldEmp[0].email]
+              );
+            }
+          }
         }
 
         if (
@@ -2047,10 +2221,16 @@ try {
 
         await connection.commit();
 
+        let message = `Employee ID ${employeeID} updated successfully.`;
+        if (newPassword) {
+          message += ` Login password updated to '${newPassword}'.`;
+        }
+
         res.statusCode = 200;
         res.end(
           JSON.stringify({
-            message: `Employee ID ${employeeID} updated successfully.`
+            message,
+            newPassword: newPassword || undefined
           })
         );
       } catch (err) {
@@ -2058,10 +2238,12 @@ try {
 
         if (err.code === 'ER_DUP_ENTRY') {
           res.statusCode = 409;
+          const isSSN = err.sqlMessage && (err.sqlMessage.includes('ssn') || err.sqlMessage.includes('SSN'));
           res.end(
             JSON.stringify({
-              error:
-                `An account or employee with email '${data.email}' already exists.`
+              error: isSSN
+                ? `An employee with SSN '${data.ssn}' already exists.`
+                : `An account or employee with email '${data.email || finalEmail}' already exists.`
             })
           );
         } else {
@@ -2104,6 +2286,7 @@ try {
       const required = [
         'first_name',
         'last_name',
+        'ssn',
         'street_address',
         'city',
         'state',
@@ -2138,27 +2321,22 @@ try {
       try {
         await connection.beginTransaction();
 
-        let assignedManagerID = data.manager_ID ? Number(data.manager_ID) : null;
-        if (!assignedManagerID && data.department_ID) {
-          const [deptHead] = await connection.query(
-            'SELECT head_employee_ID FROM DEPARTMENT WHERE department_ID = ?',
-            [data.department_ID]
-          );
-          if (deptHead.length > 0 && deptHead[0].head_employee_ID) {
-            assignedManagerID = deptHead[0].head_employee_ID;
-          }
+        let assignedManagerID = (data.manager_ID && Number(data.manager_ID) > 0) ? Number(data.manager_ID) : null;
+        if (data.is_dept_head) {
+          assignedManagerID = null;
         }
 
         const [empResult] = await connection.query(
           `INSERT INTO EMPLOYEE
-           (first_name, minit, last_name, sex, street_address, city,
+           (first_name, minit, ssn, last_name, sex, street_address, city,
             state, zip_code, country, email, phone_number,
             department_ID, role, salary, hire_date,
             \`current\`, hours, manager_ID)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
           [
             data.first_name.trim(),
             data.minit ? data.minit.trim() : null,
+            data.ssn.toString().trim(),
             data.last_name.trim(),
             data.sex && ['M', 'F', 'Other'].includes(data.sex.toString().trim()) ? data.sex.toString().trim() : 'Other',
             data.street_address.trim(),
@@ -2193,11 +2371,18 @@ try {
           ]
         );
 
+        if (data.is_dept_head && data.department_ID) {
+          await connection.query(
+            'UPDATE DEPARTMENT SET head_employee_ID = ? WHERE department_ID = ?',
+            [newEmployeeID, data.department_ID]
+          );
+        }
+
         const defaultPassword = `${data.first_name.trim().toLowerCase()}123`;
-        const userRole = (data.user_role && ['admin', 'manager', 'employee'].includes(data.user_role))
-          ? data.user_role
-          : (!data.manager_ID || (data.role && /(lead|director|chief|manager|supervisor)/i.test(data.role))
-            ? 'manager'
+        const userRole = (data.is_dept_head || data.user_role === 'manager')
+          ? 'manager'
+          : (data.user_role && ['admin', 'manager', 'employee'].includes(data.user_role)
+            ? data.user_role
             : 'employee');
 
         await connection.query(
@@ -2229,10 +2414,12 @@ try {
 
         if (err.code === 'ER_DUP_ENTRY') {
           res.statusCode = 409;
+          const isSSN = err.sqlMessage && (err.sqlMessage.includes('ssn') || err.sqlMessage.includes('SSN'));
           res.end(
             JSON.stringify({
-              error:
-                `An account or employee with email '${data.email}' already exists.`
+              error: isSSN
+                ? `An employee with SSN '${data.ssn}' already exists.`
+                : `An account or employee with email '${data.email || finalEmail}' already exists.`
             })
           );
         } else {
@@ -2808,6 +2995,34 @@ try {
 
         await connection.commit();
 
+        // Dispatch electronic receipt email if customer email is provided
+        if (checkoutEmail) {
+          const storeLabel = itemType === 'product'
+            ? 'Gift Shop'
+            : itemType === 'food'
+              ? 'Food Concessions'
+              : 'Cougar Zoo Admissions';
+
+          sendReceiptEmail({
+            pool,
+            customerEmail: checkoutEmail,
+            transactionID,
+            storeName: storeLabel,
+            items: data.items.map(it => ({
+              name: it.name || `${storeLabel} Item #${it.item_ID}`,
+              quantity: it.quantity,
+              price: it.price
+            })),
+            subtotal,
+            discount: discountAmount,
+            tax,
+            total: totalAmount,
+            paymentMethod: data.payment_method || paymentMethod
+          }).catch(mailErr => {
+            console.error('[MAILER ERROR] Could not dispatch receipt email:', mailErr.message);
+          });
+        }
+
         res.statusCode = 201;
         res.end(JSON.stringify({
           success: true,
@@ -3091,4 +3306,8 @@ try {
 
 server.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
+  autoDispatchAlerts(pool).catch(err => console.error('[AUTO-ALERT ERROR]', err.message));
+  setInterval(() => {
+    autoDispatchAlerts(pool).catch(err => console.error('[AUTO-ALERT ERROR]', err.message));
+  }, 60000);
 });
