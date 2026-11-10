@@ -159,6 +159,7 @@ export default function CardCheckoutModal({
           email: email.trim()
         });
       } else {
+        const activeAccountEmail = (userEmail || localStorage.getItem('user_email') || '').trim();
         const response = await fetch(`${API_BASE}/api/checkout`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -167,6 +168,7 @@ export default function CardCheckoutModal({
             payment_method: 'credit',
             visitor_ID: null,
             email: email.trim() || null,
+            account_email: activeAccountEmail || null,
             coupon_code: appliedCoupon ? appliedCoupon.code : (typedCoupon.trim() || undefined),
             total: total.toFixed(2),
             items: items.map(item => ({

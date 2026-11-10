@@ -1,4 +1,5 @@
 const { requireRoles } = require('./auth');
+const { autoDispatchAlerts } = require('./mailer');
 
 async function handleCheckout(req, res, pool, send, readBody) {
   const pathname = new URL(req.url, 'http://localhost').pathname;
@@ -118,6 +119,11 @@ async function handleCheckout(req, res, pool, send, readBody) {
     };
 
     await connection.commit();
+
+    // Trigger instant alert check if inventory dropped below reorder level
+    autoDispatchAlerts(pool).catch(err => {
+      console.error('[AUTO-ALERT CHECKOUT ERROR]', err.message);
+    });
   } catch (error) {
     await connection.rollback();
 

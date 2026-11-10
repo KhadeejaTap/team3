@@ -202,3 +202,23 @@ BEGIN
 END$$
 
 DELIMITER ;
+
+-- 12. Paycheck & Payroll Ledger Table
+CREATE TABLE IF NOT EXISTS PAYCHECK (
+    paycheck_ID INT AUTO_INCREMENT PRIMARY KEY,
+    employee_ID INT NOT NULL,
+    department_ID INT NOT NULL,
+    pay_period_start DATE NOT NULL,
+    pay_period_end DATE NOT NULL,
+    payment_date DATE NOT NULL,
+    gross_pay DECIMAL(10,2) NOT NULL,
+    federal_tax DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    fica_tax DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    state_tax DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    benefits_deduction DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    net_pay DECIMAL(10,2) NOT NULL,
+    payment_method VARCHAR(30) NOT NULL DEFAULT 'direct_deposit',
+    status ENUM('paid', 'pending') NOT NULL DEFAULT 'paid',
+    FOREIGN KEY (employee_ID) REFERENCES EMPLOYEE(employee_ID) ON DELETE CASCADE,
+    FOREIGN KEY (department_ID) REFERENCES DEPARTMENT(department_ID)
+);

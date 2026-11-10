@@ -8,6 +8,7 @@ const pool = mysql.createPool({
     password: process.env.DB_PASS,
     database: process.env.DB_NAME,
     port: 3306,
+    timezone: 'Z',
     ssl: ['localhost', '127.0.0.1'].includes(
         (process.env.DB_HOST || 'localhost').toLowerCase()
     )
