@@ -235,7 +235,6 @@ function Home({ role, userEmail, userDept }) {
 
 	const [commercialAlerts, setCommercialAlerts] = useState([]);
 	const [guestOpsAlerts, setGuestOpsAlerts] = useState([]);
-	const [enclosureCapacityAlerts, setEnclosureCapacityAlerts] = useState([]);
 
 	const handleAlertStatusChange = async (alertId, newStatus, currentStatus) => {
 		if (newStatus === currentStatus) return;
@@ -373,21 +372,6 @@ function Home({ role, userEmail, userDept }) {
 			}
 		}
 
-		async function fetchEnclosureCapacityAlerts() {
-			if (!isAnimalManager) return;
-			try {
-				const res = await apiFetch('/api/alerts/enclosure-capacity');
-				if (!res.ok) {
-					throw new Error('Failed to load enclosure capacity alerts.');
-				}
-				const data = await res.json();
-				if (isMounted && Array.isArray(data)) {
-					setEnclosureCapacityAlerts(data);
-				}
-			} catch {
-				// Keep the homepage usable if capacity alerts cannot be loaded.
-			}
-		}
 
 		async function fetchCoupons() {
 			try {
@@ -409,14 +393,7 @@ function Home({ role, userEmail, userDept }) {
 		fetchCoupons();
 		fetchCommercialAlerts();
 		fetchGuestOpsAlerts();
-		fetchEnclosureCapacityAlerts();
-
-		const capacityRefresh = isAnimalManager
-			? setInterval(fetchEnclosureCapacityAlerts, 15000)
-			: null;
-
 		return () => {
-			if (capacityRefresh) clearInterval(capacityRefresh);
 			isMounted = false;
 		};
 	}, [role, effectiveEmail, isCommercialManager, isGuestOpsManager, isAnimalManager]);
@@ -509,47 +486,6 @@ function Home({ role, userEmail, userDept }) {
 				</section>
 			)}
 
-			{isAnimalManager && (
-				<section style={{
-					margin: '20px 0',
-					padding: '16px 20px',
-					backgroundColor: '#ffffff',
-					border: '1px solid #d0d7de',
-					borderRadius: '6px'
-				}}>
-					<h3 style={{ margin: '0 0 12px 0', color: '#24292f' }}>
-						Enclosure Capacity Alerts
-					</h3>
-					{enclosureCapacityAlerts.length === 0 ? (
-						<p style={{ margin: 0 }}>No enclosures are currently at or above 75% capacity.</p>
-					) : (
-						<table border="1" cellPadding="8" style={{ width: '100%', borderCollapse: 'collapse', backgroundColor: '#ffffff', textAlign: 'left' }}>
-							<thead>
-								<tr style={{ backgroundColor: '#f6f8fa' }}>
-									<th>Enclosure</th>
-									<th>Animals</th>
-									<th>Maximum Capacity</th>
-									<th>Occupancy</th>
-									<th>Alert Time</th>
-								</tr>
-							</thead>
-							<tbody>
-								{enclosureCapacityAlerts.map((alert, index) => (
-									<tr key={alert.alert_ID || alert.enclosure_ID || index}>
-										<td><strong>{alert.enclosure_name || alert.name || `Enclosure ${alert.enclosure_ID}`}</strong></td>
-										<td>{alert.animal_count ?? alert.current_animals ?? '—'}</td>
-										<td>{alert.capacity ?? alert.max_capacity ?? '—'}</td>
-										<td style={{ color: '#b42318', fontWeight: 'bold' }}>
-											{Number(alert.occupancy_percent ?? alert.occupancy ?? 0).toFixed(1)}%
-										</td>
-										<td>{alert.created_at ? formatCST(alert.created_at) : 'Current alert'}</td>
-									</tr>
-								))}
-							</tbody>
-						</table>
-					)}
-				</section>
-			)}
 
 			{isGuestOpsManager && guestOpsAlerts.length > 0 && (
 				<section style={{
