@@ -458,6 +458,11 @@ BEGIN
         INSERT INTO LOW_STOCK_ALERT (product_ID, stock_at_alert, status)
         VALUES (NEW.product_ID, NEW.quantity_in_stock, 'unaddressed');
     END IF;
+    IF NEW.quantity_in_stock > COALESCE(NEW.reorder_level, 5) THEN
+        UPDATE LOW_STOCK_ALERT
+        SET status = 'dismissed'
+        WHERE product_ID = NEW.product_ID AND status != 'dismissed';
+    END IF;
 END$$
 
 DELIMITER ;
