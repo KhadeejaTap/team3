@@ -884,6 +884,11 @@ main form {
   text-align: left;
 }
 
+.attraction-management form > h2 {
+  grid-column: 1 / -1;
+  margin-bottom: 0;
+}
+
 .attraction-form-field {
   display: flex;
   flex-direction: column;
@@ -922,12 +927,17 @@ main form {
   justify-self: stretch;
 }
 
+.attraction-management form > button[type="button"] {
+  grid-column: auto;
+  justify-self: start;
+}
+
 .attraction-table-wrapper {
   overflow-x: auto;
 }
 
 .attraction-table-wrapper table {
-  min-width: 760px;
+  min-width: 900px;
 }
 
 .ticket-purchase form {
