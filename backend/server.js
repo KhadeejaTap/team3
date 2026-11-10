@@ -573,6 +573,20 @@ const server = http.createServer(async (req, res) => {
           FROM MEDICAL_COST
           GROUP BY cost_category
         `;
+      } else if (streamType === 'food_expenses') {
+        query = `
+          SELECT
+            'Food Costs' AS stream_category,
+            CONCAT(fi.food_name, ' - ', COALESCE(fi.supplier, 'Unspecified Supplier')) AS stream_name,
+            COUNT(*) AS transaction_count,
+            COALESCE(SUM(fc.amount), 0) AS total_revenue,
+            COALESCE(ROUND(AVG(fc.amount), 2), 0) AS avg_amount,
+            COALESCE(MIN(fc.amount), 0) AS min_amount,
+            COALESCE(MAX(fc.amount), 0) AS max_amount
+          FROM FOOD_COST fc
+          JOIN FEED_ITEM fi ON fc.food_ID = fi.food_ID
+          GROUP BY fi.food_ID, fi.food_name, fi.supplier
+        `;
       } else {
         query = `
           SELECT * FROM (
@@ -640,6 +654,20 @@ const server = http.createServer(async (req, res) => {
               COALESCE(MAX(amount), 0) AS max_amount
             FROM MEDICAL_COST
             GROUP BY cost_category
+
+            UNION ALL
+
+            SELECT
+              'Food Costs' AS stream_category,
+              CONCAT(fi.food_name, ' - ', COALESCE(fi.supplier, 'Unspecified Supplier')) AS stream_name,
+              COUNT(*) AS transaction_count,
+              COALESCE(SUM(fc.amount), 0) AS total_revenue,
+              COALESCE(ROUND(AVG(fc.amount), 2), 0) AS avg_amount,
+              COALESCE(MIN(fc.amount), 0) AS min_amount,
+              COALESCE(MAX(fc.amount), 0) AS max_amount
+            FROM FOOD_COST fc
+            JOIN FEED_ITEM fi ON fc.food_ID = fi.food_ID
+            GROUP BY fi.food_ID, fi.food_name, fi.supplier
           ) AS streams
         `;
       }
@@ -687,6 +715,13 @@ const server = http.createServer(async (req, res) => {
         GROUP BY cost_category
         ORDER BY total DESC
       `);
+      const [foodCategories] = await pool.query(`
+        SELECT fi.food_category AS cost_category, COALESCE(SUM(fc.amount), 0) AS total
+        FROM FOOD_COST fc
+        JOIN FEED_ITEM fi ON fc.food_ID = fi.food_ID
+        GROUP BY fi.food_category
+        ORDER BY total DESC
+      `);
 
       const admissionsTotal = Number(tickets.total || 0);
       const donationsTotal = Number(donations.total || 0);
@@ -699,7 +734,10 @@ const server = http.createServer(async (req, res) => {
       const medicalCostsTotal = medicalCategories.reduce(
         (sum, category) => sum + Number(category.total || 0), 0
       );
-      const totalExpenses = enclosureCostsTotal + medicalCostsTotal;
+      const foodCostsTotal = foodCategories.reduce(
+        (sum, category) => sum + Number(category.total || 0), 0
+      );
+      const totalExpenses = enclosureCostsTotal + medicalCostsTotal + foodCostsTotal;
       const netBalance = grossRevenue - totalExpenses;
 
       send(res, 200, {
@@ -715,6 +753,11 @@ const server = http.createServer(async (req, res) => {
         medical_costs_total: medicalCostsTotal.toFixed(2),
         medical_categories: medicalCategories.map(category => ({
           category: category.cost_category,
+          amount: Number(category.total || 0).toFixed(2)
+        })),
+        food_costs_total: foodCostsTotal.toFixed(2),
+        food_categories: foodCategories.map(category => ({
+          category: category.cost_category || 'Uncategorized',
           amount: Number(category.total || 0).toFixed(2)
         })),
         total_expenses: totalExpenses.toFixed(2),
