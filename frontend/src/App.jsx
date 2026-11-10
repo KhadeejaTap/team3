@@ -341,11 +341,11 @@ function AppContent() {
 
           <Route
             path="/attractions"
-            element={<VisitorAttractions />}
+            element={<VisitorAttractions canManage={isGuestOpsHead} />}
           />
           <Route
             path="/attractions-directory"
-            element={<VisitorAttractions />}
+            element={<VisitorAttractions canManage={isGuestOpsHead} />}
           />
 
           <Route

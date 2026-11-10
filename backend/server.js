@@ -240,13 +240,13 @@ async function readMultipart(req) {
   return { fields, image };
 }
 
-async function readBody(req) {
+async function readBody(req, maxBytes = 16384) {
   let body = '';
 
   for await (const chunk of req) {
     body += chunk;
 
-    if (Buffer.byteLength(body) > 16384) {
+    if (Buffer.byteLength(body) > maxBytes) {
       const error = new Error('Request is too large.');
       error.status = 413;
       throw error;

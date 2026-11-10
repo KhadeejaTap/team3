@@ -886,9 +886,31 @@ main form {
   width: 100%;
 }
 
+.attraction-date-input-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.attraction-date-input-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.attraction-date-picker-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .attraction-management form button {
   grid-column: 1 / -1;
   justify-self: start;
+}
+
+.attraction-management form .attraction-date-picker-button {
+  grid-column: auto;
+  justify-self: stretch;
 }
 
 .attraction-table-wrapper {
@@ -1173,6 +1195,26 @@ main form {
   color: #4a5568;
   font-size: 15px;
   margin: 0;
+}
+
+.attractions-manage-link {
+  display: inline-block;
+  margin-top: 16px;
+  padding: 8px 16px;
+  border-radius: 6px;
+  background-color: #2d5a37;
+  color: #ffffff;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.attractions-manage-link:hover {
+  background-color: #204228;
+}
+
+.attractions-manage-link:focus-visible {
+  outline: 3px solid #d6b45a;
+  outline-offset: 3px;
 }
 
 .attraction-type-tabs {
