@@ -242,6 +242,12 @@ function AnimalManagement({ role, userEmail }) {
 
     // Add/update mode and existing-animal selection
     const [isEditing, setIsEditing] = useState(false);
+    const [isRemoving, setIsRemoving] = useState(false);
+    const [removalReason, setRemovalReason] = useState('');
+    const [deathReason, setDeathReason] = useState('');
+    const [removalMedicalRecordID, setRemovalMedicalRecordID] = useState('');
+    const [removalMedicalRecords, setRemovalMedicalRecords] = useState([]);
+    const [loadingRemovalRecords, setLoadingRemovalRecords] = useState(false);
     const [animals, setAnimals] = useState([]);
     const [loadingAnimals, setLoadingAnimals] = useState(false);
     const [selectedAnimalID, setSelectedAnimalID] = useState('');
@@ -285,7 +291,7 @@ function AnimalManagement({ role, userEmail }) {
 
     // Load existing records when the user chooses update mode.
     useEffect(() => {
-        if (!isEditing) return;
+        if (!isEditing && !isRemoving) return;
 
         async function fetchAnimals() {
             setLoadingAnimals(true);
@@ -302,7 +308,7 @@ function AnimalManagement({ role, userEmail }) {
             }
         }
         fetchAnimals();
-    }, [isEditing]);
+    }, [isEditing, isRemoving]);
 
     function handleChange(event) {
         const { name, value } = event.target;
@@ -324,6 +330,10 @@ function AnimalManagement({ role, userEmail }) {
     function handleAnimalSelection(event) {
         const animalID = event.target.value;
         setSelectedAnimalID(animalID);
+        setRemovalReason('');
+        setDeathReason('');
+        setRemovalMedicalRecordID('');
+        setRemovalMedicalRecords([]);
 
         if (!animalID) {
             setFormData(EMPTY_FORM);
@@ -358,7 +368,18 @@ function AnimalManagement({ role, userEmail }) {
         setSelectedImage(null);
         setImagePreview('');
         setCurrentImageUrl(animal.image_url || '');
-        setMessage(`Loaded ${animal.name}. Make your changes and select Update Animal Record.`);
+        setMessage(isRemoving ? `Selected ${animal.name}. Complete the removal details below.` : `Loaded ${animal.name}. Make your changes and select Update Animal Record.`);
+        if (isRemoving) {
+            setLoadingRemovalRecords(true);
+            fetch(`${API_URL}/api/medical-records?animal_ID=${animalID}`)
+                .then(async (response) => {
+                    const data = await response.json();
+                    if (!response.ok) throw new Error(data.error || 'Could not load medical records.');
+                    setRemovalMedicalRecords(data);
+                })
+                .catch((error) => setMessage(`Error: ${error.message}`))
+                .finally(() => setLoadingRemovalRecords(false));
+        }
     }
 
     function handleImageChange(event) {
@@ -436,6 +457,52 @@ function AnimalManagement({ role, userEmail }) {
         }
     }
 
+    async function handleRemoveAnimal(event) {
+        event.preventDefault();
+        setMessage('');
+        if (!selectedAnimalID) {
+            setMessage('Please select an animal to remove.');
+            return;
+        }
+        if (!removalReason) {
+            setMessage('Please select a reason for removing this animal.');
+            return;
+        }
+        if (removalReason === 'Death' && !deathReason.trim()) {
+            setMessage('Please provide the cause or circumstances of death.');
+            return;
+        }
+        const animal = animals.find((item) => String(item.animal_ID) === String(selectedAnimalID));
+        const confirmed = window.confirm(`Remove ${animal?.name || 'this animal'} from active animal records? This action will preserve its historical record.`);
+        if (!confirmed) return;
+        try {
+            const response = await fetch(`${API_URL}/api/animals/${selectedAnimalID}/remove`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    reason: removalReason,
+                    death_reason: removalReason === 'Death' ? deathReason.trim() : null,
+                    medical_record_ID: removalMedicalRecordID ? Number(removalMedicalRecordID) : null
+                })
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error || 'Could not remove animal.');
+            setAnimals((previous) => previous.filter((item) => String(item.animal_ID) !== String(selectedAnimalID)));
+            setSelectedAnimalID('');
+            setFormData(EMPTY_FORM);
+            setRemovalReason('');
+            setDeathReason('');
+            setRemovalMedicalRecordID('');
+            setRemovalMedicalRecords([]);
+            setSelectedImage(null);
+            setImagePreview('');
+            setCurrentImageUrl('');
+            setMessage(result.message || 'Animal removed from active records successfully.');
+        } catch (error) {
+            setMessage(`Error: ${error.message}`);
+        }
+    }
+
     async function handleAddSpecies(event) {
         event.preventDefault();
         setMessage('');
@@ -483,8 +550,28 @@ function AnimalManagement({ role, userEmail }) {
 
     function switchMode(nextIsEditing) {
         setIsEditing(nextIsEditing);
+        setIsRemoving(false);
         setSelectedAnimalID('');
         setFormData(EMPTY_FORM);
+        setSelectedImage(null);
+        setImagePreview('');
+        setCurrentImageUrl('');
+        setRemovalReason('');
+        setDeathReason('');
+        setRemovalMedicalRecordID('');
+        setRemovalMedicalRecords([]);
+        setMessage('');
+    }
+
+    function switchToRemovalMode() {
+        setIsEditing(false);
+        setIsRemoving(true);
+        setSelectedAnimalID('');
+        setFormData(EMPTY_FORM);
+        setRemovalReason('');
+        setDeathReason('');
+        setRemovalMedicalRecordID('');
+        setRemovalMedicalRecords([]);
         setSelectedImage(null);
         setImagePreview('');
         setCurrentImageUrl('');
@@ -563,11 +650,14 @@ function AnimalManagement({ role, userEmail }) {
                         <button type="button" onClick={() => switchMode(true)}>
                             Update Existing Animal Record
                         </button>
+                        <button type="button" onClick={switchToRemovalMode}>
+                            Remove Animal
+                        </button>
                     </div>
 
-                    {isEditing && (
+                    {(isEditing || isRemoving) && (
                         <>
-                            <label htmlFor="existingAnimal">Select Animal to Update:</label>
+                            <label htmlFor="existingAnimal">{isRemoving ? 'Select Animal to Remove:' : 'Select Animal to Update:'}</label>
                             <select
                                 id="existingAnimal"
                                 value={selectedAnimalID}
@@ -586,7 +676,38 @@ function AnimalManagement({ role, userEmail }) {
                         </>
                     )}
 
-                    {showAddSpecies && (
+                    {isRemoving ? (
+                        <form onSubmit={handleRemoveAnimal}>
+                            <h2>Remove Animal from Active Records</h2>
+                            <p>The animal will be removed from active animal lists, while its existing medical history is preserved.</p>
+                            <label htmlFor="removalReason">Reason for Removal:</label>
+                            <select id="removalReason" value={removalReason} onChange={(e) => setRemovalReason(e.target.value)} required>
+                                <option value="">Select a reason</option>
+                                <option value="Death">Death</option>
+                                <option value="Relocation">Relocation</option>
+                                <option value="Transfer">Transfer to Another Facility</option>
+                                <option value="Reintroduction">Reintroduction to the Wild</option>
+                                <option value="Other">Other</option>
+                            </select>
+                            {removalReason === 'Death' && (
+                                <>
+                                    <label htmlFor="deathReason">Cause or Circumstances of Death:</label>
+                                    <textarea id="deathReason" value={deathReason} onChange={(e) => setDeathReason(e.target.value)} maxLength="1000" required placeholder="Describe the reason for the animal's death" />
+                                </>
+                            )}
+                            <label htmlFor="removalMedicalRecord">Related Medical Record ID (optional):</label>
+                            <select id="removalMedicalRecord" value={removalMedicalRecordID} onChange={(e) => setRemovalMedicalRecordID(e.target.value)} disabled={!selectedAnimalID || loadingRemovalRecords}>
+                                <option value="">{loadingRemovalRecords ? 'Loading medical records...' : 'No medical record selected'}</option>
+                                {removalMedicalRecords.map((record) => (
+                                    <option key={record.record_ID} value={record.record_ID}>
+                                        Record #{record.record_ID} — {record.date ? String(record.date).slice(0, 10) : 'Undated'} — {record.diagnosis}
+                                    </option>
+                                ))}
+                            </select>
+                            <button type="submit" disabled={!selectedAnimalID}>Confirm Animal Removal</button>
+                            <button type="button" onClick={() => switchMode(false)}>Cancel</button>
+                        </form>
+                    ) : showAddSpecies && (
                         <form onSubmit={handleAddSpecies}>
                             <h2>Add New Species</h2>
                             <label htmlFor="common_name">Common Name:</label>
@@ -629,7 +750,7 @@ function AnimalManagement({ role, userEmail }) {
                         </form>
                     )}
 
-                    <form onSubmit={handleSubmit}>
+                    {!isRemoving && <form onSubmit={handleSubmit}>
                         <label htmlFor="name">Animal Name:</label>
                         <input
                             id="name"
@@ -764,7 +885,7 @@ function AnimalManagement({ role, userEmail }) {
                         <button type="submit">
                             {isEditing ? 'Update Animal Record' : 'Save Animal'}
                         </button>
-                    </form>
+                    </form>}
 
                     {message && <p role="status">{message}</p>}
                 </>
