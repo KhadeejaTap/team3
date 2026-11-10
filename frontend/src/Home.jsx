@@ -411,10 +411,15 @@ function Home({ role, userEmail, userDept }) {
 		fetchGuestOpsAlerts();
 		fetchEnclosureCapacityAlerts();
 
+		const capacityRefresh = isAnimalManager
+			? setInterval(fetchEnclosureCapacityAlerts, 15000)
+			: null;
+
 		return () => {
+			if (capacityRefresh) clearInterval(capacityRefresh);
 			isMounted = false;
 		};
-	}, [role, effectiveEmail, isCommercialManager, isGuestOpsManager]);
+	}, [role, effectiveEmail, isCommercialManager, isGuestOpsManager, isAnimalManager]);
 
 	return (
 		<div className="home-container">
