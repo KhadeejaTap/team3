@@ -160,6 +160,8 @@ stall_ID INT AUTO_INCREMENT PRIMARY KEY,
   location VARCHAR(100),
   opening_time TIME,
   closing_time TIME,
+  image_data MEDIUMBLOB,
+  image_mime VARCHAR(20),
   department_ID INT NOT NULL
 
   -- FOREIGN KEY (department_ID) REFERENCES DEPARTMENT(department_ID)
