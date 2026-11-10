@@ -23,6 +23,63 @@ function send(res, status, data) {
 const animalUploadDirectory = path.join(__dirname, 'uploads', 'animals');
 const MAX_ANIMAL_IMAGE_SIZE = 5 * 1024 * 1024;
 
+const ENCLOSURE_ALERT_DEPARTMENT_ID = 2;
+const ENCLOSURE_ALERT_THRESHOLD = 0.75;
+
+async function checkEnclosureCapacityAlert(enclosureID) {
+  if (!enclosureID) return;
+
+  try {
+    const [[enclosure]] = await pool.query(
+      `SELECT e.enclosure_ID, e.name, e.capacity, COUNT(a.animal_ID) AS animal_count
+       FROM ENCLOSURE e
+       LEFT JOIN ANIMAL a ON a.enclosure_ID = e.enclosure_ID
+       WHERE e.enclosure_ID = ?
+       GROUP BY e.enclosure_ID, e.name, e.capacity`,
+      [Number(enclosureID)]
+    );
+
+    if (!enclosure || !Number(enclosure.capacity)) return;
+
+    const occupancy = Number(enclosure.animal_count) / Number(enclosure.capacity);
+    const isOverThreshold = occupancy >= ENCLOSURE_ALERT_THRESHOLD;
+
+    const [[state]] = await pool.query(
+      'SELECT is_over_threshold FROM ENCLOSURE_CAPACITY_ALERT_STATE WHERE enclosure_ID = ?',
+      [Number(enclosureID)]
+    );
+
+    const wasOverThreshold = state ? Boolean(state.is_over_threshold) : false;
+
+    if (isOverThreshold && !wasOverThreshold) {
+      const percentage = (occupancy * 100).toFixed(1);
+
+      const result = await sendDepartmentAlert({
+        pool,
+        departmentID: ENCLOSURE_ALERT_DEPARTMENT_ID,
+        subject: `ENCLOSURE CAPACITY WARNING: ${enclosure.name}`,
+        body: `Enclosure '${enclosure.name}' has reached ${percentage}% capacity. Current animal count: ${enclosure.animal_count}. Maximum capacity: ${enclosure.capacity}. Please review the enclosure's occupancy.`,
+        referenceID: Number(enclosureID)
+      });
+
+      if (!result || !result.success) {
+        console.warn('[ENCLOSURE CAPACITY ALERT] Alert was not logged:', result?.error || 'Unknown mailer response');
+      }
+    }
+
+    await pool.query(
+      `INSERT INTO ENCLOSURE_CAPACITY_ALERT_STATE (enclosure_ID, is_over_threshold, updated_at)
+       VALUES (?, ?, CURRENT_TIMESTAMP)
+       ON DUPLICATE KEY UPDATE
+         is_over_threshold = VALUES(is_over_threshold),
+         updated_at = CURRENT_TIMESTAMP`,
+      [Number(enclosureID), isOverThreshold ? 1 : 0]
+    );
+  } catch (err) {
+    console.error('[ENCLOSURE CAPACITY ALERT ERROR]', err);
+  }
+}
+
 async function readMultipart(req) {
   const contentType = req.headers['content-type'] || '';
   const boundaryMatch = contentType.match(/boundary=(?:"([^"]+)"|([^;]+))/i);
@@ -1850,6 +1907,8 @@ try {
         ]
       );
 
+      await checkEnclosureCapacityAlert(Number(animal.enclosure_ID));
+
       send(res, 201, {
         message: 'Animal saved successfully.',
         animal_ID: result.insertId
@@ -1897,7 +1956,7 @@ try {
 
     try {
       const [existing] = await pool.execute(
-        'SELECT animal_ID FROM ANIMAL WHERE animal_ID = ?',
+        'SELECT animal_ID, enclosure_ID FROM ANIMAL WHERE animal_ID = ?',
         [animalID]
       );
 
@@ -1926,6 +1985,14 @@ try {
           animalID
         ]
       );
+
+      const previousEnclosureID = Number(existing[0].enclosure_ID);
+      const newEnclosureID = Number(animal.enclosure_ID);
+
+      await checkEnclosureCapacityAlert(previousEnclosureID);
+      if (newEnclosureID !== previousEnclosureID) {
+        await checkEnclosureCapacityAlert(newEnclosureID);
+      }
 
       send(res, 200, { message: 'Animal record updated successfully.', animal_ID: animalID });
       return;
@@ -3178,6 +3245,8 @@ try {
         send(res, 404, { error: 'Enclosure not found.' });
         return;
       }
+
+      await checkEnclosureCapacityAlert(enclosureID);
 
       send(res, 200, { message: 'Enclosure details updated successfully.' });
       return;
