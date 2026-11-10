@@ -136,17 +136,36 @@ function RevenueDetails({ role, userDept }) {
 		window.print();
 	};
 
-	// Grand totals for the summary footer
-	const totalTransactions = reportData.reduce(
+	// Separate revenue and enclosure expenses
+	const revenueRows = reportData.filter(
+		r => r.stream_category !== 'Habitat Operations'
+	);
+
+	const expenseRows = reportData.filter(
+		r => r.stream_category === 'Habitat Operations'
+	);
+
+	const totalTransactions = revenueRows.reduce(
 		(sum, r) => sum + Number(r.transaction_count || 0),
 		0
 	);
-	const grandTotalRevenue = reportData.reduce(
+
+	const grandTotalRevenue = revenueRows.reduce(
 		(sum, r) => sum + Number(r.total_revenue || 0),
 		0
 	);
+
+	const grandTotalExpenses = expenseRows.reduce(
+		(sum, r) => sum + Number(r.total_revenue || 0),
+		0
+	);
+
+	const netOperatingBalance = grandTotalRevenue - grandTotalExpenses;
+
 	const overallAverage =
-		totalTransactions > 0 ? (grandTotalRevenue / totalTransactions).toFixed(2) : '0.00';
+		totalTransactions > 0
+			? (grandTotalRevenue / totalTransactions).toFixed(2)
+			: '0.00';
 
 	return (
 		<div>
@@ -280,12 +299,19 @@ function RevenueDetails({ role, userDept }) {
 				{reportData.length > 0 && (
 					<tfoot>
 						<tr>
-							<th colSpan="2">Zoo Grand Total</th>
+							<th colSpan="2">Total Revenue</th>
 							<th>{totalTransactions.toLocaleString()}</th>
 							<th>${grandTotalRevenue.toLocaleString()}</th>
 							<th>${Number(overallAverage).toLocaleString()}</th>
 							<th>-</th>
 							<th>-</th>
+						</tr>
+						<tr>
+							<th colSpan="3">Total Enclosure Expenses</th>
+							<th>-${grandTotalExpenses.toLocaleString()}</th>
+							<th colSpan="3">
+								Net Operating Balance: ${netOperatingBalance.toLocaleString()}
+							</th>
 						</tr>
 					</tfoot>
 				)}
