@@ -22,6 +22,12 @@ function MedicalRecords() {
     const [records, setRecords] = useState([]);
     const [isSick, setIsSick] = useState(false);
     const [form, setForm] = useState({ diagnosis: '', treatment: '', notes: '', vet_ID: '', follow_up: '' });
+    const [costForm, setCostForm] = useState({
+        cost_category: '',
+        description: '',
+        amount: '',
+        cost_date: ''
+    });
     const [message, setMessage] = useState('');
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -58,6 +64,14 @@ function MedicalRecords() {
     async function handleSubmit(event) {
         event.preventDefault();
         if (!selectedAnimalID) { setMessage('Please select an animal first.'); return; }
+        if ((costForm.cost_category && !costForm.amount) || (!costForm.cost_category && costForm.amount)) {
+            setMessage('To add a medical expense, select a cost category and enter an amount.');
+            return;
+        }
+        if (costForm.amount && (!Number.isFinite(Number(costForm.amount)) || Number(costForm.amount) <= 0)) {
+            setMessage('Medical expense amount must be greater than zero.');
+            return;
+        }
         setSaving(true);
         setMessage('');
         try {
@@ -73,8 +87,31 @@ function MedicalRecords() {
             });
             const result = await response.json();
             if (!response.ok) throw new Error(result.error || 'Could not save medical record.');
-            setMessage(result.message);
+
+            let successMessage = result.message;
+            if (costForm.cost_category && costForm.amount) {
+                const costResponse = await fetch(`${API_URL}/api/medical-costs`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        record_ID: result.record_ID,
+                        cost_category: costForm.cost_category,
+                        description: costForm.description,
+                        amount: Number(costForm.amount),
+                        cost_date: costForm.cost_date || null
+                    })
+                });
+                const costResult = await costResponse.json();
+                if (!costResponse.ok) {
+                    successMessage += ` However, the medical record was saved but its expense could not be saved: ${costResult.error || 'Unknown error.'}`;
+                } else {
+                    successMessage += ' Medical expense saved successfully.';
+                }
+            }
+
+            setMessage(successMessage);
             setForm({ diagnosis: '', treatment: '', notes: '', vet_ID: '', follow_up: '' });
+            setCostForm({ cost_category: '', description: '', amount: '', cost_date: '' });
             setIsSick(false);
             await loadRecords(selectedAnimalID);
             await loadAnimals();
@@ -129,6 +166,46 @@ function MedicalRecords() {
                 <textarea id="medicalNotes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} maxLength="255" />
                 <label htmlFor="medicalVet">Veterinarian Employee ID (optional):</label>
                 <input id="medicalVet" type="number" min="1" value={form.vet_ID} onChange={(e) => setForm({ ...form, vet_ID: e.target.value })} />
+                <h3>Medical Expense (Optional)</h3>
+                <label htmlFor="medicalCostCategory">Expense Category:</label>
+                <select
+                    id="medicalCostCategory"
+                    value={costForm.cost_category}
+                    onChange={(e) => setCostForm({ ...costForm, cost_category: e.target.value })}
+                >
+                    <option value="">No expense to record</option>
+                    <option value="Medication">Medication</option>
+                    <option value="Veterinary Services">Veterinary Services</option>
+                    <option value="Diagnostic Testing">Diagnostic Testing</option>
+                    <option value="Medical Supplies">Medical Supplies</option>
+                    <option value="Surgery/Procedures">Surgery/Procedures</option>
+                    <option value="Other">Other</option>
+                </select>
+                <label htmlFor="medicalCostDescription">Expense Description:</label>
+                <input
+                    id="medicalCostDescription"
+                    value={costForm.description}
+                    onChange={(e) => setCostForm({ ...costForm, description: e.target.value })}
+                    maxLength="255"
+                    placeholder="Optional details"
+                />
+                <label htmlFor="medicalCostAmount">Expense Amount ($):</label>
+                <input
+                    id="medicalCostAmount"
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={costForm.amount}
+                    onChange={(e) => setCostForm({ ...costForm, amount: e.target.value })}
+                    placeholder="0.00"
+                />
+                <label htmlFor="medicalCostDate">Expense Date (optional):</label>
+                <input
+                    id="medicalCostDate"
+                    type="date"
+                    value={costForm.cost_date}
+                    onChange={(e) => setCostForm({ ...costForm, cost_date: e.target.value })}
+                />
                 <label><input type="checkbox" checked={isSick} onChange={(e) => setIsSick(e.target.checked)} /> Mark animal as sick (automatically schedule tomorrow at 9:00 AM)</label>
                 {!isSick && <>
                     <label htmlFor="medicalFollowUp">Follow-up appointment (optional):</label>
