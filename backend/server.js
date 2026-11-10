@@ -268,7 +268,7 @@ const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader(
     'Access-Control-Allow-Methods',
-    'GET, POST, PUT, DELETE, OPTIONS'
+    'GET, POST, PUT, PATCH, DELETE, OPTIONS'
   );
   res.setHeader(
     'Access-Control-Allow-Headers',
@@ -2825,7 +2825,7 @@ try {
         const defaultPassword = `${data.first_name.trim().toLowerCase()}123`;
         const userRole = (data.is_dept_head || data.user_role === 'manager')
           ? 'manager'
-          : (data.user_role && ['admin', 'manager', 'employee'].includes(data.user_role)
+          : (data.user_role && ['manager', 'employee'].includes(data.user_role)
             ? data.user_role
             : 'employee');
 
@@ -3048,7 +3048,7 @@ try {
         res,
         pool,
         send,
-        ['admin', 'manager', 'employee', 'visitor']
+        ['manager', 'employee', 'visitor']
       );
 
       if (!allowed) return;
@@ -3127,7 +3127,7 @@ try {
             res,
             pool,
             send,
-            ['admin', 'manager', 'employee', 'visitor']
+            ['manager', 'employee', 'visitor']
           );
           if (!allowed) return;
           linkedUserID = req.user.userID;
@@ -3538,7 +3538,7 @@ try {
     req.method === 'GET'
   ) {
     try {
-      const allowed = await requireRoles(req, res, pool, send, ['admin', 'manager', 'employee']);
+      const allowed = await requireRoles(req, res, pool, send, ['manager', 'employee']);
       if (!allowed) return;
 
       const [rows] = await pool.query(`
@@ -3588,7 +3588,7 @@ try {
     /^\/api\/enclosures\/\d+$/.test(req.url)
   ) {
     try {
-      const allowed = await requireRoles(req, res, pool, send, ['admin', 'manager', 'employee']);
+      const allowed = await requireRoles(req, res, pool, send, ['manager', 'employee']);
       if (!allowed) return;
 
       const enclosureID = Number(req.url.split('/')[3]);
@@ -3650,7 +3650,7 @@ try {
     /^\/api\/enclosures\/\d+\/costs$/.test(req.url)
   ) {
     try {
-      const allowed = await requireRoles(req, res, pool, send, ['admin', 'manager', 'employee']);
+      const allowed = await requireRoles(req, res, pool, send, ['manager', 'employee']);
       if (!allowed) return;
 
       const enclosureID = Number(req.url.split('/')[3]);
@@ -3674,7 +3674,7 @@ try {
     /^\/api\/enclosures\/\d+\/maintenance$/.test(req.url)
   ) {
     try {
-      const allowed = await requireRoles(req, res, pool, send, ['admin', 'manager', 'employee']);
+      const allowed = await requireRoles(req, res, pool, send, ['manager', 'employee']);
       if (!allowed) return;
 
       const enclosureID = Number(req.url.split('/')[3]);
@@ -3699,7 +3699,7 @@ try {
     /^\/api\/enclosures\/\d+\/maintenance$/.test(req.url)
   ) {
     try {
-      const allowed = await requireRoles(req, res, pool, send, ['admin', 'manager', 'employee']);
+      const allowed = await requireRoles(req, res, pool, send, ['manager', 'employee']);
       if (!allowed) return;
 
       const enclosureID = Number(req.url.split('/')[3]);

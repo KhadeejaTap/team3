@@ -294,7 +294,7 @@ CREATE TABLE users (
 	first_name VARCHAR(50) DEFAULT NULL,
 	last_name VARCHAR(50) DEFAULT NULL,
 	password VARCHAR(255) NOT NULL,
-	role VARCHAR(20) NOT NULL CHECK (role IN ('admin', 'manager', 'employee', 'visitor'))
+	role VARCHAR(20) NOT NULL CHECK (role IN ('manager', 'employee', 'visitor'))
 );
 
 CREATE TABLE VISITOR(

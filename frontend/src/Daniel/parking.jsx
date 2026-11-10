@@ -29,7 +29,7 @@ async function fetchParking(canManage) {
 }
 
 export default function Parking({ role }) {
-  const canManage = ['admin', 'manager', 'employee'].includes(role);
+  const canManage = ['manager', 'employee'].includes(role);
 
   const [lots, setLots] = useState([]);
   const [sessions, setSessions] = useState([]);

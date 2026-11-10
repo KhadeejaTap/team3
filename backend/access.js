@@ -86,9 +86,9 @@ async function handleAccess(req, res, pool, send, readBody) {
   let allowedRoles = null;
 
   if (isProductWrite || isFoodWrite) {
-    allowedRoles = ['admin', 'manager'];
+    allowedRoles = ['manager'];
   } else if (isParkingSessionRequest) {
-    allowedRoles = ['admin', 'manager', 'employee'];
+    allowedRoles = ['manager', 'employee'];
   }
 
   if (allowedRoles) {

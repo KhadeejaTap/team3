@@ -15,7 +15,7 @@ async function handleCheckout(req, res, pool, send, readBody) {
     res,
     pool,
     send,
-    ['visitor', 'employee', 'manager', 'admin']
+    ['visitor', 'employee', 'manager']
   );
 
   if (!allowed) return true;

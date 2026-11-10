@@ -229,16 +229,9 @@ function Home({ role, userEmail, userDept }) {
 		? Number(userDept)
 		: Number(localStorage.getItem('user_dept'));
 
-	const isCommercialManager =
-		(role === 'manager' && deptNumber === 3) ||
-		role === 'admin' ||
-		effectiveEmail === 'ktap1000@gmail.com' ||
-		effectiveEmail === 'emma.watson@zoo.com' ||
-		effectiveEmail === 'gordon.ramsay@zoo.com';
-
-	const isGuestOpsManager =
-		(role === 'manager' && deptNumber === 4) ||
-		effectiveEmail === 'rachel.green@zoo.com';
+	const isAnimalManager = role === 'manager' && deptNumber === 2;
+	const isCommercialManager = role === 'manager' && deptNumber === 3;
+	const isGuestOpsManager = role === 'manager' && deptNumber === 4;
 
 	const [commercialAlerts, setCommercialAlerts] = useState([]);
 	const [guestOpsAlerts, setGuestOpsAlerts] = useState([]);
@@ -253,7 +246,7 @@ function Home({ role, userEmail, userDept }) {
 
 		try {
 			const res = await apiFetch(`/api/alerts/low-stock/${alertId}`, {
-				method: 'PATCH',
+				method: 'PUT',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ status: newStatus })
 			});
