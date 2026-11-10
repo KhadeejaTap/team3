@@ -55,6 +55,8 @@ function getAnimalImage(animal) {
 
 function VisitorAnimalDirectory() {
   const [animals, setAnimals] = useState([]);
+  const [feedingSchedule, setFeedingSchedule] = useState([]);
+  const [scheduleError, setScheduleError] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -89,7 +91,25 @@ function VisitorAnimalDirectory() {
       }
     }
 
+    async function loadFeedingSchedule() {
+      try {
+        const response = await apiFetch(`${API_URL}/api/public/feeding-schedule`);
+        if (!response.ok) {
+          throw new Error(`Unable to load feeding schedule. Server returned ${response.status}.`);
+        }
+        const data = await response.json();
+        if (!cancelled) {
+          setFeedingSchedule(Array.isArray(data) ? data : []);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setScheduleError(err.message || 'Unable to load the feeding schedule.');
+        }
+      }
+    }
+
     loadAnimals();
+    loadFeedingSchedule();
 
     return () => {
       cancelled = true;
@@ -122,6 +142,40 @@ function VisitorAnimalDirectory() {
           Get to know the animals who call Cougar Zoo home.
         </p>
       </header>
+
+      <section className="visitor-feeding-schedule" style={{ margin: '24px 0 32px' }}>
+        <h2>Daily Feeding Schedule</h2>
+        <p>See when the animals in each enclosure are scheduled to eat.</p>
+        {scheduleError ? (
+          <p className="visitor-animals-error" role="alert">{scheduleError}</p>
+        ) : feedingSchedule.length === 0 ? (
+          <p>There are no feeding times listed right now.</p>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
+            {Object.entries(
+              feedingSchedule.reduce((groups, item) => {
+                const key = item.enclosure_name || 'Unassigned enclosure';
+                if (!groups[key]) groups[key] = [];
+                groups[key].push(item);
+                return groups;
+              }, {})
+            ).map(([enclosureName, items]) => (
+              <article key={enclosureName} style={{ border: '1px solid #d7dce2', borderRadius: 10, padding: 16, background: '#fff' }}>
+                <h3>{enclosureName}</h3>
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                  {items.map(item => (
+                    <li key={item.feeding_ID} style={{ padding: '10px 0', borderTop: '1px solid #e5e7eb' }}>
+                      <strong>{item.display_time || item.feeding_time || 'Time not listed'}</strong>
+                      <div>{item.animal_name}</div>
+                      <small>{item.food_name || 'Food not listed'}{item.amount != null ? ` · Amount: ${item.amount}` : ''}</small>
+                    </li>
+                  ))}
+                </ul>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
 
       {animals.length === 0 ? (
         <p>No animal records are available right now.</p>
@@ -166,6 +220,11 @@ function VisitorAnimalDirectory() {
                 </p>
 
                 <dl>
+                  <div>
+                    <dt>Enclosure</dt>
+                    <dd>{animal.enclosure_name || 'Not available'}</dd>
+                  </div>
+
                   <div>
                     <dt>Age</dt>
                     <dd>{animal.age ?? 'Not available'}</dd>
