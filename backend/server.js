@@ -34,6 +34,7 @@ async function checkEnclosureCapacityAlert(enclosureID) {
       `SELECT e.enclosure_ID, e.name, e.capacity, COUNT(a.animal_ID) AS animal_count
        FROM ENCLOSURE e
        LEFT JOIN ANIMAL a ON a.enclosure_ID = e.enclosure_ID
+       AND NOT EXISTS (SELECT 1 FROM ANIMAL_REMOVAL ar WHERE ar.animal_ID = a.animal_ID)
        WHERE e.enclosure_ID = ?
        GROUP BY e.enclosure_ID, e.name, e.capacity`,
       [Number(enclosureID)]
@@ -75,6 +76,15 @@ async function checkEnclosureCapacityAlert(enclosureID) {
          updated_at = CURRENT_TIMESTAMP`,
       [Number(enclosureID), isOverThreshold ? 1 : 0]
     );
+  } catch (err) {
+    console.error('[ENCLOSURE CAPACITY ALERT ERROR]', err);
+  }
+}
+
+async function checkEnclosureCapacityAlertForRemoval(animalID) {
+  try {
+    const [[row]] = await pool.query('SELECT enclosure_ID FROM ANIMAL WHERE animal_ID = ?', [animalID]);
+    if (row?.enclosure_ID) await checkEnclosureCapacityAlert(row.enclosure_ID);
   } catch (err) {
     console.error('[ENCLOSURE CAPACITY ALERT ERROR]', err);
   }
@@ -1085,6 +1095,7 @@ const server = http.createServer(async (req, res) => {
           COUNT(CASE WHEN a.breeding_status = 'Breeding' THEN 1 END) AS breeding_count
         FROM SPECIES s
         LEFT JOIN ANIMAL a ON s.species_ID = a.species_ID
+          AND NOT EXISTS (SELECT 1 FROM ANIMAL_REMOVAL ar WHERE ar.animal_ID = a.animal_ID)
       `;
       const params = [];
 
@@ -1564,6 +1575,7 @@ const server = http.createServer(async (req, res) => {
                 ORDER BY mr.record_ID DESC LIMIT 1) AS next_appointment
         FROM ANIMAL a
         LEFT JOIN SPECIES s ON s.species_ID = a.species_ID
+        WHERE NOT EXISTS (SELECT 1 FROM ANIMAL_REMOVAL ar WHERE ar.animal_ID = a.animal_ID)
         ORDER BY a.name
       `);
       send(res, 200, rows);
@@ -1799,6 +1811,7 @@ const server = http.createServer(async (req, res) => {
         JOIN SPECIES s ON a.species_ID = s.species_ID
         JOIN ENCLOSURE e ON a.enclosure_ID = e.enclosure_ID
         WHERE a.breeding_status = 'Breeding'
+          AND NOT EXISTS (SELECT 1 FROM ANIMAL_REMOVAL ar WHERE ar.animal_ID = a.animal_ID)
         ORDER BY s.common_name, a.name
       `);
 
@@ -1828,6 +1841,7 @@ try {
        a.image_url
      FROM ANIMAL a
      LEFT JOIN SPECIES s ON a.species_ID = s.species_ID
+     WHERE NOT EXISTS (SELECT 1 FROM ANIMAL_REMOVAL ar WHERE ar.animal_ID = a.animal_ID)
      ORDER BY a.name`
   );
       send(res, 200, rows);
@@ -1845,6 +1859,7 @@ try {
         SELECT a.*, s.common_name, s.endangered_status
         FROM ANIMAL a
         LEFT JOIN SPECIES s ON a.species_ID = s.species_ID
+        WHERE NOT EXISTS (SELECT 1 FROM ANIMAL_REMOVAL ar WHERE ar.animal_ID = a.animal_ID)
         ORDER BY a.name
       `);
       send(res, 200, rows);
@@ -1917,6 +1932,63 @@ try {
     } catch (err) {
       console.error('Error saving animal:', err);
       send(res, 500, { error: 'Could not save animal. Check that the selected species and enclosure exist and that the ANIMAL table has a weight_unit column.' });
+      return;
+    }
+  } else if (
+    req.method === 'POST' &&
+    /^\/api\/animals\/\d+\/remove$/.test(req.url)
+  ) {
+    const animalID = Number(req.url.split('/')[3]);
+    try {
+      const data = await readBody(req);
+      const allowedReasons = ['Death', 'Relocation', 'Transfer', 'Reintroduction', 'Other'];
+      if (!data || !allowedReasons.includes(data.reason)) {
+        send(res, 400, { error: 'Select a valid reason for removing the animal.' });
+        return;
+      }
+      if (data.reason === 'Death' && (typeof data.death_reason !== 'string' || !data.death_reason.trim())) {
+        send(res, 400, { error: 'A cause or description of death is required.' });
+        return;
+      }
+      const [[animal]] = await pool.query(
+        'SELECT animal_ID, name FROM ANIMAL WHERE animal_ID = ?', [animalID]
+      );
+      if (!animal) {
+        send(res, 404, { error: 'Animal not found.' });
+        return;
+      }
+      let medicalRecordID = null;
+      if (data.medical_record_ID !== null && data.medical_record_ID !== undefined && data.medical_record_ID !== '') {
+        medicalRecordID = Number(data.medical_record_ID);
+        if (!Number.isInteger(medicalRecordID) || medicalRecordID <= 0) {
+          send(res, 400, { error: 'Enter a valid medical record ID.' });
+          return;
+        }
+        const [records] = await pool.query(
+          'SELECT record_ID FROM MEDICAL_RECORD WHERE record_ID = ? AND animal_ID = ?',
+          [medicalRecordID, animalID]
+        );
+        if (records.length === 0) {
+          send(res, 400, { error: 'The selected medical record does not belong to this animal.' });
+          return;
+        }
+      }
+      await pool.execute(
+        `INSERT INTO ANIMAL_REMOVAL
+         (animal_ID, animal_name, removal_reason, death_reason, medical_record_ID)
+         VALUES (?, ?, ?, ?, ?)`,
+        [animalID, animal.name, data.reason, data.reason === 'Death' ? data.death_reason.trim() : null, medicalRecordID]
+      );
+      await checkEnclosureCapacityAlertForRemoval(animalID);
+      send(res, 200, { success: true, message: `${animal.name} was removed from active animal records. Historical medical records were preserved.` });
+      return;
+    } catch (err) {
+      if (err.code === 'ER_DUP_ENTRY') {
+        send(res, 409, { error: 'This animal has already been removed from active records.' });
+        return;
+      }
+      console.error('Error removing animal:', err);
+      send(res, 500, { error: 'Could not remove animal from active records.' });
       return;
     }
   } else if (
@@ -3179,6 +3251,7 @@ try {
           END AS crowding_flag
         FROM ENCLOSURE e
         LEFT JOIN ANIMAL a ON a.enclosure_ID = e.enclosure_ID
+       AND NOT EXISTS (SELECT 1 FROM ANIMAL_REMOVAL ar WHERE ar.animal_ID = a.animal_ID)
         GROUP BY
           e.enclosure_ID, e.name, e.location, e.capacity,
           e.indoor_outdoor, e.size, e.department_ID,
