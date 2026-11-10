@@ -2104,6 +2104,40 @@ const server = http.createServer(async (req, res) => {
       res.end(JSON.stringify({ error: err.message }));
     }
   } else if (
+    req.url === '/api/public/feeding-schedule' &&
+    req.method === 'GET'
+  ) {
+    try {
+      const [rows] = await pool.query(`
+        SELECT
+          f.feeding_ID,
+          f.feeding_time,
+          f.amount,
+          a.animal_ID,
+          a.name AS animal_name,
+          e.enclosure_ID,
+          e.name AS enclosure_name,
+          fi.food_name,
+          fi.food_category
+        FROM FEEDING f
+        JOIN ANIMAL a ON f.animal_ID = a.animal_ID
+        LEFT JOIN ENCLOSURE e ON a.enclosure_ID = e.enclosure_ID
+        LEFT JOIN FEED_ITEM fi ON f.food_ID = fi.food_ID
+        WHERE NOT EXISTS (
+          SELECT 1
+          FROM ANIMAL_REMOVAL ar
+          WHERE ar.animal_ID = a.animal_ID
+        )
+        ORDER BY e.name ASC, f.feeding_time ASC, a.name ASC
+      `);
+      send(res, 200, rows);
+      return;
+    } catch (err) {
+      console.error('Error fetching public feeding schedule:', err);
+      send(res, 500, { error: 'Could not load the feeding schedule.' });
+      return;
+    }
+  } else if (
     req.url === '/api/public/animals' &&
     req.method === 'GET'
   ) {
