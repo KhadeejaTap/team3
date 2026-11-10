@@ -19,7 +19,7 @@
 import { useState, useEffect } from 'react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-const EXPENSE_CATEGORIES = ['Habitat Operations', 'Animal Healthcare'];
+const EXPENSE_CATEGORIES = ['Habitat Operations', 'Animal Healthcare', 'Food Costs'];
 
 function formatCurrency(value) {
 	return Number(value || 0).toLocaleString(undefined, {
@@ -157,6 +157,9 @@ function RevenueDetails({ role, userDept }) {
 	const medicalExpenseRows = expenseRows.filter(
 		(row) => row.stream_category === 'Animal Healthcare'
 	);
+	const foodExpenseRows = expenseRows.filter(
+		(row) => row.stream_category === 'Food Costs'
+	);
 
 	const totalTransactions = revenueRows.reduce(
 		(sum, row) => sum + Number(row.transaction_count || 0), 0
@@ -175,7 +178,7 @@ function RevenueDetails({ role, userDept }) {
 	return (
 		<div>
 			<h2>Zoo Revenue & Financial Statement</h2>
-			<p>Financial breakdown of ticket admissions, fundraising donations, gift shop retail sales, habitat operations, and animal healthcare expenses.</p>
+			<p>Financial breakdown of ticket admissions, fundraising donations, gift shop retail sales, habitat operations, animal healthcare, and animal food expenses.</p>
 
 			{summary && (
 				<fieldset style={{ margin: '16px 0', padding: '12px' }}>
@@ -186,6 +189,7 @@ function RevenueDetails({ role, userDept }) {
 								<th>Gross Revenue (Inflows)</th>
 								<th>Habitat Operations (Outflows)</th>
 								<th>Animal Healthcare (Outflows)</th>
+								<th>Food Costs (Outflows)</th>
 								<th>Total Expenses</th>
 								<th>Net Operating Balance</th>
 							</tr>
@@ -206,6 +210,11 @@ function RevenueDetails({ role, userDept }) {
 									<strong>-${formatCurrency(summary.medical_costs_total)}</strong>
 									<br />
 									<small>{(summary.medical_categories || []).map((category) => `${category.category}: $${formatCurrency(category.amount)}`).join(' | ') || 'No medical expenses recorded'}</small>
+								</td>
+								<td>
+									<strong>-${formatCurrency(summary.food_costs_total)}</strong>
+									<br />
+									<small>{(summary.food_categories || []).map((category) => `${category.category}: $${formatCurrency(category.amount)}`).join(' | ') || 'No food expenses recorded'}</small>
 								</td>
 								<td><strong>-${formatCurrency(summary.total_expenses)}</strong></td>
 								<td style={{ color: Number(summary.net_balance) < 0 ? '#b00' : '#070' }}>
@@ -228,6 +237,7 @@ function RevenueDetails({ role, userDept }) {
 					<option value="retail">Gift Shop (Retail Merchandise Only)</option>
 					<option value="expenses">Habitat Care (Expenses Only)</option>
 					<option value="medical_expenses">Animal Healthcare (Expenses Only)</option>
+					<option value="food_expenses">Food Costs (Expenses Only)</option>
 				</select>
 				&nbsp;&nbsp;
 
@@ -306,6 +316,11 @@ function RevenueDetails({ role, userDept }) {
 						<tr>
 							<th colSpan="3">Total Animal Healthcare Expenses</th>
 							<th>-${formatCurrency(medicalExpenseRows.reduce((sum, row) => sum + Number(row.total_revenue || 0), 0))}</th>
+							<th colSpan="3"></th>
+						</tr>
+						<tr>
+							<th colSpan="3">Total Food Costs</th>
+							<th>-${formatCurrency(foodExpenseRows.reduce((sum, row) => sum + Number(row.total_revenue || 0), 0))}</th>
 							<th colSpan="3"></th>
 						</tr>
 						<tr>
