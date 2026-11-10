@@ -2210,8 +2210,31 @@ try {
       return;
     }
 
+    const connection = await pool.getConnection();
     try {
-      const [result] = await pool.execute(
+      await connection.beginTransaction();
+      const enclosureID = Number(animal.enclosure_ID);
+      const [[enclosure]] = await connection.query(
+        'SELECT capacity FROM ENCLOSURE WHERE enclosure_ID = ? FOR UPDATE',
+        [enclosureID]
+      );
+      if (!enclosure) {
+        await connection.rollback();
+        send(res, 400, { error: 'The selected enclosure does not exist.' });
+        return;
+      }
+      const [[occupancy]] = await connection.query(
+        `SELECT COUNT(*) AS animal_count FROM ANIMAL a
+         WHERE a.enclosure_ID = ?
+           AND NOT EXISTS (SELECT 1 FROM ANIMAL_REMOVAL ar WHERE ar.animal_ID = a.animal_ID)`,
+        [enclosureID]
+      );
+      if (Number(occupancy.animal_count) >= Number(enclosure.capacity)) {
+        await connection.rollback();
+        send(res, 409, { error: 'This enclosure is at full capacity. Remove or relocate an active animal before adding another.' });
+        return;
+      }
+      const [result] = await connection.execute(
         `INSERT INTO ANIMAL
          (name, species_ID, enclosure_ID, age, gender, weight, weight_unit,
           arrival_date, breeding_status, image_url)
@@ -2219,7 +2242,7 @@ try {
         [
           animal.name.trim(),
           Number(animal.species_ID),
-          Number(animal.enclosure_ID),
+          enclosureID,
           animal.age === '' || animal.age == null ? null : Number(animal.age),
           animal.gender || null,
           animal.weight === '' || animal.weight == null ? null : Number(animal.weight),
@@ -2229,18 +2252,20 @@ try {
           upload.image ? upload.image.url : null
         ]
       );
-
-      await checkEnclosureCapacityAlert(Number(animal.enclosure_ID));
-
+      await connection.commit();
+      await checkEnclosureCapacityAlert(enclosureID);
       send(res, 201, {
         message: 'Animal saved successfully.',
         animal_ID: result.insertId
       });
       return;
     } catch (err) {
+      await connection.rollback();
       console.error('Error saving animal:', err);
       send(res, 500, { error: 'Could not save animal. Check that the selected species and enclosure exist and that the ANIMAL table has a weight_unit column.' });
       return;
+    } finally {
+      connection.release();
     }
   } else if (
     req.method === 'POST' &&
