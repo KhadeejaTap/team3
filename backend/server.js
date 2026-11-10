@@ -2110,25 +2110,13 @@ const server = http.createServer(async (req, res) => {
     try {
       const [rows] = await pool.query(`
         SELECT
-          f.feeding_ID,
-          f.feeding_time,
-          f.amount,
-          a.animal_ID,
-          a.name AS animal_name,
-          e.enclosure_ID,
+          s.schedule_ID,
+          s.enclosure_ID,
           e.name AS enclosure_name,
-          fi.food_name,
-          fi.food_category
-        FROM FEEDING f
-        JOIN ANIMAL a ON f.animal_ID = a.animal_ID
-        LEFT JOIN ENCLOSURE e ON a.enclosure_ID = e.enclosure_ID
-        LEFT JOIN FEED_ITEM fi ON f.food_ID = fi.food_ID
-        WHERE NOT EXISTS (
-          SELECT 1
-          FROM ANIMAL_REMOVAL ar
-          WHERE ar.animal_ID = a.animal_ID
-        )
-        ORDER BY e.name ASC, f.feeding_time ASC, a.name ASC
+          s.feeding_time
+        FROM ENCLOSURE_FEEDING_SCHEDULE s
+        JOIN ENCLOSURE e ON s.enclosure_ID = e.enclosure_ID
+        ORDER BY e.enclosure_ID ASC, s.feeding_time ASC
       `);
       send(res, 200, rows);
       return;
@@ -2155,9 +2143,12 @@ try {
        COALESCE(s.endangered_status, 'Unknown') AS endangered_status,
        a.weight,
        a.weight_unit,
-       a.image_url
+       a.image_url,
+       a.enclosure_ID,
+       e.name AS enclosure_name
      FROM ANIMAL a
      LEFT JOIN SPECIES s ON a.species_ID = s.species_ID
+     LEFT JOIN ENCLOSURE e ON a.enclosure_ID = e.enclosure_ID
      WHERE NOT EXISTS (SELECT 1 FROM ANIMAL_REMOVAL ar WHERE ar.animal_ID = a.animal_ID)
      ORDER BY a.name`
   );
