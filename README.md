@@ -1,12 +1,6 @@
 ## Deployed at
 https://victorious-field-058fd0510.5.azurestaticapps.net/
 
-## Food stall image setup
-
-Before uploading food stall images, apply `migrations/food_stall_images.sql` to
-the application's MySQL database. The migration adds the columns used to store
-images. Deploy the backend after applying the migration.
-
 ## Demo Login Credentials
 
 ### Department 1: Financial and HR
