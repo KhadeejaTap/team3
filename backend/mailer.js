@@ -51,7 +51,7 @@ async function sendEmail({ pool, to, type, referenceType = 'low_stock', subject,
 	if (!['receipt', 'alert'].includes(type)) {
 		throw new Error('Type must be receipt or alert.');
 	}
-	if (!['low_stock', 'event', 'receipt'].includes(referenceType)) {
+	if (!['low_stock', 'event', 'receipt', 'enclosure'].includes(referenceType)) {
 		referenceType = type === 'receipt' ? 'receipt' : 'low_stock';
 	}
 	if (!subject || !body) {
