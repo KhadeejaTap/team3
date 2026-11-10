@@ -27,7 +27,7 @@ CREATE TABLE ATTRACTION (
     name VARCHAR(100),
     type VARCHAR(30),
     location VARCHAR(40),
-    attr_datetime DATE,
+    attr_datetime DATETIME,
     capacity INT,
     description VARCHAR(500)
     -- removed extra comma
@@ -477,4 +477,3 @@ CREATE TABLE IF NOT EXISTS EMAIL_LOG (
     sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     reference_ID INT NOT NULL
 );
-
