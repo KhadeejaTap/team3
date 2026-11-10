@@ -1,3 +1,4 @@
+
 import { useCallback, useEffect, useState } from 'react';
 import { apiFetch } from '../api';
 
@@ -18,6 +19,8 @@ const MAINTENANCE_STATUSES = [
 ];
 
 const COST_CATEGORIES = ['Feeding', 'Maintenance', 'Cleaning', 'Utilities', 'Landscaping'];
+
+const CHART_COLORS = ['#3976a8', '#e5a13b', '#55a477', '#9875bd', '#d46d70'];
 
 const styles = {
   page: { maxWidth: 1200, margin: '0 auto', padding: '24px 16px' },
@@ -143,6 +146,33 @@ function EnclosureManagement() {
     return { ...enclosure, categoryTotals, total };
   });
 
+  // Overall expense totals used by the pie chart
+  const overallCategoryTotals = Object.fromEntries(
+    COST_CATEGORIES.map(category => [
+      category,
+      costReportRows.reduce(
+        (sum, row) => sum + row.categoryTotals[category],
+        0
+      )
+    ])
+  );
+
+  const overallCostTotal = COST_CATEGORIES.reduce(
+    (sum, category) => sum + overallCategoryTotals[category],
+    0
+  );
+
+  let chartProgress = 0;
+
+  const pieChartBackground = overallCostTotal > 0
+    ? `conic-gradient(${COST_CATEGORIES.map((category, index) => {
+        const percentage = (overallCategoryTotals[category] / overallCostTotal) * 100;
+        const start = chartProgress;
+        chartProgress += percentage;
+        return `${CHART_COLORS[index]} ${start}% ${chartProgress}%`;
+      }).join(', ')})`
+    : '#e6e9ed';
+
   function exportCostReport() {
     const headers = ['Enclosure', 'Total', ...COST_CATEGORIES];
     const rows = costReportRows.map(row => [
@@ -177,7 +207,7 @@ function EnclosureManagement() {
 
   useEffect(() => {
     loadEnclosures();
-  }, []); // Load once when the page opens.
+  }, []);
 
   useEffect(() => {
     if (selectedID) loadMaintenance(selectedID);
@@ -295,42 +325,130 @@ function EnclosureManagement() {
             <button type="button" style={styles.secondaryButton} onClick={exportCostReport}>
               Export CSV
             </button>
+
             {filteredCostRecords.length === 0 ? (
               <p style={styles.muted}>No enclosure cost records were found for the selected date range.</p>
             ) : (
-              <div style={{ overflowX: 'auto', marginTop: 14 }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                  <thead>
-                    <tr>
-                      {['Enclosure', 'Total', ...COST_CATEGORIES].map(label => (
-                        <th key={label} style={{ padding: 9, borderBottom: '2px solid #d7dce2', whiteSpace: 'nowrap' }}>{label}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {costReportRows.filter(row => row.total > 0).map(row => (
-                      <tr key={row.enclosure_ID}>
-                        <td style={{ padding: 9, borderBottom: '1px solid #e6e9ed' }}>{row.name}</td>
-                        <td style={{ padding: 9, borderBottom: '1px solid #e6e9ed', fontWeight: 700 }}>${row.total.toFixed(2)}</td>
-                        {COST_CATEGORIES.map(category => (
-                          <td key={category} style={{ padding: 9, borderBottom: '1px solid #e6e9ed' }}>${row.categoryTotals[category].toFixed(2)}</td>
+              <>
+                {/* Expense Pie Chart */}
+                <section style={{
+                  marginTop: 24,
+                  marginBottom: 24,
+                  padding: 20,
+                  border: '1px solid #d7dce2',
+                  borderRadius: 10
+                }}>
+                  <h3>Expense Breakdown by Category</h3>
+                  <p style={styles.muted}>
+                    Distribution of enclosure expenses for the selected date range.
+                  </p>
+
+                  <div style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 32,
+                    padding: '16px 0'
+                  }}>
+                    <div
+                      role="img"
+                      aria-label={`Pie chart showing enclosure expenses totaling $${overallCostTotal.toFixed(2)}`}
+                      style={{
+                        width: 230,
+                        height: 230,
+                        minWidth: 230,
+                        borderRadius: '50%',
+                        background: pieChartBackground,
+                        border: '1px solid #d7dce2'
+                      }}
+                    />
+
+                    <div style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 14,
+                      minWidth: 210
+                    }}>
+                      <div style={{ marginBottom: 4 }}>
+                        <p style={styles.muted}>Total Enclosure Expenses</p>
+                        <h2 style={{ margin: '4px 0', fontSize: 28 }}>
+                          ${overallCostTotal.toLocaleString(undefined, {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2
+                          })}
+                        </h2>
+                      </div>
+
+                      {COST_CATEGORIES.map((category, index) => {
+                        const amount = overallCategoryTotals[category];
+                        const percentage = overallCostTotal > 0
+                          ? (amount / overallCostTotal) * 100
+                          : 0;
+
+                        return (
+                          <div key={category} style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 9
+                          }}>
+                            <span style={{
+                              width: 14,
+                              height: 14,
+                              minWidth: 14,
+                              borderRadius: 3,
+                              background: CHART_COLORS[index]
+                            }} />
+                            <div>
+                              <strong>{category}</strong>
+                              <span style={{ marginLeft: 8, fontSize: 14, color: '#5b6570' }}>
+                                ${amount.toLocaleString(undefined, {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2
+                                })} ({percentage.toFixed(1)}%)
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </section>
+
+                <div style={{ overflowX: 'auto', marginTop: 14 }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                    <thead>
+                      <tr>
+                        {['Enclosure', 'Total', ...COST_CATEGORIES].map(label => (
+                          <th key={label} style={{ padding: 9, borderBottom: '2px solid #d7dce2', whiteSpace: 'nowrap' }}>{label}</th>
                         ))}
                       </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr>
-                      <th style={{ padding: 9, borderTop: '2px solid #d7dce2' }}>All Enclosures</th>
-                      <th style={{ padding: 9, borderTop: '2px solid #d7dce2' }}>${costReportRows.reduce((sum, row) => sum + row.total, 0).toFixed(2)}</th>
-                      {COST_CATEGORIES.map(category => (
-                        <th key={category} style={{ padding: 9, borderTop: '2px solid #d7dce2' }}>
-                          ${costReportRows.reduce((sum, row) => sum + row.categoryTotals[category], 0).toFixed(2)}
-                        </th>
+                    </thead>
+                    <tbody>
+                      {costReportRows.filter(row => row.total > 0).map(row => (
+                        <tr key={row.enclosure_ID}>
+                          <td style={{ padding: 9, borderBottom: '1px solid #e6e9ed' }}>{row.name}</td>
+                          <td style={{ padding: 9, borderBottom: '1px solid #e6e9ed', fontWeight: 700 }}>${row.total.toFixed(2)}</td>
+                          {COST_CATEGORIES.map(category => (
+                            <td key={category} style={{ padding: 9, borderBottom: '1px solid #e6e9ed' }}>${row.categoryTotals[category].toFixed(2)}</td>
+                          ))}
+                        </tr>
                       ))}
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
+                    </tbody>
+                    <tfoot>
+                      <tr>
+                        <th style={{ padding: 9, borderTop: '2px solid #d7dce2' }}>All Enclosures</th>
+                        <th style={{ padding: 9, borderTop: '2px solid #d7dce2' }}>${costReportRows.reduce((sum, row) => sum + row.total, 0).toFixed(2)}</th>
+                        {COST_CATEGORIES.map(category => (
+                          <th key={category} style={{ padding: 9, borderTop: '2px solid #d7dce2' }}>
+                            ${costReportRows.reduce((sum, row) => sum + row.categoryTotals[category], 0).toFixed(2)}
+                          </th>
+                        ))}
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </>
             )}
           </div>
         )}
