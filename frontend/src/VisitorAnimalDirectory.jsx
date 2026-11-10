@@ -1,9 +1,11 @@
-
 import { useEffect, useState } from 'react';
 import { apiFetch } from './api';
 import './VisitorAnimalDirectory.css';
 
-const API_URL = 'http://localhost:5000';
+const API_URL = (
+  import.meta.env.VITE_API_URL ||
+  'https://zoo-team3-api-fbamfnfxfdekbdgr.centralus-01.azurewebsites.net'
+).replace(/\/+$/, '');
 
 const animalImageFiles = import.meta.glob(
   './images/animals/*.{jpg,jpeg,png,webp}',
@@ -37,6 +39,18 @@ function formatDate(value) {
   }
 
   return date.toLocaleDateString();
+}
+
+function getAnimalImage(animal) {
+  if (animal.image_url) {
+    if (/^https?:\/\//i.test(animal.image_url)) {
+      return animal.image_url;
+    }
+
+    return `${API_URL}${animal.image_url.startsWith('/') ? '' : '/'}${animal.image_url}`;
+  }
+
+  return animalImages[normalizeName(animal.name)] || '';
 }
 
 function VisitorAnimalDirectory() {
@@ -114,7 +128,7 @@ function VisitorAnimalDirectory() {
       ) : (
         <div className="visitor-animal-grid">
           {animals.map((animal) => {
-            const image = animalImages[normalizeName(animal.name)];
+            const image = getAnimalImage(animal);
 
             return (
               <article
@@ -126,6 +140,14 @@ function VisitorAnimalDirectory() {
                     className="visitor-animal-image"
                     src={image}
                     alt={animal.name}
+                    onError={(event) => {
+                      const fallback = animalImages[normalizeName(animal.name)];
+                      if (fallback && event.currentTarget.src !== fallback) {
+                        event.currentTarget.src = fallback;
+                      } else {
+                        event.currentTarget.style.display = 'none';
+                      }
+                    }}
                   />
                 ) : (
                   <div className="visitor-animal-image-placeholder">
