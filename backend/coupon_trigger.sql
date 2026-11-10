@@ -1,12 +1,9 @@
 USE zoo;
 
--- Recreate the trigger safely if it already exists.
 DELIMITER $$
 
 DROP TRIGGER IF EXISTS sponsorship_coupon_after_donation$$
 
--- After a qualifying sponsorship donation is inserted, automatically create
--- one unused 15% coupon for the donor.
 CREATE TRIGGER sponsorship_coupon_after_donation
 AFTER INSERT ON DONATION
 FOR EACH ROW
@@ -26,9 +23,3 @@ BEGIN
 END$$
 
 DELIMITER ;
-
--- Show the complete SQL definition of the trigger.
-SHOW CREATE TRIGGER sponsorship_coupon_after_donation;
-
--- Show trigger name, timing, event, and table.
-SHOW TRIGGERS LIKE 'sponsorship_coupon_after_donation';
