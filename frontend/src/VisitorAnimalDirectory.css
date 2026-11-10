@@ -130,27 +130,16 @@
   font-weight: 600;
 }
 
-@media (max-width: 650px) {
-  .visitor-animals {
-    padding: 30px 16px;
-  }
-
-  .visitor-animals .visitor-animals-header h1 {
-    font-size: 2rem;
-  }
-
-  .visitor-animals .visitor-animal-grid {
-    grid-template-columns: 1fr !important;
-  }
-}
-
-/* Compact enclosure-based feeding schedule */
+/* Feeding schedule: compact cards with enough width for readable text */
 .visitor-animals .visitor-feeding-schedule-compact {
   margin: 18px 0 28px;
   padding: 14px 16px;
   border: 1px solid #e1e5ea;
   border-radius: 10px;
   background: #f8fafc;
+  box-sizing: border-box;
+  width: 100%;
+  overflow: hidden;
 }
 
 .visitor-animals .visitor-feeding-schedule-compact h2 {
@@ -167,13 +156,15 @@
 
 .visitor-animals .visitor-feeding-schedule-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
+  width: 100%;
 }
 
 .visitor-animals .visitor-feeding-schedule-item {
   min-width: 0;
-  padding: 9px 11px;
+  box-sizing: border-box;
+  padding: 8px 10px;
   border: 1px solid #e1e5ea;
   border-radius: 7px;
   background: #fff;
@@ -181,134 +172,27 @@
 
 .visitor-animals .visitor-feeding-schedule-item h3 {
   margin: 0 0 5px;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   line-height: 1.25;
   color: #285849;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
 .visitor-animals .visitor-feeding-schedule-item p {
   margin: 0;
   font-size: 0.82rem;
-  line-height: 1.4;
+  line-height: 1.35;
   color: #394354;
+  white-space: normal;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
-@media (max-width: 600px) {
+@media (max-width: 900px) {
   .visitor-animals .visitor-feeding-schedule-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
-
-  .visitor-animals .visitor-feeding-schedule-compact {
-    padding: 12px;
-  }
-}
-
-.visitor-animals .visitor-animal-grid {
-  display: grid !important;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
-  gap: 25px;
-  width: 100%;
-  align-items: stretch;
-}
-
-.visitor-animals .visitor-animal-card {
-  display: block;
-  width: auto !important;
-  min-width: 0;
-  box-sizing: border-box;
-  padding: 25px;
-  background: #fff;
-  border: 1px solid #e1e8e4;
-  border-radius: 14px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.07);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.visitor-animals .visitor-animal-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
-}
-
-.visitor-animals .visitor-animal-image {
-  display: block;
-  width: 100%;
-  height: 210px;
-  object-fit: cover;
-  object-position: center;
-  border-radius: 10px;
-  margin-bottom: 18px;
-}
-
-.visitor-animals .visitor-animal-image-placeholder {
-  display: flex;
-  width: 100%;
-  height: 210px;
-  align-items: center;
-  justify-content: center;
-  background: #e8eee9;
-  color: #666;
-  border-radius: 10px;
-  margin-bottom: 18px;
-}
-
-.visitor-animals .visitor-animal-card h2 {
-  font-size: 1.5rem;
-  color: #285849;
-  margin: 0 0 8px;
-  padding-bottom: 12px;
-  border-bottom: 2px solid #e8eee9;
-  overflow-wrap: anywhere;
-}
-
-.visitor-animals .animal-species {
-  font-size: 1rem;
-  font-weight: 600;
-  color: #285849;
-  margin: 4px 0;
-}
-
-.visitor-animals .animal-scientific-name {
-  font-size: 0.9rem;
-  font-style: italic;
-  color: #777;
-  margin: 0 0 16px;
-}
-
-.visitor-animals .visitor-animal-card dl {
-  margin: 0;
-}
-
-.visitor-animals .visitor-animal-card dl div {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 15px;
-  padding: 12px 0;
-  border-bottom: 1px solid #eee;
-}
-
-.visitor-animals .visitor-animal-card dl div:last-child {
-  border-bottom: none;
-}
-
-.visitor-animals .visitor-animal-card dt {
-  font-weight: 600;
-  color: #555;
-  flex: 1;
-}
-
-.visitor-animals .visitor-animal-card dd {
-  margin: 0;
-  color: #333;
-  text-align: right;
-  flex: 1;
-  overflow-wrap: anywhere;
-}
-
-.visitor-animals .visitor-animals-error {
-  color: #b00020;
-  text-align: center;
-  font-weight: 600;
 }
 
 @media (max-width: 650px) {
@@ -322,5 +206,19 @@
 
   .visitor-animals .visitor-animal-grid {
     grid-template-columns: 1fr !important;
+  }
+
+  .visitor-animals .visitor-feeding-schedule-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .visitor-animals .visitor-feeding-schedule-compact {
+    padding: 12px;
+  }
+}
+
+@media (max-width: 360px) {
+  .visitor-animals .visitor-feeding-schedule-grid {
+    grid-template-columns: 1fr;
   }
 }
