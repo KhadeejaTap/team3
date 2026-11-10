@@ -608,7 +608,7 @@ const server = http.createServer(async (req, res) => {
           a.name,
           a.type,
           a.location,
-          a.attr_datetime,
+          DATE_FORMAT(a.attr_datetime, '%Y-%m-%d %H:%i:%s') AS attr_datetime,
           a.capacity,
           GROUP_CONCAT(CONCAT(e.first_name, ' ', e.last_name) ORDER BY e.last_name SEPARATOR ', ') AS staffed_employees,
           COUNT(sa.employee_ID) AS staff_count
@@ -1410,11 +1410,15 @@ const server = http.createServer(async (req, res) => {
       const upcomingOnly = parsedUrl.searchParams.get('upcoming') === 'true';
 
       const query = upcomingOnly
-        ? `SELECT attr_ID, name, location, type, attr_datetime, description
+        ? `SELECT attr_ID, name, location, type,
+                  DATE_FORMAT(attr_datetime, '%Y-%m-%d %H:%i:%s') AS attr_datetime,
+                  capacity, description
            FROM ATTRACTION
            WHERE attr_datetime >= CURRENT_DATE
            ORDER BY attr_datetime ASC, name ASC`
-        : `SELECT attr_ID, name, location, type, attr_datetime, description
+        : `SELECT attr_ID, name, location, type,
+                  DATE_FORMAT(attr_datetime, '%Y-%m-%d %H:%i:%s') AS attr_datetime,
+                  capacity, description
            FROM ATTRACTION
            ORDER BY name ASC`;
 
@@ -1427,9 +1431,12 @@ const server = http.createServer(async (req, res) => {
       );
     }
   } else if (
-    req.url === '/api/attractions' &&
-    req.method === 'POST'
+    (req.url === '/api/attractions' && req.method === 'POST') ||
+    (req.method === 'PUT' && /^\/api\/attractions\/\d+$/.test(req.url))
   ) {
+    const attractionId = req.method === 'PUT'
+      ? Number(req.url.match(/^\/api\/attractions\/(\d+)$/)[1])
+      : null;
     let body = '';
 
     req.on('data', chunk => {
@@ -1439,19 +1446,101 @@ const server = http.createServer(async (req, res) => {
     req.on('end', async () => {
       try {
         const attraction = JSON.parse(body);
+        if (!attraction || typeof attraction !== 'object' || Array.isArray(attraction)) {
+          res.statusCode = 400;
+          res.end(JSON.stringify({ error: 'Attraction details are required.' }));
+          return;
+        }
+
+        const eventDateTime = attraction.attr_datetime || null;
+
+        if (
+          typeof attraction.name !== 'string' ||
+          !attraction.name.trim() ||
+          attraction.name.trim().length > 100 ||
+          (attraction.type != null &&
+            (typeof attraction.type !== 'string' || attraction.type.length > 30)) ||
+          (attraction.location != null &&
+            (typeof attraction.location !== 'string' || attraction.location.length > 40)) ||
+          (attraction.description != null &&
+            (typeof attraction.description !== 'string' || attraction.description.length > 500)) ||
+          (attraction.capacity != null &&
+            (!Number.isInteger(attraction.capacity) || attraction.capacity < 0))
+        ) {
+          res.statusCode = 400;
+          res.end(JSON.stringify({ error: 'Enter valid attraction details.' }));
+          return;
+        }
+
+        if (eventDateTime !== null) {
+          const match = typeof eventDateTime === 'string'
+            ? eventDateTime.match(
+              /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):([0-5]\d):00$/
+            )
+            : null;
+          const parsedDate = match
+            ? new Date(`${match[1]}-${match[2]}-${match[3]}T00:00:00Z`)
+            : null;
+
+          if (
+            !match ||
+            Number(match[4]) > 23 ||
+            Number.isNaN(parsedDate?.getTime()) ||
+            parsedDate.toISOString().slice(0, 10) !== `${match[1]}-${match[2]}-${match[3]}`
+          ) {
+            res.statusCode = 400;
+            res.end(JSON.stringify({
+              error: 'Enter a valid event date and time.'
+            }));
+            return;
+          }
+        }
+
+        const values = [
+          attraction.name.trim(),
+          attraction.type?.trim() || null,
+          attraction.location?.trim() || null,
+          eventDateTime,
+          attraction.capacity ?? null,
+          attraction.description?.trim() || null
+        ];
+
+        if (attractionId !== null) {
+          if (!Number.isSafeInteger(attractionId) || attractionId <= 0) {
+            res.statusCode = 400;
+            res.end(JSON.stringify({ error: 'Invalid attraction ID.' }));
+            return;
+          }
+
+          const [existing] = await pool.query(
+            'SELECT attr_ID FROM ATTRACTION WHERE attr_ID = ?',
+            [attractionId]
+          );
+          if (existing.length === 0) {
+            res.statusCode = 404;
+            res.end(JSON.stringify({ error: 'Attraction not found.' }));
+            return;
+          }
+
+          await pool.query(
+            `UPDATE ATTRACTION
+             SET name = ?, type = ?, location = ?, attr_datetime = ?,
+                 capacity = ?, description = ?
+             WHERE attr_ID = ?`,
+            [...values, attractionId]
+          );
+          res.end(JSON.stringify({
+            message: 'Attraction updated successfully',
+            attr_ID: attractionId
+          }));
+          return;
+        }
 
         const [result] = await pool.query(
           `INSERT INTO ATTRACTION
            (name, type, location, attr_datetime, capacity, description)
            VALUES (?, ?, ?, ?, ?, ?)`,
-          [
-            attraction.name || null,
-            attraction.type || null,
-            attraction.location || null,
-            attraction.attr_datetime || null,
-            attraction.capacity ?? null,
-            attraction.description || null
-          ]
+          values
         );
 
         res.statusCode = 201;

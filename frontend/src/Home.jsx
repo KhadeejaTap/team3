@@ -516,11 +516,14 @@ function Home({ role, userEmail, userDept }) {
 									<td>{event.type || '—'}</td>
 									<td>
 										{event.attr_datetime
-											? new Date(event.attr_datetime).toLocaleDateString(undefined, {
+											? new Date(event.attr_datetime.replace(' ', 'T')).toLocaleString(undefined, {
 												weekday: 'short',
 												month: 'short',
 												day: 'numeric',
-												year: 'numeric'
+												year: 'numeric',
+												hour: 'numeric',
+												minute: '2-digit',
+												hour12: true
 											})
 											: '—'}
 									</td>

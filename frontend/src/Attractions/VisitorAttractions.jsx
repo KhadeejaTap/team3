@@ -5,17 +5,34 @@ import '../App.css';
 
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/+$/, '');
 
-function formatDate(isoString) {
-	if (!isoString) return 'Upcoming';
-	const date = new Date(isoString);
-	if (Number.isNaN(date.getTime())) {
-		return String(isoString).slice(0, 10);
-	}
-	return date.toLocaleDateString('en-US', {
-		month: 'short',
-		day: 'numeric',
-		year: 'numeric'
-	});
+function formatDateTime(value) {
+	if (!value) return 'Upcoming';
+
+	const match = String(value).match(
+		/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?Z?)?$/
+	);
+	if (!match) return String(value).slice(0, 10);
+
+	const [, year, month, day, hour, minute] = match;
+	const date = new Date(
+		Number(year),
+		Number(month) - 1,
+		Number(day),
+		Number(hour || 0),
+		Number(minute || 0)
+	);
+	const options = hour
+		? {
+			month: 'short',
+			day: 'numeric',
+			year: 'numeric',
+			hour: 'numeric',
+			minute: '2-digit',
+			hour12: true
+		}
+		: { month: 'short', day: 'numeric', year: 'numeric' };
+
+	return date.toLocaleString('en-US', options);
 }
 
 function VisitorAttractions({ canManage = false }) {
@@ -91,7 +108,7 @@ function VisitorAttractions({ canManage = false }) {
 					<div key={item.attr_ID} className="attraction-card">
 						<div className="attraction-card-meta">
 							<span className="attraction-date-pill">
-								{formatDate(item.attr_datetime)}
+								{formatDateTime(item.attr_datetime)}
 							</span>
 							{item.type && (
 								<span className="attraction-type-badge">
