@@ -508,7 +508,7 @@ const server = http.createServer(async (req, res) => {
 
       if (streamType === 'tickets') {
         query = `
-          SELECT 
+          SELECT
             'Admissions' AS stream_category,
             ticket_type AS stream_name,
             COUNT(*) AS transaction_count,
@@ -521,7 +521,7 @@ const server = http.createServer(async (req, res) => {
         `;
       } else if (streamType === 'donations') {
         query = `
-          SELECT 
+          SELECT
             'Fundraising' AS stream_category,
             purpose AS stream_name,
             COUNT(*) AS transaction_count,
@@ -534,7 +534,7 @@ const server = http.createServer(async (req, res) => {
         `;
       } else if (streamType === 'retail') {
         query = `
-          SELECT 
+          SELECT
             'Retail Merchandise' AS stream_category,
             COALESCE(p.name, CONCAT('Product #', ti.item_ID)) AS stream_name,
             COUNT(*) AS transaction_count,
@@ -549,7 +549,7 @@ const server = http.createServer(async (req, res) => {
         `;
       } else if (streamType === 'expenses') {
         query = `
-          SELECT 
+          SELECT
             'Habitat Operations' AS stream_category,
             cost_category AS stream_name,
             COUNT(*) AS transaction_count,
@@ -559,11 +559,37 @@ const server = http.createServer(async (req, res) => {
             COALESCE(MAX(amount), 0) AS max_amount
           FROM ENCLOSURE_COST
           GROUP BY cost_category
+
+          UNION ALL
+
+          SELECT
+            'Animal Healthcare' AS stream_category,
+            cost_category AS stream_name,
+            COUNT(*) AS transaction_count,
+            COALESCE(SUM(amount), 0) AS total_revenue,
+            COALESCE(ROUND(AVG(amount), 2), 0) AS avg_amount,
+            COALESCE(MIN(amount), 0) AS min_amount,
+            COALESCE(MAX(amount), 0) AS max_amount
+          FROM MEDICAL_COST
+          GROUP BY cost_category
+        `;
+      } else if (streamType === 'medical_expenses') {
+        query = `
+          SELECT
+            'Animal Healthcare' AS stream_category,
+            cost_category AS stream_name,
+            COUNT(*) AS transaction_count,
+            COALESCE(SUM(amount), 0) AS total_revenue,
+            COALESCE(ROUND(AVG(amount), 2), 0) AS avg_amount,
+            COALESCE(MIN(amount), 0) AS min_amount,
+            COALESCE(MAX(amount), 0) AS max_amount
+          FROM MEDICAL_COST
+          GROUP BY cost_category
         `;
       } else {
         query = `
           SELECT * FROM (
-            SELECT 
+            SELECT
               'Admissions' AS stream_category,
               ticket_type AS stream_name,
               COUNT(*) AS transaction_count,
@@ -576,7 +602,7 @@ const server = http.createServer(async (req, res) => {
 
             UNION ALL
 
-            SELECT 
+            SELECT
               'Fundraising' AS stream_category,
               purpose AS stream_name,
               COUNT(*) AS transaction_count,
@@ -589,7 +615,7 @@ const server = http.createServer(async (req, res) => {
 
             UNION ALL
 
-            SELECT 
+            SELECT
               'Retail Merchandise' AS stream_category,
               COALESCE(p.name, CONCAT('Product #', ti.item_ID)) AS stream_name,
               COUNT(*) AS transaction_count,
@@ -604,16 +630,29 @@ const server = http.createServer(async (req, res) => {
 
             UNION ALL
 
-          SELECT
-         'Habitat Operations' AS stream_category,
-          cost_category AS stream_name,
-          COUNT(*) AS transaction_count,
-          COALESCE(SUM(amount), 0) AS total_revenue,
-          COALESCE(ROUND(AVG(amount), 2), 0) AS avg_amount,
-          COALESCE(MIN(amount), 0) AS min_amount,
-          COALESCE(MAX(amount), 0) AS max_amount
-          FROM ENCLOSURE_COST
-          GROUP BY cost_category
+            SELECT
+              'Habitat Operations' AS stream_category,
+              cost_category AS stream_name,
+              COUNT(*) AS transaction_count,
+              COALESCE(SUM(amount), 0) AS total_revenue,
+              COALESCE(ROUND(AVG(amount), 2), 0) AS avg_amount,
+              COALESCE(MIN(amount), 0) AS min_amount,
+              COALESCE(MAX(amount), 0) AS max_amount
+            FROM ENCLOSURE_COST
+            GROUP BY cost_category
+
+            UNION ALL
+
+            SELECT
+              'Animal Healthcare' AS stream_category,
+              cost_category AS stream_name,
+              COUNT(*) AS transaction_count,
+              COALESCE(SUM(amount), 0) AS total_revenue,
+              COALESCE(ROUND(AVG(amount), 2), 0) AS avg_amount,
+              COALESCE(MIN(amount), 0) AS min_amount,
+              COALESCE(MAX(amount), 0) AS max_amount
+            FROM MEDICAL_COST
+            GROUP BY cost_category
           ) AS streams
         `;
       }
@@ -628,22 +667,36 @@ const server = http.createServer(async (req, res) => {
       query += ` ORDER BY ${orderClause}`;
 
       const [rows] = await pool.query(query);
-      res.end(JSON.stringify(rows));
+      send(res, 200, rows);
+      return;
     } catch (err) {
-      res.statusCode = 500;
-      res.end(JSON.stringify({ error: err.message }));
+      console.error('Error fetching revenue report:', err);
+      send(res, 500, { error: 'Could not load revenue report.' });
+      return;
     }
   } else if (
     req.url === '/api/reports/financial-summary' &&
     req.method === 'GET'
   ) {
     try {
-      const [[tickets]] = await pool.query('SELECT COALESCE(SUM(price), 0) AS total FROM TICKET');
-      const [[donations]] = await pool.query('SELECT COALESCE(SUM(amount), 0) AS total FROM DONATION');
-      const [[retail]] = await pool.query("SELECT COALESCE(SUM(price * quantity), 0) AS total FROM TRANSACTION_ITEM WHERE item_type = 'product'");
+      const [[tickets]] = await pool.query(
+        'SELECT COALESCE(SUM(price), 0) AS total FROM TICKET'
+      );
+      const [[donations]] = await pool.query(
+        'SELECT COALESCE(SUM(amount), 0) AS total FROM DONATION'
+      );
+      const [[retail]] = await pool.query(
+        "SELECT COALESCE(SUM(price * quantity), 0) AS total FROM TRANSACTION_ITEM WHERE item_type = 'product'"
+      );
       const [categories] = await pool.query(`
         SELECT cost_category, COALESCE(SUM(amount), 0) AS total
         FROM ENCLOSURE_COST
+        GROUP BY cost_category
+        ORDER BY total DESC
+      `);
+      const [medicalCategories] = await pool.query(`
+        SELECT cost_category, COALESCE(SUM(amount), 0) AS total
+        FROM MEDICAL_COST
         GROUP BY cost_category
         ORDER BY total DESC
       `);
@@ -653,8 +706,14 @@ const server = http.createServer(async (req, res) => {
       const retailTotal = Number(retail.total || 0);
       const grossRevenue = admissionsTotal + donationsTotal + retailTotal;
 
-      const enclosureCostsTotal = categories.reduce((sum, c) => sum + Number(c.total || 0), 0);
-      const netBalance = grossRevenue - enclosureCostsTotal;
+      const enclosureCostsTotal = categories.reduce(
+        (sum, category) => sum + Number(category.total || 0), 0
+      );
+      const medicalCostsTotal = medicalCategories.reduce(
+        (sum, category) => sum + Number(category.total || 0), 0
+      );
+      const totalExpenses = enclosureCostsTotal + medicalCostsTotal;
+      const netBalance = grossRevenue - totalExpenses;
 
       send(res, 200, {
         gross_revenue: grossRevenue.toFixed(2),
@@ -662,10 +721,16 @@ const server = http.createServer(async (req, res) => {
         donations_total: donationsTotal.toFixed(2),
         retail_total: retailTotal.toFixed(2),
         enclosure_costs_total: enclosureCostsTotal.toFixed(2),
-        enclosure_categories: categories.map(c => ({
-          category: c.cost_category,
-          amount: Number(c.total || 0).toFixed(2)
+        enclosure_categories: categories.map(category => ({
+          category: category.cost_category,
+          amount: Number(category.total || 0).toFixed(2)
         })),
+        medical_costs_total: medicalCostsTotal.toFixed(2),
+        medical_categories: medicalCategories.map(category => ({
+          category: category.cost_category,
+          amount: Number(category.total || 0).toFixed(2)
+        })),
+        total_expenses: totalExpenses.toFixed(2),
         net_balance: netBalance.toFixed(2)
       });
       return;
@@ -674,7 +739,7 @@ const server = http.createServer(async (req, res) => {
       send(res, 500, { error: 'Could not calculate financial summary.' });
       return;
     }
-  } else if (
+    } else if (
     req.url.startsWith('/api/reports/species') &&
     req.method === 'GET'
   ) {
@@ -1285,6 +1350,128 @@ const server = http.createServer(async (req, res) => {
       return;
     }
   } else if (
+    req.url.startsWith('/api/medical-costs?') &&
+    req.method === 'GET'
+  ) {
+    const parsedUrl = new URL(req.url, 'http://localhost');
+    const recordID = Number(parsedUrl.searchParams.get('record_ID'));
+
+    if (!Number.isInteger(recordID) || recordID <= 0) {
+      send(res, 400, { error: 'A valid medical record ID is required.' });
+      return;
+    }
+
+    try {
+      const [rows] = await pool.query(
+        `SELECT medical_cost_ID, record_ID, cost_category, description,
+                amount, cost_date
+         FROM MEDICAL_COST
+         WHERE record_ID = ?
+         ORDER BY cost_date DESC, medical_cost_ID DESC`,
+        [recordID]
+      );
+      send(res, 200, rows);
+      return;
+    } catch (err) {
+      console.error('Error loading medical costs:', err);
+      send(res, 500, { error: 'Could not load medical costs.' });
+      return;
+    }
+  } else if (
+    req.url === '/api/medical-costs' &&
+    req.method === 'POST'
+  ) {
+    let cost;
+    try {
+      cost = await readBody(req);
+    } catch (err) {
+      send(res, err.status || 400, { error: err.message });
+      return;
+    }
+
+    const recordID = Number(cost?.record_ID);
+    const category = typeof cost?.cost_category === 'string'
+      ? cost.cost_category.trim()
+      : '';
+    const description = typeof cost?.description === 'string'
+      ? cost.description.trim()
+      : '';
+    const amount = Number(cost?.amount);
+    const costDate = cost?.cost_date || null;
+
+    if (
+      !Number.isInteger(recordID) || recordID <= 0 ||
+      !category || category.length > 100 ||
+      description.length > 255 ||
+      !Number.isFinite(amount) || amount <= 0 ||
+      (costDate !== null && !/^\d{4}-\d{2}-\d{2}$/.test(String(costDate)))
+    ) {
+      send(res, 400, {
+        error: 'Provide a valid record ID, cost category, optional description, positive amount, and valid cost date.'
+      });
+      return;
+    }
+
+    try {
+      const [recordRows] = await pool.query(
+        'SELECT record_ID FROM MEDICAL_RECORD WHERE record_ID = ?',
+        [recordID]
+      );
+
+      if (recordRows.length === 0) {
+        send(res, 404, { error: 'Medical record not found.' });
+        return;
+      }
+
+      const [result] = await pool.execute(
+        `INSERT INTO MEDICAL_COST
+         (record_ID, cost_category, description, amount, cost_date)
+         VALUES (?, ?, ?, ?, COALESCE(?, CURRENT_DATE))`,
+        [recordID, category, description || null, amount, costDate]
+      );
+
+      send(res, 201, {
+        message: 'Medical cost saved successfully.',
+        medical_cost_ID: result.insertId
+      });
+      return;
+    } catch (err) {
+      console.error('Error saving medical cost:', err);
+      send(res, 500, { error: 'Could not save medical cost.' });
+      return;
+    }
+  } else if (
+    req.url === '/api/reports/medical-costs' &&
+    req.method === 'GET'
+  ) {
+    try {
+      const [rows] = await pool.query(`
+        SELECT
+          mc.medical_cost_ID,
+          mc.record_ID,
+          mc.cost_category,
+          mc.description,
+          mc.amount,
+          mc.cost_date,
+          mr.animal_ID,
+          a.name AS animal_name,
+          s.common_name AS species_name,
+          mr.diagnosis,
+          mr.treatment
+        FROM MEDICAL_COST mc
+        JOIN MEDICAL_RECORD mr ON mc.record_ID = mr.record_ID
+        JOIN ANIMAL a ON mr.animal_ID = a.animal_ID
+        LEFT JOIN SPECIES s ON a.species_ID = s.species_ID
+        ORDER BY mc.cost_date DESC, mc.medical_cost_ID DESC
+      `);
+      send(res, 200, rows);
+      return;
+    } catch (err) {
+      console.error('Error loading medical cost report:', err);
+      send(res, 500, { error: 'Could not load medical cost report.' });
+      return;
+    }
+    } else if (
     req.url === '/api/breeding-program' &&
     req.method === 'GET'
   ) {
