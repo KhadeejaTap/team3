@@ -178,49 +178,58 @@ function RevenueDetails({ role, userDept }) {
 	return (
 		<div>
 			<h2>Zoo Revenue & Financial Statement</h2>
-			<p>Financial breakdown of ticket admissions, fundraising donations, gift shop retail sales, habitat operations, animal healthcare, and animal food expenses.</p>
+			<p style={{ fontSize: '1.05rem', lineHeight: '1.5', color: '#334155', margin: '8px 0 16px 0' }}>
+				Financial breakdown of ticket admissions, fundraising donations, gift shop retail sales, habitat operations, animal healthcare, and animal food expenses.
+			</p>
 
 			{summary && (
-				<fieldset style={{ margin: '16px 0', padding: '12px' }}>
-					<legend><strong>Executive Operating Statement</strong></legend>
-					<table border="1" cellPadding="6" cellSpacing="0" style={{ width: '100%', marginBottom: '8px' }}>
+				<fieldset style={{ margin: '16px 0', padding: '16px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+					<legend><strong style={{ fontSize: '1.08rem', color: '#0f172a' }}>Executive Operating Statement</strong></legend>
+					<table border="1" cellPadding="8" cellSpacing="0" style={{ width: '100%', marginBottom: '8px', background: '#ffffff', borderCollapse: 'collapse', borderColor: '#cbd5e1' }}>
 						<thead>
-							<tr>
-								<th>Gross Revenue (Inflows)</th>
-								<th>Habitat Operations (Outflows)</th>
-								<th>Animal Healthcare (Outflows)</th>
-								<th>Food Costs (Outflows)</th>
-								<th>Total Expenses</th>
-								<th>Net Operating Balance</th>
+							<tr style={{ background: '#f1f5f9' }}>
+								<th style={{ padding: '10px', fontSize: '0.95rem' }}>Gross Revenue (Inflows)</th>
+								<th style={{ padding: '10px', fontSize: '0.95rem' }}>Habitat Operations (Outflows)</th>
+								<th style={{ padding: '10px', fontSize: '0.95rem' }}>Animal Healthcare (Outflows)</th>
+								<th style={{ padding: '10px', fontSize: '0.95rem' }}>Food Costs (Outflows)</th>
+								<th style={{ padding: '10px', fontSize: '0.95rem' }}>Total Expenses</th>
+								<th style={{ padding: '10px', fontSize: '0.95rem' }}>Net Operating Balance</th>
 							</tr>
 						</thead>
 						<tbody>
 							<tr>
-								<td>
-									<strong>+${formatCurrency(summary.gross_revenue)}</strong>
-									<br />
-									<small>Admissions: ${formatCurrency(summary.admissions_total)} | Donations: ${formatCurrency(summary.donations_total)} | Retail: ${formatCurrency(summary.retail_total)}</small>
+								<td style={{ padding: '10px' }}>
+									<strong style={{ fontSize: '1.12rem' }}>+${formatCurrency(summary.gross_revenue)}</strong>
+									<div style={{ fontSize: '0.92rem', color: '#475569', marginTop: '6px', lineHeight: '1.4' }}>
+										Admissions: ${formatCurrency(summary.admissions_total)} | Donations: ${formatCurrency(summary.donations_total)} | Retail: ${formatCurrency(summary.retail_total)}
+									</div>
 								</td>
-								<td>
-									<strong>-${formatCurrency(summary.enclosure_costs_total)}</strong>
-									<br />
-									<small>{(summary.enclosure_categories || []).map((category) => `${category.category}: $${formatCurrency(category.amount)}`).join(' | ') || 'No habitat expenses recorded'}</small>
+								<td style={{ padding: '10px' }}>
+									<strong style={{ fontSize: '1.12rem' }}>-${formatCurrency(summary.enclosure_costs_total)}</strong>
+									<div style={{ fontSize: '0.92rem', color: '#475569', marginTop: '6px', lineHeight: '1.4' }}>
+										{(summary.enclosure_categories || []).map((category) => `${category.category}: $${formatCurrency(category.amount)}`).join(' | ') || 'No habitat expenses recorded'}
+									</div>
 								</td>
-								<td>
-									<strong>-${formatCurrency(summary.medical_costs_total)}</strong>
-									<br />
-									<small>{(summary.medical_categories || []).map((category) => `${category.category}: $${formatCurrency(category.amount)}`).join(' | ') || 'No medical expenses recorded'}</small>
+								<td style={{ padding: '10px' }}>
+									<strong style={{ fontSize: '1.12rem' }}>-${formatCurrency(summary.medical_costs_total)}</strong>
+									<div style={{ fontSize: '0.92rem', color: '#475569', marginTop: '6px', lineHeight: '1.4' }}>
+										{(summary.medical_categories || []).map((category) => `${category.category}: $${formatCurrency(category.amount)}`).join(' | ') || 'No medical expenses recorded'}
+									</div>
 								</td>
-								<td>
-									<strong>-${formatCurrency(summary.food_costs_total)}</strong>
-									<br />
-									<small>{(summary.food_categories || []).map((category) => `${category.category}: $${formatCurrency(category.amount)}`).join(' | ') || 'No food expenses recorded'}</small>
+								<td style={{ padding: '10px' }}>
+									<strong style={{ fontSize: '1.12rem' }}>-${formatCurrency(summary.food_costs_total)}</strong>
+									<div style={{ fontSize: '0.92rem', color: '#475569', marginTop: '6px', lineHeight: '1.4' }}>
+										{(summary.food_categories || []).map((category) => `${category.category}: $${formatCurrency(category.amount)}`).join(' | ') || 'No food expenses recorded'}
+									</div>
 								</td>
-								<td><strong>-${formatCurrency(summary.total_expenses)}</strong></td>
-								<td style={{ color: Number(summary.net_balance) < 0 ? '#b00' : '#070' }}>
-									<strong>{Number(summary.net_balance) < 0 ? '-' : '+'}${formatCurrency(Math.abs(Number(summary.net_balance)))}</strong>
-									<br />
-									<small>{Number(summary.net_balance) < 0 ? 'Operating Deficit' : 'Operating Surplus'}</small>
+								<td style={{ padding: '10px' }}>
+									<strong style={{ fontSize: '1.12rem' }}>-${formatCurrency(summary.total_expenses)}</strong>
+								</td>
+								<td style={{ padding: '10px', color: Number(summary.net_balance) < 0 ? '#b00' : '#070' }}>
+									<strong style={{ fontSize: '1.12rem' }}>{Number(summary.net_balance) < 0 ? '-' : '+'}${formatCurrency(Math.abs(Number(summary.net_balance)))}</strong>
+									<div style={{ fontSize: '0.92rem', fontWeight: '600', marginTop: '6px' }}>
+										{Number(summary.net_balance) < 0 ? 'Operating Deficit' : 'Operating Surplus'}
+									</div>
 								</td>
 							</tr>
 						</tbody>
@@ -254,7 +263,7 @@ function RevenueDetails({ role, userDept }) {
 					{loading ? 'Loading...' : 'Generate Report'}
 				</button>
 				{lastUpdated && (
-					<span style={{ marginLeft: '10px', fontSize: '0.85em', color: '#555' }}>
+					<span style={{ marginLeft: '10px', fontSize: '0.92rem', color: '#475569' }}>
 						(Report generated at {lastUpdated})
 					</span>
 				)}

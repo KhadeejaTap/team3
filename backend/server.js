@@ -19,6 +19,85 @@ function send(res, status, data) {
   res.end(JSON.stringify(data));
 }
 
+function generatePaychecksForPeriod(employeeID, departmentID, salary, startDateStr, endDateStr, asOfDateStr) {
+  if (!startDateStr || !salary || Number(salary) <= 0) return [];
+  const start = new Date(startDateStr);
+  const asOf = asOfDateStr ? new Date(asOfDateStr) : new Date();
+  const end = endDateStr ? new Date(endDateStr) : asOf;
+  const periods = [];
+
+  if (start > asOf) {
+    return periods;
+  }
+
+  let curYear = start.getFullYear();
+  let curMonth = start.getMonth();
+
+  while (true) {
+    const p1Start = new Date(curYear, curMonth, 1);
+    const p1End = new Date(curYear, curMonth, 15);
+    const p1StartStr = p1Start.toISOString().split('T')[0];
+    const p1EndStr = p1End.toISOString().split('T')[0];
+
+    if (p1End >= start && p1Start <= end) {
+      periods.push({
+        start: p1StartStr,
+        end: p1EndStr,
+        payDate: p1EndStr,
+        status: p1End <= asOf ? 'paid' : 'pending'
+      });
+    }
+
+    const lastDay = new Date(curYear, curMonth + 1, 0).getDate();
+    const p2Start = new Date(curYear, curMonth, 16);
+    const p2End = new Date(curYear, curMonth, lastDay);
+    const p2StartStr = p2Start.toISOString().split('T')[0];
+    const p2EndStr = p2End.toISOString().split('T')[0];
+
+    if (p2End >= start && p2Start <= end) {
+      periods.push({
+        start: p2StartStr,
+        end: p2EndStr,
+        payDate: p2EndStr,
+        status: p2End <= asOf ? 'paid' : 'pending'
+      });
+    }
+
+    curMonth++;
+    if (curMonth > 11) {
+      curMonth = 0;
+      curYear++;
+    }
+
+    if (new Date(curYear, curMonth, 1) > end) {
+      break;
+    }
+  }
+
+  const gross = Math.round((Number(salary) / 24) * 100) / 100;
+  const fedTax = Math.round(gross * 0.12 * 100) / 100;
+  const ficaTax = Math.round(gross * 0.0765 * 100) / 100;
+  const stateTax = 0.00;
+  const benefits = Math.round(gross * 0.035 * 100) / 100;
+  const net = Math.round((gross - fedTax - ficaTax - stateTax - benefits) * 100) / 100;
+
+  return periods.map(p => [
+    employeeID,
+    departmentID,
+    p.start,
+    p.end,
+    p.payDate,
+    gross,
+    fedTax,
+    ficaTax,
+    stateTax,
+    benefits,
+    net,
+    'direct_deposit',
+    p.status
+  ]);
+}
+
 
 const animalUploadDirectory = path.join(__dirname, 'uploads', 'animals');
 const MAX_ANIMAL_IMAGE_SIZE = 5 * 1024 * 1024;
@@ -444,7 +523,7 @@ const server = http.createServer(async (req, res) => {
             WHEN p.quantity_in_stock > p.reorder_level THEN 'Restocked'
             ELSE 'Low'
           END AS stock_condition,
-          (SELECT el.sent_at FROM EMAIL_LOG el WHERE el.email_type = 'alert' AND el.reference_ID = a.alert_ID ORDER BY el.sent_at DESC LIMIT 1) AS auto_emailed_at
+          (SELECT el.sent_at FROM EMAIL_LOG el WHERE el.reference_type = 'low_stock' AND el.reference_ID = a.alert_ID ORDER BY el.sent_at DESC LIMIT 1) AS auto_emailed_at
         FROM low_stock_alert a
         JOIN product p ON a.product_ID = p.product_ID
         ORDER BY a.created_at DESC
@@ -506,16 +585,19 @@ const server = http.createServer(async (req, res) => {
   } else if (req.url === '/api/alerts/notify-head' && req.method === 'POST') {
     try {
       const body = await readBody(req);
-      const { department_ID, subject, message, reference_ID } = body;
+      const { department_ID, subject, message, reference_ID, reference_type } = body;
 
       if (!department_ID || !subject || !message || reference_ID === undefined) {
         send(res, 400, { error: 'department_ID, subject, message, and reference_ID are required.' });
         return;
       }
 
+      const refType = reference_type || (subject.toLowerCase().includes('event') ? 'event' : 'low_stock');
+
       const result = await sendDepartmentAlert({
         pool,
         departmentID: Number(department_ID),
+        referenceType: refType,
         subject,
         body: message,
         referenceID: Number(reference_ID)
@@ -540,6 +622,7 @@ const server = http.createServer(async (req, res) => {
       const parsedUrl = new URL(req.url, 'http://localhost');
       const email = parsedUrl.searchParams.get('email');
       const type = parsedUrl.searchParams.get('type');
+      const refType = parsedUrl.searchParams.get('reference_type');
       let query = 'SELECT * FROM EMAIL_LOG';
       const params = [];
       const conditions = [];
@@ -551,6 +634,10 @@ const server = http.createServer(async (req, res) => {
       if (type && type.trim()) {
         conditions.push('email_type = ?');
         params.push(type.trim());
+      }
+      if (refType && refType.trim()) {
+        conditions.push('reference_type = ?');
+        params.push(refType.trim());
       }
       if (conditions.length > 0) {
         query += ' WHERE ' + conditions.join(' AND ');
@@ -637,30 +724,20 @@ const server = http.createServer(async (req, res) => {
       const departmentId = parsedUrl.searchParams.get('department_id');
       const sortBy = parsedUrl.searchParams.get('sort_by') || 'payroll';
       const email = parsedUrl.searchParams.get('email');
+      const viewMode = parsedUrl.searchParams.get('view_mode') || 'department';
+      const timeFrame = parsedUrl.searchParams.get('time_frame') || 'all';
+      let startDate = parsedUrl.searchParams.get('start_date');
+      let endDate = parsedUrl.searchParams.get('end_date');
+      const minSalary = parsedUrl.searchParams.get('min_salary');
+      const maxSalary = parsedUrl.searchParams.get('max_salary');
+      const empType = parsedUrl.searchParams.get('employment_type') || 'all';
 
-      let query = `
-        SELECT 
-          d.department_ID,
-          d.department_name,
-          CONCAT_WS(' ', h.first_name, h.last_name) AS department_head,
-          COUNT(e.employee_ID) AS active_headcount,
-          COALESCE(SUM(e.salary), 0) AS total_payroll,
-          COALESCE(ROUND(AVG(e.salary), 2), 0) AS average_salary,
-          COALESCE(MIN(e.salary), 0) AS min_salary,
-          COALESCE(MAX(e.salary), 0) AS max_salary,
-          CASE d.department_ID
-            WHEN 1 THEN 200000
-            WHEN 2 THEN 580000
-            WHEN 3 THEN 210000
-            WHEN 4 THEN 180000
-            ELSE 150000
-          END AS allocated_budget
-        FROM DEPARTMENT d
-        LEFT JOIN EMPLOYEE h ON d.head_employee_ID = h.employee_ID
-        LEFT JOIN EMPLOYEE e ON d.department_ID = e.department_ID AND e.current = 1
-      `;
-      const params = [];
+      if (timeFrame === 'ytd') {
+        startDate = '2026-01-01';
+        endDate = '2026-11-10';
+      }
 
+      let scopedDeptId = null;
       if (email) {
         const [userRole] = await pool.query(
           `SELECT u.role, e.department_ID 
@@ -672,35 +749,238 @@ const server = http.createServer(async (req, res) => {
         const isManager = userRole.length > 0 && userRole[0].role === 'manager';
         const isFinHR = userRole.length > 0 && userRole[0].department_ID === 1;
 
-        if (isManager && !isFinHR) {
-          query += ' WHERE d.department_ID = (SELECT department_ID FROM EMPLOYEE WHERE email = ?)';
-          params.push(email);
-        } else if (departmentId && departmentId !== 'all') {
-          query += ' WHERE d.department_ID = ?';
-          params.push(departmentId);
+        if (isManager && !isFinHR && userRole[0].department_ID) {
+          scopedDeptId = userRole[0].department_ID;
         }
-      } else if (departmentId && departmentId !== 'all') {
-        query += ' WHERE d.department_ID = ?';
-        params.push(departmentId);
       }
 
-      query += ' GROUP BY d.department_ID, d.department_name, h.first_name, h.last_name';
+      const effectiveDeptId = scopedDeptId || (departmentId && departmentId !== 'all' ? departmentId : null);
+
+      if (viewMode === 'employee') {
+        let empQuery = `
+          SELECT 
+            e.employee_ID,
+            CONCAT_WS(' ', e.first_name, e.last_name) AS name,
+            e.first_name,
+            e.last_name,
+            e.email,
+            d.department_ID,
+            d.department_name,
+            e.role,
+            COALESCE(e.hours, 40) AS hours,
+            CASE WHEN COALESCE(e.hours, 40) >= 35 THEN 'Full-Time' ELSE 'Part-Time' END AS employment_type,
+            e.salary AS annual_salary,
+            ROUND(e.salary / NULLIF(COALESCE(e.hours, 40) * 52, 0), 2) AS hourly_equivalent,
+            DATE_FORMAT(e.hire_date, '%Y-%m-%d') AS hire_date,
+            ROUND(TIMESTAMPDIFF(MONTH, e.hire_date, CURDATE()) / 12, 1) AS tenure_years,
+            COALESCE(p.total_career_gross, 0) AS career_gross,
+            COALESCE(p.total_career_net, 0) AS career_net,
+            COALESCE(p.total_career_taxes, 0) AS career_taxes,
+            COALESCE(p.total_career_benefits, 0) AS career_benefits,
+            COALESCE(p.total_checks_count, 0) AS total_checks_count,
+            DATE_FORMAT(p.first_pay_date, '%Y-%m-%d') AS first_pay_date,
+            DATE_FORMAT(p.latest_pay_date, '%Y-%m-%d') AS latest_pay_date,
+            COALESCE(pr.period_gross, 0) AS period_gross,
+            COALESCE(pr.period_net, 0) AS period_net,
+            COALESCE(pr.period_taxes, 0) AS period_taxes,
+            COALESCE(pr.period_checks_count, 0) AS period_checks_count
+          FROM EMPLOYEE e
+          JOIN DEPARTMENT d ON e.department_ID = d.department_ID
+          LEFT JOIN (
+            SELECT 
+              employee_ID,
+              SUM(gross_pay) AS total_career_gross,
+              SUM(net_pay) AS total_career_net,
+              SUM(federal_tax + fica_tax + state_tax) AS total_career_taxes,
+              SUM(benefits_deduction) AS total_career_benefits,
+              COUNT(paycheck_ID) AS total_checks_count,
+              MIN(payment_date) AS first_pay_date,
+              MAX(payment_date) AS latest_pay_date
+            FROM PAYCHECK
+            GROUP BY employee_ID
+          ) p ON e.employee_ID = p.employee_ID
+          LEFT JOIN (
+            SELECT 
+              employee_ID,
+              SUM(gross_pay) AS period_gross,
+              SUM(net_pay) AS period_net,
+              SUM(federal_tax + fica_tax + state_tax) AS period_taxes,
+              COUNT(paycheck_ID) AS period_checks_count
+            FROM PAYCHECK
+            WHERE 1=1
+              ${startDate ? 'AND payment_date >= ?' : ''}
+              ${endDate ? 'AND payment_date <= ?' : ''}
+            GROUP BY employee_ID
+          ) pr ON e.employee_ID = pr.employee_ID
+          WHERE e.current = 1
+        `;
+        const empParams = [];
+        if (startDate) empParams.push(startDate);
+        if (endDate) empParams.push(endDate);
+
+        if (effectiveDeptId) {
+          empQuery += ' AND e.department_ID = ?';
+          empParams.push(effectiveDeptId);
+        }
+        if (minSalary) {
+          empQuery += ' AND e.salary >= ?';
+          empParams.push(Number(minSalary));
+        }
+        if (maxSalary) {
+          empQuery += ' AND e.salary <= ?';
+          empParams.push(Number(maxSalary));
+        }
+        if (empType === 'full_time') {
+          empQuery += ' AND COALESCE(e.hours, 40) >= 35';
+        } else if (empType === 'part_time') {
+          empQuery += ' AND COALESCE(e.hours, 40) < 35';
+        }
+
+        const empSortColumns = {
+          payroll: 'e.salary DESC',
+          career_gross: 'career_gross DESC',
+          period_gross: 'period_gross DESC',
+          checks: 'total_checks_count DESC',
+          tenure: 'tenure_years DESC',
+          name: 'e.last_name ASC, e.first_name ASC',
+          dept: 'd.department_name ASC'
+        };
+        const empOrderClause = empSortColumns[sortBy] || 'career_gross DESC';
+        empQuery += ` ORDER BY ${empOrderClause}`;
+
+        const [rows] = await pool.query(empQuery, empParams);
+        res.end(JSON.stringify(rows));
+        return;
+      }
+
+      // Default: 'department' summary view
+      let deptQuery = `
+        SELECT 
+          d.department_ID,
+          d.department_name,
+          CONCAT_WS(' ', h.first_name, h.last_name) AS department_head,
+          COUNT(DISTINCT e.employee_ID) AS active_headcount,
+          SUM(CASE WHEN COALESCE(e.hours, 40) >= 35 THEN 1 ELSE 0 END) AS full_time_count,
+          SUM(CASE WHEN COALESCE(e.hours, 40) < 35 THEN 1 ELSE 0 END) AS part_time_count,
+          COALESCE(SUM(e.salary), 0) AS total_payroll,
+          COALESCE(ROUND(AVG(e.salary), 2), 0) AS average_salary,
+          COALESCE(MIN(e.salary), 0) AS min_salary,
+          COALESCE(MAX(e.salary), 0) AS max_salary,
+          COALESCE(ROUND(SUM(e.salary) / NULLIF(SUM(COALESCE(e.hours, 40) * 52), 0), 2), 0) AS effective_avg_hourly_rate,
+          COALESCE(ROUND(AVG(TIMESTAMPDIFF(MONTH, e.hire_date, CURDATE()) / 12), 1), 0) AS avg_tenure_years,
+          CASE d.department_ID
+            WHEN 1 THEN 200000
+            WHEN 2 THEN 580000
+            WHEN 3 THEN 210000
+            WHEN 4 THEN 180000
+            ELSE 150000
+          END AS allocated_budget,
+          COALESCE(p.total_disbursed_gross, 0) AS total_disbursed_gross,
+          COALESCE(p.total_disbursed_net, 0) AS total_disbursed_net,
+          COALESCE(p.total_taxes_withheld, 0) AS total_taxes_withheld,
+          COALESCE(p.total_benefits_deducted, 0) AS total_benefits_deducted,
+          COALESCE(p.paychecks_count, 0) AS paychecks_count
+        FROM DEPARTMENT d
+        LEFT JOIN EMPLOYEE h ON d.head_employee_ID = h.employee_ID
+        LEFT JOIN EMPLOYEE e ON d.department_ID = e.department_ID AND e.current = 1
+      `;
+      const deptParams = [];
+
+      const filterConditions = [];
+      if (minSalary) {
+        filterConditions.push('e.salary >= ?');
+        deptParams.push(Number(minSalary));
+      }
+      if (maxSalary) {
+        filterConditions.push('e.salary <= ?');
+        deptParams.push(Number(maxSalary));
+      }
+      if (empType === 'full_time') {
+        filterConditions.push('COALESCE(e.hours, 40) >= 35');
+      } else if (empType === 'part_time') {
+        filterConditions.push('COALESCE(e.hours, 40) < 35');
+      }
+
+      if (filterConditions.length > 0) {
+        deptQuery += ' AND ' + filterConditions.join(' AND ');
+      }
+
+      deptQuery += `
+        LEFT JOIN (
+          SELECT 
+            department_ID,
+            SUM(gross_pay) AS total_disbursed_gross,
+            SUM(net_pay) AS total_disbursed_net,
+            SUM(federal_tax + fica_tax + state_tax) AS total_taxes_withheld,
+            SUM(benefits_deduction) AS total_benefits_deducted,
+            COUNT(paycheck_ID) AS paychecks_count
+          FROM PAYCHECK
+          WHERE 1=1
+            ${startDate ? 'AND payment_date >= ?' : ''}
+            ${endDate ? 'AND payment_date <= ?' : ''}
+          GROUP BY department_ID
+        ) p ON d.department_ID = p.department_ID
+      `;
+      if (startDate) deptParams.push(startDate);
+      if (endDate) deptParams.push(endDate);
+
+      if (effectiveDeptId) {
+        deptQuery += ' WHERE d.department_ID = ?';
+        deptParams.push(effectiveDeptId);
+      }
+
+      deptQuery += ' GROUP BY d.department_ID, d.department_name, h.first_name, h.last_name, p.total_disbursed_gross, p.total_disbursed_net, p.total_taxes_withheld, p.total_benefits_deducted, p.paychecks_count';
 
       const sortColumns = {
         payroll: 'total_payroll DESC',
+        disbursed: 'total_disbursed_gross DESC',
         headcount: 'active_headcount DESC',
         avg_salary: 'average_salary DESC',
         budget: 'allocated_budget DESC',
         name: 'd.department_name ASC'
       };
       const orderClause = sortColumns[sortBy] || 'total_payroll DESC';
-      query += ` ORDER BY ${orderClause}`;
+      deptQuery += ` ORDER BY ${orderClause}`;
 
-      const [rows] = await pool.query(query, params);
+      const [rows] = await pool.query(deptQuery, deptParams);
       res.end(JSON.stringify(rows));
     } catch (err) {
       res.statusCode = 500;
       res.end(JSON.stringify({ error: err.message }));
+    }
+  } else if (
+    req.url.match(/^\/api\/employees\/(\d+)\/paychecks/) &&
+    req.method === 'GET'
+  ) {
+    try {
+      const match = req.url.match(/^\/api\/employees\/(\d+)\/paychecks/);
+      const empId = Number(match[1]);
+      const [rows] = await pool.query(
+        `SELECT 
+          paycheck_ID,
+          employee_ID,
+          department_ID,
+          DATE_FORMAT(pay_period_start, '%Y-%m-%d') AS pay_period_start,
+          DATE_FORMAT(pay_period_end, '%Y-%m-%d') AS pay_period_end,
+          DATE_FORMAT(payment_date, '%Y-%m-%d') AS payment_date,
+          gross_pay,
+          federal_tax,
+          fica_tax,
+          ROUND(gross_pay * 0.062, 2) AS social_security,
+          ROUND(gross_pay * 0.0145, 2) AS medicare,
+          state_tax,
+          benefits_deduction,
+          net_pay,
+          payment_method,
+          status
+        FROM PAYCHECK
+        WHERE employee_ID = ?
+        ORDER BY payment_date DESC`,
+        [empId]
+      );
+      send(res, 200, rows);
+    } catch (err) {
+      send(res, 500, { error: err.message });
     }
   } else if (
     req.url.startsWith('/api/reports/revenue') &&
@@ -1406,10 +1686,13 @@ const server = http.createServer(async (req, res) => {
         LEFT JOIN MENU_ITEM m ON ti.item_ID = m.item_ID AND ti.item_type = 'food'
         LEFT JOIN TICKET t ON ti.item_ID = t.ticket_ID AND ti.item_type = 'ticket'
         WHERE LOWER(v.email) = LOWER(?)
+           OR ct.transaction_ID IN (
+             SELECT reference_ID FROM EMAIL_LOG WHERE email_type = 'receipt' AND LOWER(recipient_email) = LOWER(?)
+           )
         ORDER BY ct.transaction_date DESC, ct.transaction_ID DESC
       `;
 
-      const [rows] = await pool.query(query, [email.trim()]);
+      const [rows] = await pool.query(query, [email.trim(), email.trim()]);
 
       const ordersMap = new Map();
       for (const row of rows) {
@@ -2371,6 +2654,28 @@ try {
           ]
         );
 
+        // Generate initial paychecks for the newly added worker
+        const newPaychecks = generatePaychecksForPeriod(
+          newEmployeeID,
+          Number(data.department_ID),
+          Number(data.salary),
+          data.hire_date
+        );
+
+        if (newPaychecks.length > 0) {
+          for (let i = 0; i < newPaychecks.length; i += 500) {
+            const chunk = newPaychecks.slice(i, i + 500);
+            await connection.query(
+              `INSERT INTO PAYCHECK 
+                (employee_ID, department_ID, pay_period_start, pay_period_end, payment_date,
+                 gross_pay, federal_tax, fica_tax, state_tax, benefits_deduction, net_pay,
+                 payment_method, status)
+               VALUES ?`,
+              [chunk]
+            );
+          }
+        }
+
         if (data.is_dept_head && data.department_ID) {
           await connection.query(
             'UPDATE DEPARTMENT SET head_employee_ID = ? WHERE department_ID = ?',
@@ -2952,27 +3257,31 @@ try {
         const totalAmount = data.total ? Number(data.total) : discountedSubtotal + tax;
 
         let visitorID = data.visitor_ID || null;
-        const checkoutEmail = typeof data.email === 'string' && data.email.trim() ? data.email.trim() : null;
+        const receiptEmail = typeof data.email === 'string' && data.email.trim() ? data.email.trim() : null;
+        const accountEmail = typeof data.account_email === 'string' && data.account_email.trim()
+          ? data.account_email.trim()
+          : null;
+        const ownerEmail = accountEmail || receiptEmail;
 
-        if (!visitorID && checkoutEmail) {
+        if (!visitorID && ownerEmail) {
           const [existingVisitor] = await connection.query(
             'SELECT visitor_ID FROM VISITOR WHERE LOWER(email) = LOWER(?)',
-            [checkoutEmail]
+            [ownerEmail]
           );
           if (existingVisitor.length > 0) {
             visitorID = existingVisitor[0].visitor_ID;
           } else {
             const [u] = await connection.query(
               'SELECT first_name, last_name FROM users WHERE LOWER(email) = LOWER(?)',
-              [checkoutEmail]
+              [ownerEmail]
             );
             const fullName = u.length > 0 && (u[0].first_name || u[0].last_name)
               ? [u[0].first_name, u[0].last_name].filter(Boolean).join(' ')
-              : checkoutEmail.split('@')[0];
+              : ownerEmail.split('@')[0];
 
             const [newVisitor] = await connection.query(
               'INSERT INTO VISITOR (name, email) VALUES (?, ?)',
-              [fullName, checkoutEmail]
+              [fullName, ownerEmail]
             );
             visitorID = newVisitor.insertId;
           }
@@ -2995,8 +3304,16 @@ try {
 
         await connection.commit();
 
+        // Immediately check and dispatch low stock alerts if merchandise was purchased
+        if (itemType === 'product') {
+          autoDispatchAlerts(pool).catch(mailErr => {
+            console.error('[MAILER ERROR] Could not dispatch low stock alert:', mailErr.message);
+          });
+        }
+
         // Dispatch electronic receipt email if customer email is provided
-        if (checkoutEmail) {
+        const dispatchEmail = receiptEmail || ownerEmail;
+        if (dispatchEmail) {
           const storeLabel = itemType === 'product'
             ? 'Gift Shop'
             : itemType === 'food'
@@ -3005,7 +3322,7 @@ try {
 
           sendReceiptEmail({
             pool,
-            customerEmail: checkoutEmail,
+            customerEmail: dispatchEmail,
             transactionID,
             storeName: storeLabel,
             items: data.items.map(it => ({

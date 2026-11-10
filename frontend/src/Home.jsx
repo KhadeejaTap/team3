@@ -191,6 +191,24 @@ function formatOrderDate(dateStr) {
 	return dateStr;
 }
 
+function formatCST(dateVal) {
+	if (!dateVal) return '—';
+	try {
+		return new Date(dateVal).toLocaleString('en-US', {
+			timeZone: 'America/Chicago',
+			month: 'short',
+			day: 'numeric',
+			year: 'numeric',
+			hour: 'numeric',
+			minute: '2-digit',
+			second: '2-digit',
+			timeZoneName: 'short'
+		});
+	} catch {
+		return String(dateVal);
+	}
+}
+
 function Home({ role, userEmail, userDept }) {
 	const effectiveEmail = userEmail || localStorage.getItem('user_email') || '';
 	const [fullName, setFullName] = useState(() => {
@@ -214,6 +232,7 @@ function Home({ role, userEmail, userDept }) {
 	const isCommercialManager =
 		(role === 'manager' && deptNumber === 3) ||
 		role === 'admin' ||
+		effectiveEmail === 'ktap1000@gmail.com' ||
 		effectiveEmail === 'emma.watson@zoo.com' ||
 		effectiveEmail === 'gordon.ramsay@zoo.com';
 
@@ -433,7 +452,7 @@ function Home({ role, userEmail, userDept }) {
 							<tr style={{ backgroundColor: '#f6f8fa' }}>
 								<th>SKU</th>
 								<th>Product</th>
-								<th>Time of Alert</th>
+								<th>Time of Alert (CST)</th>
 								<th>Current Stock</th>
 								<th>Status</th>
 								<th>Adjust Status</th>
@@ -444,7 +463,7 @@ function Home({ role, userEmail, userDept }) {
 								<tr key={a.alert_ID}>
 									<td><strong>{a.sku || 'N/A'}</strong></td>
 									<td>{a.product_name}</td>
-									<td>{a.created_at ? new Date(a.created_at).toLocaleString() : '—'}</td>
+									<td>{formatCST(a.created_at)}</td>
 									<td>{a.current_stock}</td>
 									<td>
 										{a.status === 'unaddressed' ? (
