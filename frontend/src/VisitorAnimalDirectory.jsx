@@ -45,18 +45,19 @@ function formatTime(value) {
   if (!value) return 'Time not listed';
 
   const parts = String(value).split(':');
-  if (parts.length < 2) return value;
-
   const hours = Number(parts[0]);
-  const minutes = parts[1];
-  if (!Number.isFinite(hours)) return value;
+  const minutes = Number(parts[1] || 0);
 
-  const date = new Date();
-  date.setHours(hours, Number(minutes), 0, 0);
-  return date.toLocaleTimeString([], {
-    hour: 'numeric',
-    minute: '2-digit'
-  });
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
+    return String(value);
+  }
+
+  const suffix = hours >= 12 ? 'PM' : 'AM';
+  const displayHour = hours % 12 || 12;
+
+  return minutes === 0
+    ? `${displayHour} ${suffix}`
+    : `${displayHour}:${String(minutes).padStart(2, '0')} ${suffix}`;
 }
 
 function getAnimalImage(animal) {
@@ -204,9 +205,7 @@ function VisitorAnimalDirectory() {
                 key={enclosure.enclosure_ID ?? enclosure.enclosure_name}
               >
                 <h3>{enclosure.enclosure_name}</h3>
-                <p>
-                  {enclosure.times.map(formatTime).join(' • ')}
-                </p>
+                <p>{enclosure.times.map(formatTime).join('  •  ')}</p>
               </article>
             ))}
           </div>
