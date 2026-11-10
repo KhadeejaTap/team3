@@ -148,7 +148,7 @@ function Tickets({ userEmail }) {
                     >
                         <option value="">Select a ticket type</option>
                         <option value="Adult">General Adult</option>
-                        <option value="Child">General Child</option>
+                        <option value="Child">General Child (Ages 4-12)</option>
                     </select>
                 </div>
 
