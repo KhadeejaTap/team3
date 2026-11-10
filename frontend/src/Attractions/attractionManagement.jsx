@@ -2,16 +2,66 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
+function formatAttractionDateTime(value) {
+    if (!value) return '-';
+
+    const match = String(value).match(
+        /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?Z?)?$/
+    );
+    if (!match) return String(value);
+
+    const [, year, month, day, hour, minute] = match;
+    const date = new Date(
+        Number(year),
+        Number(month) - 1,
+        Number(day),
+        Number(hour || 0),
+        Number(minute || 0)
+    );
+    const options = hour
+        ? {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true,
+        }
+        : { month: 'short', day: 'numeric', year: 'numeric' };
+
+    return date.toLocaleString('en-US', options);
+}
+
+function getAttractionFormData(attraction) {
+    const dateTimeMatch = String(attraction.attr_datetime || '').match(
+        /^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}:\d{2}))?/
+    );
+
+    return {
+        name: attraction.name || '',
+        type: attraction.type || '',
+        location: attraction.location || '',
+        event_date: dateTimeMatch?.[1] || '',
+        event_time: dateTimeMatch?.[2] || '',
+        capacity: attraction.capacity ?? '',
+        description: attraction.description || '',
+    };
+}
+
+const EMPTY_FORM = {
+    name: '',
+    type: '',
+    location: '',
+    event_date: '',
+    event_time: '',
+    capacity: '',
+    description: '',
+};
+
 function AttractionManagement() {
     const eventDateRef = useRef(null);
-    const [formData, setFormData] = useState({
-        name: '',
-        type: '',
-        location: '',
-        attr_datetime: '',
-        capacity: '',
-        description: '',
-    });
+    const [formData, setFormData] = useState(EMPTY_FORM);
+    const [editingAttractionId, setEditingAttractionId] = useState(null);
     const [message, setMessage] = useState('');
     const [attractions, setAttractions] = useState([]);
     const [isLoadingAttractions, setIsLoadingAttractions] = useState(true);
@@ -51,42 +101,69 @@ function AttractionManagement() {
         event.preventDefault();
         setMessage('');
 
+        if (Boolean(formData.event_date) !== Boolean(formData.event_time)) {
+            setMessage('Enter both an event date and time, or leave both blank.');
+            return;
+        }
+
         try {
-            const response = await fetch(`${API_URL}/api/attractions`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    ...formData,
-                    capacity: formData.capacity === '' ? null : Number(formData.capacity),
-                })
-            });
+            const { event_date, event_time, ...attractionFields } = formData;
+            const response = await fetch(
+                editingAttractionId
+                    ? `${API_URL}/api/attractions/${editingAttractionId}`
+                    : `${API_URL}/api/attractions`,
+                {
+                    method: editingAttractionId ? 'PUT' : 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        ...attractionFields,
+                        attr_datetime: event_date
+                            ? `${event_date} ${event_time}:00`
+                            : null,
+                        capacity: formData.capacity === '' ? null : Number(formData.capacity),
+                    })
+                }
+            );
             const result = await response.json();
             if (!response.ok) {
                 throw new Error(result.error || 'Could not save attraction.');
             }
 
-            setMessage(`Attraction saved successfully! ID: ${result.attr_ID}`);
-            setFormData({
-                name: '',
-                type: '',
-                location: '',
-                attr_datetime: '',
-                capacity: '',
-                description: '',
-            });
+            setMessage(
+                editingAttractionId
+                    ? 'Attraction updated successfully.'
+                    : `Attraction saved successfully! ID: ${result.attr_ID}`
+            );
+            setFormData(EMPTY_FORM);
+            setEditingAttractionId(null);
             await loadAttractions();
         } catch (error) {
             setMessage(`Error: ${error.message}`);
         }
     }
+
+    function editAttraction(attraction) {
+        setFormData(getAttractionFormData(attraction));
+        setEditingAttractionId(attraction.attr_ID);
+        setMessage('');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function cancelEdit() {
+        setFormData(EMPTY_FORM);
+        setEditingAttractionId(null);
+        setMessage('');
+    }
+
     return (
         <div className="attraction-management">
             <h1>Exhibits & Shows Management</h1>
             <p>Add each exhibit or show as a separate attraction.</p>
 
             <form onSubmit={handleSubmit}>
+                <h2>{editingAttractionId ? 'Edit Exhibit or Show' : 'Add Exhibit or Show'}</h2>
                 <div className="attraction-form-field">
                     <label htmlFor="name">Exhibit or Show Name:</label>
                     <input
@@ -140,14 +217,14 @@ function AttractionManagement() {
                 </div>
 
                 <div className="attraction-form-field">
-                    <label htmlFor="attr_datetime">Event Date:</label>
+                    <label htmlFor="event_date">Event Date:</label>
                     <div className="attraction-date-input-row">
                         <input
                             ref={eventDateRef}
-                            id="attr_datetime"
-                            name="attr_datetime"
+                            id="event_date"
+                            name="event_date"
                             type="date"
-                            value={formData.attr_datetime}
+                            value={formData.event_date}
                             onChange={handleChange}
                         />
                         <button
@@ -186,6 +263,17 @@ function AttractionManagement() {
                 </div>
 
                 <div className="attraction-form-field">
+                    <label htmlFor="event_time">Event Time:</label>
+                    <input
+                        id="event_time"
+                        name="event_time"
+                        type="time"
+                        value={formData.event_time}
+                        onChange={handleChange}
+                    />
+                </div>
+
+                <div className="attraction-form-field">
                     <label htmlFor="description">Description:</label>
                     <input
                         id="description"
@@ -196,7 +284,12 @@ function AttractionManagement() {
                     />
                 </div>
 
-                <button type="submit">Save Attraction</button>
+                <button type="submit">
+                    {editingAttractionId ? 'Update Attraction' : 'Save Attraction'}
+                </button>
+                {editingAttractionId && (
+                    <button type="button" onClick={cancelEdit}>Cancel</button>
+                )}
             </form>
             {message && <p role="status">{message}</p>}
 
@@ -217,9 +310,10 @@ function AttractionManagement() {
                                     <th scope="col">Name</th>
                                     <th scope="col">Type</th>
                                     <th scope="col">Location</th>
-                                    <th scope="col">Opening Date</th>
+                                    <th scope="col">Event Date & Time</th>
                                     <th scope="col">Capacity</th>
                                     <th scope="col">Description</th>
+                                    <th scope="col">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -229,9 +323,18 @@ function AttractionManagement() {
                                         <td>{attraction.name || '-'}</td>
                                         <td>{attraction.type || '-'}</td>
                                         <td>{attraction.location || '-'}</td>
-                                        <td>{attraction.attr_datetime || '-'}</td>
+                                        <td>{formatAttractionDateTime(attraction.attr_datetime)}</td>
                                         <td>{attraction.capacity ?? '-'}</td>
                                         <td>{attraction.description || '-'}</td>
+                                        <td>
+                                            <button
+                                                type="button"
+                                                onClick={() => editAttraction(attraction)}
+                                                disabled={editingAttractionId === attraction.attr_ID}
+                                            >
+                                                Edit
+                                            </button>
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
