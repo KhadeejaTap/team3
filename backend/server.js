@@ -2104,6 +2104,28 @@ const server = http.createServer(async (req, res) => {
       res.end(JSON.stringify({ error: err.message }));
     }
   } else if (
+    req.url === '/api/public/feeding-schedule' &&
+    req.method === 'GET'
+  ) {
+    try {
+      const [rows] = await pool.query(`
+        SELECT
+          s.schedule_ID,
+          s.enclosure_ID,
+          e.name AS enclosure_name,
+          s.feeding_time
+        FROM ENCLOSURE_FEEDING_SCHEDULE s
+        JOIN ENCLOSURE e ON s.enclosure_ID = e.enclosure_ID
+        ORDER BY e.enclosure_ID ASC, s.feeding_time ASC
+      `);
+      send(res, 200, rows);
+      return;
+    } catch (err) {
+      console.error('Error fetching public feeding schedule:', err);
+      send(res, 500, { error: 'Could not load the feeding schedule.' });
+      return;
+    }
+  } else if (
     req.url === '/api/public/animals' &&
     req.method === 'GET'
   ) {
@@ -2121,9 +2143,12 @@ try {
        COALESCE(s.endangered_status, 'Unknown') AS endangered_status,
        a.weight,
        a.weight_unit,
-       a.image_url
+       a.image_url,
+       a.enclosure_ID,
+       e.name AS enclosure_name
      FROM ANIMAL a
      LEFT JOIN SPECIES s ON a.species_ID = s.species_ID
+     LEFT JOIN ENCLOSURE e ON a.enclosure_ID = e.enclosure_ID
      WHERE NOT EXISTS (SELECT 1 FROM ANIMAL_REMOVAL ar WHERE ar.animal_ID = a.animal_ID)
      ORDER BY a.name`
   );
