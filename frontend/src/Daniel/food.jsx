@@ -9,7 +9,7 @@ const MENU_CATEGORIES = [
   'Beverage',
   'Dessert',
 ];
-const MAX_STALL_IMAGE_BYTES = 1024 * 1024;
+const MAX_STALL_IMAGE_BYTES = 10 * 1024 * 1024;
 const STALL_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
 async function loadStallImage(stallId) {
@@ -268,7 +268,7 @@ export default function Food({ role, userDept }) {
     }
 
     if (file.size > MAX_STALL_IMAGE_BYTES) {
-      setError('Choose an image smaller than 1 MB.');
+      setError('Choose an image no larger than 10 MB.');
       input.value = '';
       return;
     }

@@ -137,7 +137,7 @@ async function checkEnclosureCapacityAlert(enclosureID) {
       const result = await sendDepartmentAlert({
         pool,
         departmentID: ENCLOSURE_ALERT_DEPARTMENT_ID,
-        referenceType: 'enclosure',
+        referenceType: 'enclosure_capacity',
         subject: `ENCLOSURE CAPACITY WARNING: ${enclosure.name}`,
         body: `Enclosure '${enclosure.name}' has reached ${percentage}% capacity. Current animal count: ${enclosure.animal_count}. Maximum capacity: ${enclosure.capacity}. Please review the enclosure's occupancy.`,
         referenceID: Number(enclosureID)
@@ -241,13 +241,13 @@ async function readMultipart(req) {
   return { fields, image };
 }
 
-async function readBody(req) {
+async function readBody(req, maxBytes = 16384) {
   let body = '';
 
   for await (const chunk of req) {
     body += chunk;
 
-    if (Buffer.byteLength(body) > 16384) {
+    if (Buffer.byteLength(body) > maxBytes) {
       const error = new Error('Request is too large.');
       error.status = 413;
       throw error;
@@ -599,6 +599,46 @@ const server = http.createServer(async (req, res) => {
       send(res, 200, rows);
     } catch (err) {
       send(res, 500, { error: err.message });
+    }
+  } else if (req.url === '/api/alerts/enclosure-capacity' && req.method === 'GET') {
+    try {
+      const allowed = await requireRoles(req, res, pool, send, ['manager']);
+      if (!allowed) return;
+
+      const [rows] = await pool.query(`
+        SELECT
+          e.enclosure_ID,
+          e.name AS enclosure_name,
+          COUNT(a.animal_ID) AS animal_count,
+          e.capacity,
+          ROUND(COUNT(a.animal_ID) / NULLIF(e.capacity, 0) * 100, 1) AS occupancy_percent,
+          COALESCE(
+            (SELECT MAX(el.sent_at)
+             FROM EMAIL_LOG el
+             WHERE el.reference_type = 'enclosure_capacity'
+               AND el.reference_ID = e.enclosure_ID),
+            state.updated_at
+          ) AS created_at
+        FROM ENCLOSURE e
+        LEFT JOIN ANIMAL a ON a.enclosure_ID = e.enclosure_ID
+          AND NOT EXISTS (
+            SELECT 1 FROM ANIMAL_REMOVAL ar
+            WHERE ar.animal_ID = a.animal_ID
+          )
+        LEFT JOIN ENCLOSURE_CAPACITY_ALERT_STATE state
+          ON state.enclosure_ID = e.enclosure_ID
+        WHERE e.capacity > 0
+        GROUP BY e.enclosure_ID, e.name, e.capacity, state.updated_at
+        HAVING COUNT(a.animal_ID) / e.capacity >= ?
+        ORDER BY occupancy_percent DESC, e.name ASC
+      `, [ENCLOSURE_ALERT_THRESHOLD * 100 / 100]);
+
+      send(res, 200, rows);
+      return;
+    } catch (err) {
+      console.error('Error loading enclosure capacity alerts:', err);
+      send(res, 500, { error: 'Could not load enclosure capacity alerts.' });
+      return;
     }
   } else if (req.url === '/api/alerts/upcoming-events' && req.method === 'GET') {
     try {
@@ -2277,8 +2317,31 @@ try {
       return;
     }
 
+    const connection = await pool.getConnection();
     try {
-      const [result] = await pool.execute(
+      await connection.beginTransaction();
+      const enclosureID = Number(animal.enclosure_ID);
+      const [[enclosure]] = await connection.query(
+        'SELECT capacity FROM ENCLOSURE WHERE enclosure_ID = ? FOR UPDATE',
+        [enclosureID]
+      );
+      if (!enclosure) {
+        await connection.rollback();
+        send(res, 400, { error: 'The selected enclosure does not exist.' });
+        return;
+      }
+      const [[occupancy]] = await connection.query(
+        `SELECT COUNT(*) AS animal_count FROM ANIMAL a
+         WHERE a.enclosure_ID = ?
+           AND NOT EXISTS (SELECT 1 FROM ANIMAL_REMOVAL ar WHERE ar.animal_ID = a.animal_ID)`,
+        [enclosureID]
+      );
+      if (Number(occupancy.animal_count) >= Number(enclosure.capacity)) {
+        await connection.rollback();
+        send(res, 409, { error: 'This enclosure is at full capacity. Remove or relocate an active animal before adding another.' });
+        return;
+      }
+      const [result] = await connection.execute(
         `INSERT INTO ANIMAL
          (name, species_ID, enclosure_ID, age, gender, weight, weight_unit,
           arrival_date, breeding_status, image_url)
@@ -2286,7 +2349,7 @@ try {
         [
           animal.name.trim(),
           Number(animal.species_ID),
-          Number(animal.enclosure_ID),
+          enclosureID,
           animal.age === '' || animal.age == null ? null : Number(animal.age),
           animal.gender || null,
           animal.weight === '' || animal.weight == null ? null : Number(animal.weight),
@@ -2296,18 +2359,20 @@ try {
           upload.image ? upload.image.url : null
         ]
       );
-
-      await checkEnclosureCapacityAlert(Number(animal.enclosure_ID));
-
+      await connection.commit();
+      await checkEnclosureCapacityAlert(enclosureID);
       send(res, 201, {
         message: 'Animal saved successfully.',
         animal_ID: result.insertId
       });
       return;
     } catch (err) {
+      await connection.rollback();
       console.error('Error saving animal:', err);
       send(res, 500, { error: 'Could not save animal. Check that the selected species and enclosure exist and that the ANIMAL table has a weight_unit column.' });
       return;
+    } finally {
+      connection.release();
     }
   } else if (
     req.method === 'POST' &&
@@ -3754,7 +3819,7 @@ try {
           END AS occupancy_percent,
           CASE
             WHEN e.capacity > 0
-              AND COUNT(a.animal_ID) / e.capacity > 0.75
+              AND COUNT(a.animal_ID) / e.capacity >= 0.75
               THEN 1
             ELSE 0
           END AS crowding_flag

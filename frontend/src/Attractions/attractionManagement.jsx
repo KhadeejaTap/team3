@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 function AttractionManagement() {
+    const eventDateRef = useRef(null);
     const [formData, setFormData] = useState({
         name: '',
         type: '',
@@ -82,12 +83,12 @@ function AttractionManagement() {
     }
     return (
         <div className="attraction-management">
-            <h1>Attraction Management</h1>
-            <p>Enter the attraction's information below.</p>
+            <h1>Exhibits & Shows Management</h1>
+            <p>Add each exhibit or show as a separate attraction.</p>
 
             <form onSubmit={handleSubmit}>
                 <div className="attraction-form-field">
-                    <label htmlFor="name">Attraction Name:</label>
+                    <label htmlFor="name">Exhibit or Show Name:</label>
                     <input
                         id="name"
                         name="name"
@@ -100,13 +101,18 @@ function AttractionManagement() {
 
                 <div className="attraction-form-field">
                     <label htmlFor="type">Type:</label>
-                    <input
+                    <select
                         id="type"
                         name="type"
                         value={formData.type}
                         onChange={handleChange}
-                        maxLength="30"
-                    />
+                    >
+                        <option value="">Select a type</option>
+                        <option value="Exhibit">Exhibit</option>
+                        <option value="Live Show">Live Show</option>
+                        <option value="Tour">Tour</option>
+                        <option value="Interactive">Interactive</option>
+                    </select>
                 </div>
 
                 <div className="attraction-form-field">
@@ -134,14 +140,49 @@ function AttractionManagement() {
                 </div>
 
                 <div className="attraction-form-field">
-                    <label htmlFor="attr_datetime">Opening Date:</label>
-                    <input
-                        id="attr_datetime"
-                        name="attr_datetime"
-                        type="date"
-                        value={formData.attr_datetime}
-                        onChange={handleChange}
-                    />
+                    <label htmlFor="attr_datetime">Event Date:</label>
+                    <div className="attraction-date-input-row">
+                        <input
+                            ref={eventDateRef}
+                            id="attr_datetime"
+                            name="attr_datetime"
+                            type="date"
+                            value={formData.attr_datetime}
+                            onChange={handleChange}
+                        />
+                        <button
+                            className="attraction-date-picker-button"
+                            type="button"
+                            aria-label="Open event date calendar"
+                            title="Open calendar"
+                            onClick={() => {
+                                const dateInput = eventDateRef.current;
+                                if (!dateInput) return;
+
+                                if (typeof dateInput.showPicker === 'function') {
+                                    dateInput.showPicker();
+                                } else {
+                                    dateInput.focus();
+                                    dateInput.click();
+                                }
+                            }}
+                        >
+                            <svg
+                                aria-hidden="true"
+                                viewBox="0 0 24 24"
+                                width="20"
+                                height="20"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                            >
+                                <rect x="3" y="5" width="18" height="16" rx="2" />
+                                <path d="M16 3v4M8 3v4M3 11h18" />
+                            </svg>
+                        </button>
+                    </div>
                 </div>
 
                 <div className="attraction-form-field">

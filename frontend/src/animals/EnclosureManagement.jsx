@@ -61,6 +61,7 @@ function EnclosureManagement() {
   const [costReportLoaded, setCostReportLoaded] = useState(false);
   const [costStartDate, setCostStartDate] = useState('');
   const [costEndDate, setCostEndDate] = useState('');
+  const [activeEnclosureTab, setActiveEnclosureTab] = useState('details');
 
   const selectedEnclosure = enclosures.find(
     enclosure => String(enclosure.enclosure_ID) === String(selectedID)
@@ -479,6 +480,8 @@ function EnclosureManagement() {
                   {crowded ? 'Crowding alert: over 75% capacity' : 'Within crowding threshold'}
                 </p>
                 <p><strong>Condition:</strong> {enclosure.condition_status || 'Not recorded'}</p>
+                <p><strong>Temperature:</strong> {enclosure.temperature != null && enclosure.temperature !== '' ? `${enclosure.temperature}°` : 'Not recorded'}</p>
+                <p><strong>Amenities:</strong> {enclosure.amenities || 'Not listed'}</p>
                 <button type="button" style={styles.secondaryButton} onClick={() => selectEnclosure(enclosure)}>
                   Manage Enclosure
                 </button>
@@ -490,6 +493,28 @@ function EnclosureManagement() {
 
       {selectedEnclosure && form && (
         <>
+          <section style={{ marginTop: 24, marginBottom: 16 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+              <button
+                type="button"
+                style={activeEnclosureTab === 'details' ? styles.button : styles.secondaryButton}
+                onClick={() => setActiveEnclosureTab('details')}
+                aria-pressed={activeEnclosureTab === 'details'}
+              >
+                Enclosure Details
+              </button>
+              <button
+                type="button"
+                style={activeEnclosureTab === 'maintenance' ? styles.button : styles.secondaryButton}
+                onClick={() => setActiveEnclosureTab('maintenance')}
+                aria-pressed={activeEnclosureTab === 'maintenance'}
+              >
+                Maintenance Records
+              </button>
+            </div>
+          </section>
+
+          {activeEnclosureTab === 'details' && (
           <section style={{ ...styles.card, marginTop: 24 }}>
             <h2>Edit {selectedEnclosure.name}</h2>
             <p style={styles.muted}>Basic enclosure information such as location, size, and department comes from the existing enclosure record.</p>
@@ -519,9 +544,12 @@ function EnclosureManagement() {
               <button type="submit" style={styles.button} disabled={saving}>{saving ? 'Saving...' : 'Save Enclosure Details'}</button>
             </form>
           </section>
+          )}
 
+          {activeEnclosureTab === 'maintenance' && (
+          <>
           <section style={{ ...styles.card, marginTop: 24 }}>
-            <h2>Maintenance History</h2>
+            <h2>Past Maintenance Records</h2>
             {maintenance.length === 0 ? (
               <p style={styles.muted}>No maintenance records have been added for this enclosure.</p>
             ) : (
@@ -571,6 +599,8 @@ function EnclosureManagement() {
               <button type="submit" style={styles.button} disabled={saving}>{saving ? 'Saving...' : 'Add Maintenance Record'}</button>
             </form>
           </section>
+          </>
+          )}
         </>
       )}
     </main>
