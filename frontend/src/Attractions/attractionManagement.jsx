@@ -64,6 +64,7 @@ function AttractionManagement() {
     const [editingAttractionId, setEditingAttractionId] = useState(null);
     const [message, setMessage] = useState('');
     const [attractions, setAttractions] = useState([]);
+    const [sortOrder, setSortOrder] = useState('name-ascending');
     const [isLoadingAttractions, setIsLoadingAttractions] = useState(true);
     const [attractionError, setAttractionError] = useState('');
 
@@ -156,6 +157,42 @@ function AttractionManagement() {
         setEditingAttractionId(null);
         setMessage('');
     }
+
+    const sortedAttractions = [...attractions].sort((a, b) => {
+        if (sortOrder === 'name-ascending' || sortOrder === 'name-descending') {
+            const result = (a.name || '').localeCompare(b.name || '', undefined, {
+                sensitivity: 'base'
+            });
+            return sortOrder === 'name-ascending' ? result : -result;
+        }
+
+        if (sortOrder === 'type-ascending' || sortOrder === 'location-ascending') {
+            const field = sortOrder === 'type-ascending' ? 'type' : 'location';
+            return (a[field] || '').localeCompare(b[field] || '', undefined, {
+                sensitivity: 'base'
+            });
+        }
+
+        if (sortOrder === 'capacity-ascending' || sortOrder === 'capacity-descending') {
+            if (a.capacity == null && b.capacity == null) return 0;
+            if (a.capacity == null) return 1;
+            if (b.capacity == null) return -1;
+
+            const result = Number(a.capacity) - Number(b.capacity);
+            return sortOrder === 'capacity-ascending' ? result : -result;
+        }
+
+        const dateA = a.attr_datetime
+            ? new Date(String(a.attr_datetime).replace(' ', 'T')).getTime()
+            : NaN;
+        const dateB = b.attr_datetime
+            ? new Date(String(b.attr_datetime).replace(' ', 'T')).getTime()
+            : NaN;
+        if (Number.isNaN(dateA) && Number.isNaN(dateB)) return 0;
+        if (Number.isNaN(dateA)) return 1;
+        if (Number.isNaN(dateB)) return -1;
+        return sortOrder === 'date-descending' ? dateB - dateA : dateA - dateB;
+    });
 
     return (
         <div className="attraction-management">
@@ -302,44 +339,63 @@ function AttractionManagement() {
                 ) : attractions.length === 0 ? (
                     <p>No attractions have been created yet.</p>
                 ) : (
-                    <div className="attraction-table-wrapper">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th scope="col">ID</th>
-                                    <th scope="col">Name</th>
-                                    <th scope="col">Type</th>
-                                    <th scope="col">Location</th>
-                                    <th scope="col">Event Date & Time</th>
-                                    <th scope="col">Capacity</th>
-                                    <th scope="col">Description</th>
-                                    <th scope="col">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {attractions.map((attraction) => (
-                                    <tr key={attraction.attr_ID}>
-                                        <td>{attraction.attr_ID}</td>
-                                        <td>{attraction.name || '-'}</td>
-                                        <td>{attraction.type || '-'}</td>
-                                        <td>{attraction.location || '-'}</td>
-                                        <td>{formatAttractionDateTime(attraction.attr_datetime)}</td>
-                                        <td>{attraction.capacity ?? '-'}</td>
-                                        <td>{attraction.description || '-'}</td>
-                                        <td>
-                                            <button
-                                                type="button"
-                                                onClick={() => editAttraction(attraction)}
-                                                disabled={editingAttractionId === attraction.attr_ID}
-                                            >
-                                                Edit
-                                            </button>
-                                        </td>
+                    <>
+                        <label htmlFor="management-attraction-sort">
+                            Sort by{' '}
+                            <select
+                                id="management-attraction-sort"
+                                value={sortOrder}
+                                onChange={(event) => setSortOrder(event.target.value)}
+                            >
+                                <option value="name-ascending">Name: A to Z</option>
+                                <option value="name-descending">Name: Z to A</option>
+                                <option value="date-ascending">Date: Soonest first</option>
+                                <option value="date-descending">Date: Latest first</option>
+                                <option value="type-ascending">Type: A to Z</option>
+                                <option value="location-ascending">Location: A to Z</option>
+                                <option value="capacity-ascending">Capacity: Low to high</option>
+                                <option value="capacity-descending">Capacity: High to low</option>
+                            </select>
+                        </label>
+                        <div className="attraction-table-wrapper">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th scope="col">ID</th>
+                                        <th scope="col">Name</th>
+                                        <th scope="col">Type</th>
+                                        <th scope="col">Location</th>
+                                        <th scope="col">Event Date & Time</th>
+                                        <th scope="col">Capacity</th>
+                                        <th scope="col">Description</th>
+                                        <th scope="col">Actions</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                                </thead>
+                                <tbody>
+                                    {sortedAttractions.map((attraction) => (
+                                        <tr key={attraction.attr_ID}>
+                                            <td>{attraction.attr_ID}</td>
+                                            <td>{attraction.name || '-'}</td>
+                                            <td>{attraction.type || '-'}</td>
+                                            <td>{attraction.location || '-'}</td>
+                                            <td>{formatAttractionDateTime(attraction.attr_datetime)}</td>
+                                            <td>{attraction.capacity ?? '-'}</td>
+                                            <td>{attraction.description || '-'}</td>
+                                            <td>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => editAttraction(attraction)}
+                                                    disabled={editingAttractionId === attraction.attr_ID}
+                                                >
+                                                    Edit
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </>
                 )}
             </section>
         </div>
