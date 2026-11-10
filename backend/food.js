@@ -23,11 +23,13 @@ function validId(value) {
 }
 
 function itemValues(data) {
+  const cost = data && (data.cost_to_make !== undefined ? data.cost_to_make : data.cost_price);
   return (
     data &&
     validText(data.name, 100) &&
     validText(data.category, 50) &&
     validPrice(data.price) &&
+    (cost === undefined || cost === '' || validPrice(cost)) &&
     Number.isInteger(data.stall_ID) &&
     data.stall_ID > 0
   );
@@ -285,12 +287,17 @@ async function handleFood(req, res, pool, send, readBody) {
       return true;
     }
 
+    const costToMake = data.cost_to_make !== undefined
+      ? data.cost_to_make
+      : (data.cost_price !== undefined ? data.cost_price : '0.00');
+
     const [result] = await pool.execute(
-      `INSERT INTO MENU_ITEM (name, price, category, stall_ID)
-       VALUES (?, ?, ?, ?)`,
+      `INSERT INTO MENU_ITEM (name, price, cost_to_make, category, stall_ID)
+       VALUES (?, ?, ?, ?, ?)`,
       [
         data.name.trim(),
         data.price,
+        costToMake || '0.00',
         data.category.trim(),
         data.stall_ID
       ]
@@ -393,6 +400,17 @@ async function handleFood(req, res, pool, send, readBody) {
 
       fields.push('price = ?');
       params.push(data.price);
+    }
+
+    const costVal = data.cost_to_make !== undefined ? data.cost_to_make : data.cost_price;
+    if (costVal !== undefined) {
+      if (!validPrice(costVal)) {
+        send(res, 400, { error: 'Cost to make must be a valid non-negative amount.' });
+        return true;
+      }
+
+      fields.push('cost_to_make = ?');
+      params.push(costVal);
     }
 
     if (data.stall_ID !== undefined) {

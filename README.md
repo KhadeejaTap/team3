@@ -1,44 +1,40 @@
 ## Deployed at
 https://victorious-field-058fd0510.5.azurestaticapps.net/
 
-## Food stall image setup
-
-Before uploading food stall images, apply `migrations/food_stall_images.sql` to
-the application's MySQL database. The migration adds the columns used to store
-images. Deploy the backend after applying the migration.
-
 ## Demo Login Credentials
 
 ### Department 1: Financial and HR
-- **Department Head**: `taylor.hemsworth@zoo.com` / `taylor123` (HR Director)
+- **Department Head**: `taylor.hemsworth@zoo.com` / `taylor123` (HR Manager)
 - **Employees**:
-  - `sarah.connor@zoo.com` / `sarah123` (Benefits Coordinator)
+  - `sarah.connor@zoo.com` / `sarah123` (HR Assistant)
   - `jim.cruise@zoo.com` / `jim123` (HR Assistant)
 
 ### Department 2: Animal Operations
-- **Department Head**: `dwayne.efron@zoo.com` / `dwayne123` (Mammal Lead Keeper)
+- **Department Head**: `dwayne.efron@zoo.com` / `dwayne123` (Animal Operations Manager)
 - **Employees**:
-  - `morgan.lawrence@zoo.com` / `morgan123` (Chief Veterinarian)
-  - `ariana.winslet@zoo.com` / `ariana123` (Bird & Reptile Lead)
+  - `morgan.lawrence@zoo.com` / `morgan123` (Veterinarian)
+  - `ariana.winslet@zoo.com` / `ariana123` (Keeper)
   - `chloe.bennett@zoo.com` / `chloe123` (Vet Assistant)
-  - `ellen.rogan@zoo.com` / `ellen123` (Veterinary Tech)
-  - `justin.damon@zoo.com` / `justin123` (Senior Vet Tech)
+  - `ellen.rogan@zoo.com` / `ellen123` (Vet Tech)
+  - `justin.damon@zoo.com` / `justin123` (Vet Tech)
   - `justin.perry@zoo.com` / `justin123` (Keeper)
   - `katy.hart@zoo.com` / `katy123` (Keeper)
-  - `leo.dicaprio@zoo.com` / `leo123` (Aquatics Specialist)
+  - `leo.dicaprio@zoo.com` / `leo123` (Keeper)
 
 ### Department 3: Commercial Operations
-- **Department Head**: `emma.watson@zoo.com` / `emma123` (Retail Manager)
+- **Department Head**: `ktap1000@gmail.com` / `emma123` (Commercial Operations Manager - Khadeeja Tapkirwala)
 - **Employees**:
-  - `gordon.ramsay@zoo.com` / `gordon123` (Food Services Director)
-  - `tom.hardy@zoo.com` / `tom123` (Gift Shop Associate)
-  - `mia.goth@zoo.com` / `mia123` (Food Stall Attendant)
+  - `gordon.ramsay@zoo.com` / `gordon123` (Food Stall Associate)
+  - `tom.hardy@zoo.com` / `tom123` (Retail Associate)
+  - `mia.goth@zoo.com` / `mia123` (Food Stall Associate)
 
 ### Department 4: Guest Operations
-- **Department Head**: `rachel.green@zoo.com` / `rachel123` (Events & Attractions Director)
+- **Department Head**: `rachel.green@zoo.com` / `rachel123` (Guest Operations Manager)
 - **Employees**:
-  - `chris.pratt@zoo.com` / `chris123` (Safari Tram Operator & Guide)
-  - `zendaya.coleman@zoo.com` / `zendaya123` (Live Presentation & Show Host)
+  - `chris.pratt@zoo.com` / `chris123` (Tour Guide)
+  - `zendaya.coleman@zoo.com` / `zendaya123` (Tour Guide)
 
-### Public Visitor
+### Public Visitors
 - `visitor@zoo.com` / `visitor123` (Khadeeja Tapkirwala)
+- `olumide.a810@gmail.com` / `Wacko910` (Olumide Aina)
+- `sallu@gmail.com` / `sallu123` (sallu tap)
