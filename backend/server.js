@@ -559,19 +559,6 @@ const server = http.createServer(async (req, res) => {
             COALESCE(MAX(amount), 0) AS max_amount
           FROM ENCLOSURE_COST
           GROUP BY cost_category
-
-          UNION ALL
-
-          SELECT
-            'Animal Healthcare' AS stream_category,
-            cost_category AS stream_name,
-            COUNT(*) AS transaction_count,
-            COALESCE(SUM(amount), 0) AS total_revenue,
-            COALESCE(ROUND(AVG(amount), 2), 0) AS avg_amount,
-            COALESCE(MIN(amount), 0) AS min_amount,
-            COALESCE(MAX(amount), 0) AS max_amount
-          FROM MEDICAL_COST
-          GROUP BY cost_category
         `;
       } else if (streamType === 'medical_expenses') {
         query = `
