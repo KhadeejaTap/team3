@@ -291,6 +291,10 @@ function AppContent() {
             path="/food"
             element={<Food role={role} userDept={userDept} />}
           />
+          <Route
+            path="/food/stalls/:stallId"
+            element={<Food role={role} userDept={userDept} />}
+          />
 
           <Route
             path="/parking"

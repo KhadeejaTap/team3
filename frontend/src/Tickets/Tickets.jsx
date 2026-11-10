@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import CardCheckoutModal from '../components/CardCheckoutModal';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -58,6 +58,7 @@ function Tickets({ userEmail }) {
     }, [userEmail]);
     const [message, setMessage] = useState('');
     const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+    const visitDateRef = useRef(null);
     const price = ticketPrices[formData.ticket_type];
 
     function handleChange(event) {
@@ -163,15 +164,50 @@ function Tickets({ userEmail }) {
 
                 <div className="ticket-form-field">
                     <label htmlFor="visit_date">Visit Date:</label>
-                    <input
-                        id="visit_date"
-                        name="visit_date"
-                        type="date"
-                        required
-                        min={minVisitDate}
-                        value={formData.visit_date}
-                        onChange={handleChange}
-                    />
+                    <div className="ticket-date-input-row">
+                        <input
+                            ref={visitDateRef}
+                            id="visit_date"
+                            name="visit_date"
+                            type="date"
+                            required
+                            min={minVisitDate}
+                            value={formData.visit_date}
+                            onChange={handleChange}
+                        />
+                        <button
+                            className="ticket-date-picker-button"
+                            type="button"
+                            aria-label="Open visit date calendar"
+                            title="Open calendar"
+                            onClick={() => {
+                                const dateInput = visitDateRef.current;
+                                if (!dateInput) return;
+
+                                if (typeof dateInput.showPicker === 'function') {
+                                    dateInput.showPicker();
+                                } else {
+                                    dateInput.focus();
+                                    dateInput.click();
+                                }
+                            }}
+                        >
+                            <svg
+                                aria-hidden="true"
+                                viewBox="0 0 24 24"
+                                width="20"
+                                height="20"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                            >
+                                <rect x="3" y="5" width="18" height="16" rx="2" />
+                                <path d="M16 3v4M8 3v4M3 11h18" />
+                            </svg>
+                        </button>
+                    </div>
                 </div>
 
                 <div className="ticket-form-field">

@@ -71,9 +71,13 @@ async function handleAccess(req, res, pool, send, readBody) {
     (pathname === '/api/products' || pathname.startsWith('/api/products/')) &&
     ['POST', 'PUT', 'DELETE'].includes(req.method);
 
-  const isMenuWrite =
-    pathname === '/api/menu-items' &&
-    req.method === 'POST';
+  const isFoodWrite =
+    (pathname === '/api/food-stalls' ||
+      /^\/api\/food-stalls\/\d+$/.test(pathname) ||
+      /^\/api\/food-stalls\/\d+\/image$/.test(pathname) ||
+      pathname === '/api/menu-items' ||
+      /^\/api\/menu-items\/\d+$/.test(pathname)) &&
+    ['POST', 'PUT', 'DELETE'].includes(req.method);
 
   const isParkingSessionRequest =
     pathname === '/api/parking-sessions' ||
@@ -81,7 +85,7 @@ async function handleAccess(req, res, pool, send, readBody) {
 
   let allowedRoles = null;
 
-  if (isProductWrite || isMenuWrite) {
+  if (isProductWrite || isFoodWrite) {
     allowedRoles = ['admin', 'manager'];
   } else if (isParkingSessionRequest) {
     allowedRoles = ['admin', 'manager', 'employee'];
@@ -100,6 +104,23 @@ async function handleAccess(req, res, pool, send, readBody) {
 
     if (!allowed) {
       return true;
+    }
+
+    if (isFoodWrite && req.user.role === 'manager') {
+      const [employees] = await pool.execute(
+        'SELECT department_ID FROM employee WHERE email = ?',
+        [req.user.email]
+      );
+
+      if (
+        employees.length === 0 ||
+        Number(employees[0].department_ID) !== 3
+      ) {
+        send(res, 403, {
+          error: 'Food stall and menu management is limited to Commercial Operations managers.'
+        });
+        return true;
+      }
     }
   }
 
