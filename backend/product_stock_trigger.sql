@@ -1,8 +1,3 @@
--- Run against the intended zoo database.
--- Already installed on Azure; this file records its definition.
--- Requires InnoDB tables.
--- Stock is deducted when a product transaction item is inserted.
--- The checkout backend must not deduct stock separately.
 
 USE zoo;
 

@@ -75,6 +75,7 @@ async function sendEmail({
     'low_stock',
     'event',
     'enclosure_capacity',
+    'enclosure',
     'receipt'
   ];
 

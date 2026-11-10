@@ -233,7 +233,7 @@ export default function CardCheckoutModal({
         style={{
           background: '#ffffff',
           borderRadius: '8px',
-          maxWidth: '620px',
+          maxWidth: '680px',
           width: '100%',
           maxHeight: '90vh',
           overflowY: 'auto',

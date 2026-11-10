@@ -788,6 +788,12 @@ const server = http.createServer(async (req, res) => {
           return;
         }
 
+        const [prevHeadRows] = await connection.query(
+          'SELECT head_employee_ID FROM DEPARTMENT WHERE department_ID = ?',
+          [department_ID]
+        );
+        const oldHeadID = prevHeadRows.length > 0 ? prevHeadRows[0].head_employee_ID : null;
+
         await connection.query(
           'UPDATE DEPARTMENT SET head_employee_ID = ? WHERE department_ID = ?',
           [employee_ID, department_ID]
@@ -802,6 +808,23 @@ const server = http.createServer(async (req, res) => {
           await connection.query(
             "UPDATE users SET role = 'manager' WHERE email = ?",
             [emp[0].email]
+          );
+        }
+
+        if (oldHeadID && Number(oldHeadID) !== Number(employee_ID)) {
+          const [oldHeadEmp] = await connection.query(
+            'SELECT email FROM EMPLOYEE WHERE employee_ID = ?',
+            [oldHeadID]
+          );
+          if (oldHeadEmp.length > 0 && oldHeadEmp[0].email) {
+            await connection.query(
+              "UPDATE users SET role = 'employee' WHERE email = ?",
+              [oldHeadEmp[0].email]
+            );
+          }
+          await connection.query(
+            'UPDATE EMPLOYEE SET manager_ID = ? WHERE employee_ID = ?',
+            [employee_ID, oldHeadID]
           );
         }
 
@@ -841,8 +864,9 @@ const server = http.createServer(async (req, res) => {
       const empType = parsedUrl.searchParams.get('employment_type') || 'all';
 
       if (timeFrame === 'ytd') {
-        startDate = '2026-01-01';
-        endDate = '2026-11-10';
+        const today = new Date();
+        startDate = `${today.getFullYear()}-01-01`;
+        endDate = today.toISOString().slice(0, 10);
       }
 
       let scopedDeptId = null;
@@ -1094,193 +1118,184 @@ const server = http.createServer(async (req, res) => {
     req.url.startsWith('/api/reports/revenue') &&
     req.method === 'GET'
   ) {
-    // TODO / UPCOMING REVENUE & COST STREAMS TO INTEGRATE:
-    // 1. Retail Sales:
-    //    SELECT 'Retail' AS stream_category, p.name AS stream_name, COUNT(*) AS transaction_count,
-    //           SUM(ti.price * ti.quantity) AS total_revenue, AVG(ti.price * ti.quantity) AS avg_amount,
-    //           MIN(ti.price * ti.quantity) AS min_amount, MAX(ti.price * ti.quantity) AS max_amount
-    //    FROM transaction_item ti JOIN product p ON ti.item_ID = p.product_ID WHERE ti.item_type = 'product' GROUP BY p.name
-    // 2. Food Concessions:
-    //    SELECT 'Food Services' AS stream_category, mi.name AS stream_name, COUNT(*) AS transaction_count,
-    //           SUM(ti.price * ti.quantity) AS total_revenue, ... FROM transaction_item ti JOIN menu_item mi ...
-    // 3. Parking Passes:
-    //    SELECT 'Parking' AS stream_category, pl.name AS stream_name, COUNT(*) AS transaction_count,
-    //           SUM(pl.parking_rate) AS total_revenue, ... FROM parking_session ps JOIN parking_lot pl ...
-    // 4. Operational Cost Deductions (for Net Operating Margin):
-    //    - Wholesale COGS: SUM(p.cost_price * ti.quantity)
-    //    - Zoo Payroll: SELECT SUM(salary) FROM employee WHERE current = 1
-    //    - Enclosure Ops: SELECT SUM(amount) FROM enclosure_cost
     try {
       const parsedUrl = new URL(req.url, 'http://localhost');
       const streamType = parsedUrl.searchParams.get('stream_type') || 'all';
       const sortBy = parsedUrl.searchParams.get('sort_by') || 'revenue';
+      const timeFrame = parsedUrl.searchParams.get('time_frame') || 'ytd';
+      let startDate = parsedUrl.searchParams.get('start_date');
+      let endDate = parsedUrl.searchParams.get('end_date');
+      const minAmount = parsedUrl.searchParams.get('min_amount');
+      const maxAmount = parsedUrl.searchParams.get('max_amount');
 
-      let query = '';
+      if (timeFrame === 'ytd') {
+        const currentYear = new Date().getFullYear();
+        startDate = `${currentYear}-01-01`;
+        endDate = new Date().toISOString().split('T')[0];
+      } else if (timeFrame === 'all') {
+        startDate = null;
+        endDate = null;
+      }
+
+      const addDateClause = (dateCol) => {
+        let sql = '';
+        if (startDate) sql += ` AND ${dateCol} >= ?`;
+        if (endDate) sql += ` AND ${dateCol} <= ?`;
+        return sql;
+      };
+
+      const pushDates = () => {
+        const p = [];
+        if (startDate) p.push(startDate);
+        if (endDate) p.push(endDate);
+        return p;
+      };
+
+      const ticketsQuery = `
+        SELECT
+          'Admissions' AS stream_category,
+          ticket_type AS stream_name,
+          COUNT(*) AS transaction_count,
+          COALESCE(SUM(price), 0) AS total_revenue,
+          COALESCE(ROUND(AVG(price), 2), 0) AS avg_amount,
+          COALESCE(MIN(price), 0) AS min_amount,
+          COALESCE(MAX(price), 0) AS max_amount
+        FROM TICKET
+        WHERE 1=1 ${addDateClause('purchase_date')}
+        GROUP BY ticket_type
+      `;
+
+      const donationsQuery = `
+        SELECT
+          'Fundraising' AS stream_category,
+          purpose AS stream_name,
+          COUNT(*) AS transaction_count,
+          COALESCE(SUM(amount), 0) AS total_revenue,
+          COALESCE(ROUND(AVG(amount), 2), 0) AS avg_amount,
+          COALESCE(MIN(amount), 0) AS min_amount,
+          COALESCE(MAX(amount), 0) AS max_amount
+        FROM DONATION
+        WHERE 1=1 ${addDateClause('donation_date')}
+        GROUP BY purpose
+      `;
+
+      const retailQuery = `
+        SELECT
+          'Retail Merchandise' AS stream_category,
+          COALESCE(p.name, CONCAT('Product #', ti.item_ID)) AS stream_name,
+          COUNT(*) AS transaction_count,
+          COALESCE(SUM(ti.price * ti.quantity), 0) AS total_revenue,
+          COALESCE(ROUND(AVG(ti.price * ti.quantity), 2), 0) AS avg_amount,
+          COALESCE(MIN(ti.price * ti.quantity), 0) AS min_amount,
+          COALESCE(MAX(ti.price * ti.quantity), 0) AS max_amount
+        FROM transaction_item ti
+        JOIN cust_transaction ct ON ti.transaction_ID = ct.transaction_ID
+        LEFT JOIN product p ON ti.item_ID = p.product_ID
+        WHERE ti.item_type = 'product' ${addDateClause('DATE(ct.transaction_date)')}
+        GROUP BY p.product_ID, p.name, ti.item_ID
+      `;
+
+      const foodSalesQuery = `
+        SELECT
+          'Food Concessions' AS stream_category,
+          COALESCE(m.name, CONCAT('Menu Item #', ti.item_ID)) AS stream_name,
+          COUNT(*) AS transaction_count,
+          COALESCE(SUM(ti.price * ti.quantity), 0) AS total_revenue,
+          COALESCE(ROUND(AVG(ti.price * ti.quantity), 2), 0) AS avg_amount,
+          COALESCE(MIN(ti.price * ti.quantity), 0) AS min_amount,
+          COALESCE(MAX(ti.price * ti.quantity), 0) AS max_amount
+        FROM transaction_item ti
+        JOIN cust_transaction ct ON ti.transaction_ID = ct.transaction_ID
+        LEFT JOIN menu_item m ON ti.item_ID = m.item_ID
+        WHERE ti.item_type = 'food' ${addDateClause('DATE(ct.transaction_date)')}
+        GROUP BY m.item_ID, m.name, ti.item_ID
+      `;
+
+      const expensesQuery = `
+        SELECT
+          'Habitat Operations' AS stream_category,
+          cost_category AS stream_name,
+          COUNT(*) AS transaction_count,
+          COALESCE(SUM(amount), 0) AS total_revenue,
+          COALESCE(ROUND(AVG(amount), 2), 0) AS avg_amount,
+          COALESCE(MIN(amount), 0) AS min_amount,
+          COALESCE(MAX(amount), 0) AS max_amount
+        FROM ENCLOSURE_COST
+        WHERE 1=1 ${addDateClause('cost_date')}
+        GROUP BY cost_category
+      `;
+
+      const medicalExpensesQuery = `
+        SELECT
+          'Animal Healthcare' AS stream_category,
+          cost_category AS stream_name,
+          COUNT(*) AS transaction_count,
+          COALESCE(SUM(amount), 0) AS total_revenue,
+          COALESCE(ROUND(AVG(amount), 2), 0) AS avg_amount,
+          COALESCE(MIN(amount), 0) AS min_amount,
+          COALESCE(MAX(amount), 0) AS max_amount
+        FROM MEDICAL_COST
+        WHERE 1=1 ${addDateClause('cost_date')}
+        GROUP BY cost_category
+        UNION ALL
+        SELECT
+          'Animal Healthcare' AS stream_category,
+          CONCAT('Animal Feeding: ', fi.food_category) AS stream_name,
+          COUNT(*) AS transaction_count,
+          COALESCE(SUM(fc.amount), 0) AS total_revenue,
+          COALESCE(ROUND(AVG(fc.amount), 2), 0) AS avg_amount,
+          COALESCE(MIN(fc.amount), 0) AS min_amount,
+          COALESCE(MAX(fc.amount), 0) AS max_amount
+        FROM FOOD_COST fc
+        JOIN FEED_ITEM fi ON fc.food_ID = fi.food_ID
+        WHERE 1=1 ${addDateClause('fc.cost_date')}
+        GROUP BY fi.food_ID, fi.food_name, fi.supplier
+      `;
+
+      let innerQuery = '';
+      let queryParams = [];
 
       if (streamType === 'tickets') {
-        query = `
-          SELECT
-            'Admissions' AS stream_category,
-            ticket_type AS stream_name,
-            COUNT(*) AS transaction_count,
-            COALESCE(SUM(price), 0) AS total_revenue,
-            COALESCE(ROUND(AVG(price), 2), 0) AS avg_amount,
-            COALESCE(MIN(price), 0) AS min_amount,
-            COALESCE(MAX(price), 0) AS max_amount
-          FROM TICKET
-          GROUP BY ticket_type
-        `;
+        innerQuery = ticketsQuery;
+        queryParams = pushDates();
       } else if (streamType === 'donations') {
-        query = `
-          SELECT
-            'Fundraising' AS stream_category,
-            purpose AS stream_name,
-            COUNT(*) AS transaction_count,
-            COALESCE(SUM(amount), 0) AS total_revenue,
-            COALESCE(ROUND(AVG(amount), 2), 0) AS avg_amount,
-            COALESCE(MIN(amount), 0) AS min_amount,
-            COALESCE(MAX(amount), 0) AS max_amount
-          FROM DONATION
-          GROUP BY purpose
-        `;
+        innerQuery = donationsQuery;
+        queryParams = pushDates();
       } else if (streamType === 'retail') {
-        query = `
-          SELECT
-            'Retail Merchandise' AS stream_category,
-            COALESCE(p.name, CONCAT('Product #', ti.item_ID)) AS stream_name,
-            COUNT(*) AS transaction_count,
-            COALESCE(SUM(ti.price * ti.quantity), 0) AS total_revenue,
-            COALESCE(ROUND(AVG(ti.price * ti.quantity), 2), 0) AS avg_amount,
-            COALESCE(MIN(ti.price * ti.quantity), 0) AS min_amount,
-            COALESCE(MAX(ti.price * ti.quantity), 0) AS max_amount
-          FROM transaction_item ti
-          LEFT JOIN product p ON ti.item_ID = p.product_ID
-          WHERE ti.item_type = 'product'
-          GROUP BY p.product_ID, p.name, ti.item_ID
-        `;
+        innerQuery = retailQuery;
+        queryParams = pushDates();
+      } else if (streamType === 'food_sales') {
+        innerQuery = foodSalesQuery;
+        queryParams = pushDates();
       } else if (streamType === 'expenses') {
-        query = `
-          SELECT
-            'Habitat Operations' AS stream_category,
-            cost_category AS stream_name,
-            COUNT(*) AS transaction_count,
-            COALESCE(SUM(amount), 0) AS total_revenue,
-            COALESCE(ROUND(AVG(amount), 2), 0) AS avg_amount,
-            COALESCE(MIN(amount), 0) AS min_amount,
-            COALESCE(MAX(amount), 0) AS max_amount
-          FROM ENCLOSURE_COST
-          GROUP BY cost_category
-        `;
+        innerQuery = expensesQuery;
+        queryParams = pushDates();
       } else if (streamType === 'medical_expenses') {
-        query = `
-          SELECT
-            'Animal Healthcare' AS stream_category,
-            cost_category AS stream_name,
-            COUNT(*) AS transaction_count,
-            COALESCE(SUM(amount), 0) AS total_revenue,
-            COALESCE(ROUND(AVG(amount), 2), 0) AS avg_amount,
-            COALESCE(MIN(amount), 0) AS min_amount,
-            COALESCE(MAX(amount), 0) AS max_amount
-          FROM MEDICAL_COST
-          GROUP BY cost_category
-        `;
-      } else if (streamType === 'food_expenses') {
-        query = `
-          SELECT
-            'Food Costs' AS stream_category,
-            CONCAT(fi.food_name, ' - ', COALESCE(fi.supplier, 'Unspecified Supplier')) AS stream_name,
-            COUNT(*) AS transaction_count,
-            COALESCE(SUM(fc.amount), 0) AS total_revenue,
-            COALESCE(ROUND(AVG(fc.amount), 2), 0) AS avg_amount,
-            COALESCE(MIN(fc.amount), 0) AS min_amount,
-            COALESCE(MAX(fc.amount), 0) AS max_amount
-          FROM FOOD_COST fc
-          JOIN FEED_ITEM fi ON fc.food_ID = fi.food_ID
-          GROUP BY fi.food_ID, fi.food_name, fi.supplier
-        `;
+        innerQuery = medicalExpensesQuery;
+        queryParams = [...pushDates(), ...pushDates()];
       } else {
-        query = `
-          SELECT * FROM (
-            SELECT
-              'Admissions' AS stream_category,
-              ticket_type AS stream_name,
-              COUNT(*) AS transaction_count,
-              COALESCE(SUM(price), 0) AS total_revenue,
-              COALESCE(ROUND(AVG(price), 2), 0) AS avg_amount,
-              COALESCE(MIN(price), 0) AS min_amount,
-              COALESCE(MAX(price), 0) AS max_amount
-            FROM TICKET
-            GROUP BY ticket_type
-
-            UNION ALL
-
-            SELECT
-              'Fundraising' AS stream_category,
-              purpose AS stream_name,
-              COUNT(*) AS transaction_count,
-              COALESCE(SUM(amount), 0) AS total_revenue,
-              COALESCE(ROUND(AVG(amount), 2), 0) AS avg_amount,
-              COALESCE(MIN(amount), 0) AS min_amount,
-              COALESCE(MAX(amount), 0) AS max_amount
-            FROM DONATION
-            GROUP BY purpose
-
-            UNION ALL
-
-            SELECT
-              'Retail Merchandise' AS stream_category,
-              COALESCE(p.name, CONCAT('Product #', ti.item_ID)) AS stream_name,
-              COUNT(*) AS transaction_count,
-              COALESCE(SUM(ti.price * ti.quantity), 0) AS total_revenue,
-              COALESCE(ROUND(AVG(ti.price * ti.quantity), 2), 0) AS avg_amount,
-              COALESCE(MIN(ti.price * ti.quantity), 0) AS min_amount,
-              COALESCE(MAX(ti.price * ti.quantity), 0) AS max_amount
-            FROM transaction_item ti
-            LEFT JOIN product p ON ti.item_ID = p.product_ID
-            WHERE ti.item_type = 'product'
-            GROUP BY p.product_ID, p.name, ti.item_ID
-
-            UNION ALL
-
-            SELECT
-              'Habitat Operations' AS stream_category,
-              cost_category AS stream_name,
-              COUNT(*) AS transaction_count,
-              COALESCE(SUM(amount), 0) AS total_revenue,
-              COALESCE(ROUND(AVG(amount), 2), 0) AS avg_amount,
-              COALESCE(MIN(amount), 0) AS min_amount,
-              COALESCE(MAX(amount), 0) AS max_amount
-            FROM ENCLOSURE_COST
-            GROUP BY cost_category
-
-            UNION ALL
-
-            SELECT
-              'Animal Healthcare' AS stream_category,
-              cost_category AS stream_name,
-              COUNT(*) AS transaction_count,
-              COALESCE(SUM(amount), 0) AS total_revenue,
-              COALESCE(ROUND(AVG(amount), 2), 0) AS avg_amount,
-              COALESCE(MIN(amount), 0) AS min_amount,
-              COALESCE(MAX(amount), 0) AS max_amount
-            FROM MEDICAL_COST
-            GROUP BY cost_category
-
-            UNION ALL
-
-            SELECT
-              'Food Costs' AS stream_category,
-              CONCAT(fi.food_name, ' - ', COALESCE(fi.supplier, 'Unspecified Supplier')) AS stream_name,
-              COUNT(*) AS transaction_count,
-              COALESCE(SUM(fc.amount), 0) AS total_revenue,
-              COALESCE(ROUND(AVG(fc.amount), 2), 0) AS avg_amount,
-              COALESCE(MIN(fc.amount), 0) AS min_amount,
-              COALESCE(MAX(fc.amount), 0) AS max_amount
-            FROM FOOD_COST fc
-            JOIN FEED_ITEM fi ON fc.food_ID = fi.food_ID
-            GROUP BY fi.food_ID, fi.food_name, fi.supplier
-          ) AS streams
+        innerQuery = `
+          ${ticketsQuery}
+          UNION ALL
+          ${donationsQuery}
+          UNION ALL
+          ${retailQuery}
+          UNION ALL
+          ${foodSalesQuery}
+          UNION ALL
+          ${expensesQuery}
+          UNION ALL
+          ${medicalExpensesQuery}
         `;
+        queryParams = [
+          ...pushDates(),
+          ...pushDates(),
+          ...pushDates(),
+          ...pushDates(),
+          ...pushDates(),
+          ...pushDates(),
+          ...pushDates()
+        ];
       }
 
       const sortColumns = {
@@ -1290,9 +1305,19 @@ const server = http.createServer(async (req, res) => {
         name: 'stream_name ASC'
       };
       const orderClause = sortColumns[sortBy] || 'total_revenue DESC';
-      query += ` ORDER BY ${orderClause}`;
 
-      const [rows] = await pool.query(query);
+      let finalQuery = `SELECT * FROM (${innerQuery}) AS streams WHERE 1=1`;
+      if (minAmount) {
+        finalQuery += ' AND total_revenue >= ?';
+        queryParams.push(Number(minAmount));
+      }
+      if (maxAmount) {
+        finalQuery += ' AND total_revenue <= ?';
+        queryParams.push(Number(maxAmount));
+      }
+      finalQuery += ` ORDER BY ${orderClause}`;
+
+      const [rows] = await pool.query(finalQuery, queryParams);
       send(res, 200, rows);
       return;
     } catch (err) {
@@ -1301,43 +1326,88 @@ const server = http.createServer(async (req, res) => {
       return;
     }
   } else if (
-    req.url === '/api/reports/financial-summary' &&
+    req.url.startsWith('/api/reports/financial-summary') &&
     req.method === 'GET'
   ) {
     try {
+      const parsedUrl = new URL(req.url, 'http://localhost');
+      const timeFrame = parsedUrl.searchParams.get('time_frame') || 'ytd';
+      let startDate = parsedUrl.searchParams.get('start_date');
+      let endDate = parsedUrl.searchParams.get('end_date');
+
+      if (timeFrame === 'ytd') {
+        const currentYear = new Date().getFullYear();
+        startDate = `${currentYear}-01-01`;
+        endDate = new Date().toISOString().split('T')[0];
+      } else if (timeFrame === 'all') {
+        startDate = null;
+        endDate = null;
+      }
+
+      const addDateClause = (dateCol) => {
+        let sql = '';
+        if (startDate) sql += ` AND ${dateCol} >= ?`;
+        if (endDate) sql += ` AND ${dateCol} <= ?`;
+        return sql;
+      };
+
+      const pushDates = () => {
+        const p = [];
+        if (startDate) p.push(startDate);
+        if (endDate) p.push(endDate);
+        return p;
+      };
+
       const [[tickets]] = await pool.query(
-        'SELECT COALESCE(SUM(price), 0) AS total FROM TICKET'
+        `SELECT COALESCE(SUM(price), 0) AS total FROM TICKET WHERE 1=1 ${addDateClause('purchase_date')}`,
+        pushDates()
       );
       const [[donations]] = await pool.query(
-        'SELECT COALESCE(SUM(amount), 0) AS total FROM DONATION'
+        `SELECT COALESCE(SUM(amount), 0) AS total FROM DONATION WHERE 1=1 ${addDateClause('donation_date')}`,
+        pushDates()
       );
       const [[retail]] = await pool.query(
-        "SELECT COALESCE(SUM(price * quantity), 0) AS total FROM TRANSACTION_ITEM WHERE item_type = 'product'"
+        `SELECT COALESCE(SUM(ti.price * ti.quantity), 0) AS total 
+         FROM TRANSACTION_ITEM ti
+         JOIN cust_transaction ct ON ti.transaction_ID = ct.transaction_ID
+         WHERE ti.item_type = 'product' ${addDateClause('DATE(ct.transaction_date)')}`,
+        pushDates()
+      );
+      const [[foodConcessions]] = await pool.query(
+        `SELECT COALESCE(SUM(ti.price * ti.quantity), 0) AS total 
+         FROM TRANSACTION_ITEM ti
+         JOIN cust_transaction ct ON ti.transaction_ID = ct.transaction_ID
+         WHERE ti.item_type = 'food' ${addDateClause('DATE(ct.transaction_date)')}`,
+        pushDates()
       );
       const [categories] = await pool.query(`
         SELECT cost_category, COALESCE(SUM(amount), 0) AS total
         FROM ENCLOSURE_COST
+        WHERE 1=1 ${addDateClause('cost_date')}
         GROUP BY cost_category
         ORDER BY total DESC
-      `);
+      `, pushDates());
       const [medicalCategories] = await pool.query(`
-        SELECT cost_category, COALESCE(SUM(amount), 0) AS total
-        FROM MEDICAL_COST
+        SELECT cost_category, COALESCE(SUM(total), 0) AS total
+        FROM (
+          SELECT cost_category, amount AS total
+          FROM MEDICAL_COST
+          WHERE 1=1 ${addDateClause('cost_date')}
+          UNION ALL
+          SELECT CONCAT('Animal Feeding: ', fi.food_category) AS cost_category, fc.amount AS total
+          FROM FOOD_COST fc
+          JOIN FEED_ITEM fi ON fc.food_ID = fi.food_ID
+          WHERE 1=1 ${addDateClause('fc.cost_date')}
+        ) AS healthcare_costs
         GROUP BY cost_category
         ORDER BY total DESC
-      `);
-      const [foodCategories] = await pool.query(`
-        SELECT fi.food_category AS cost_category, COALESCE(SUM(fc.amount), 0) AS total
-        FROM FOOD_COST fc
-        JOIN FEED_ITEM fi ON fc.food_ID = fi.food_ID
-        GROUP BY fi.food_category
-        ORDER BY total DESC
-      `);
+      `, [...pushDates(), ...pushDates()]);
 
       const admissionsTotal = Number(tickets.total || 0);
       const donationsTotal = Number(donations.total || 0);
       const retailTotal = Number(retail.total || 0);
-      const grossRevenue = admissionsTotal + donationsTotal + retailTotal;
+      const foodConcessionsTotal = Number(foodConcessions.total || 0);
+      const grossRevenue = admissionsTotal + donationsTotal + retailTotal + foodConcessionsTotal;
 
       const enclosureCostsTotal = categories.reduce(
         (sum, category) => sum + Number(category.total || 0), 0
@@ -1345,17 +1415,18 @@ const server = http.createServer(async (req, res) => {
       const medicalCostsTotal = medicalCategories.reduce(
         (sum, category) => sum + Number(category.total || 0), 0
       );
-      const foodCostsTotal = foodCategories.reduce(
-        (sum, category) => sum + Number(category.total || 0), 0
-      );
-      const totalExpenses = enclosureCostsTotal + medicalCostsTotal + foodCostsTotal;
+      const totalExpenses = enclosureCostsTotal + medicalCostsTotal;
       const netBalance = grossRevenue - totalExpenses;
 
       send(res, 200, {
+        time_frame: timeFrame,
+        start_date: startDate,
+        end_date: endDate,
         gross_revenue: grossRevenue.toFixed(2),
         admissions_total: admissionsTotal.toFixed(2),
         donations_total: donationsTotal.toFixed(2),
         retail_total: retailTotal.toFixed(2),
+        food_concessions_total: foodConcessionsTotal.toFixed(2),
         enclosure_costs_total: enclosureCostsTotal.toFixed(2),
         enclosure_categories: categories.map(category => ({
           category: category.cost_category,
@@ -1364,11 +1435,6 @@ const server = http.createServer(async (req, res) => {
         medical_costs_total: medicalCostsTotal.toFixed(2),
         medical_categories: medicalCategories.map(category => ({
           category: category.cost_category,
-          amount: Number(category.total || 0).toFixed(2)
-        })),
-        food_costs_total: foodCostsTotal.toFixed(2),
-        food_categories: foodCategories.map(category => ({
-          category: category.cost_category || 'Uncategorized',
           amount: Number(category.total || 0).toFixed(2)
         })),
         total_expenses: totalExpenses.toFixed(2),
@@ -1878,7 +1944,7 @@ const server = http.createServer(async (req, res) => {
           ti.price,
           COALESCE(p.name, m.name, t.ticket_type, CONCAT(UPPER(SUBSTRING(ti.item_type, 1, 1)), LOWER(SUBSTRING(ti.item_type, 2)))) AS item_name
         FROM CUST_TRANSACTION ct
-        JOIN VISITOR v ON ct.visitor_ID = v.visitor_ID
+        LEFT JOIN VISITOR v ON ct.visitor_ID = v.visitor_ID
         JOIN TRANSACTION_ITEM ti ON ct.transaction_ID = ti.transaction_ID
         LEFT JOIN PRODUCT p ON ti.item_ID = p.product_ID AND ti.item_type = 'product'
         LEFT JOIN MENU_ITEM m ON ti.item_ID = m.item_ID AND ti.item_type = 'food'
@@ -2575,6 +2641,11 @@ try {
         }
       }
 
+      const [empRows] = await pool.query(
+        'SELECT email FROM EMPLOYEE WHERE employee_ID = ?',
+        [employeeID]
+      );
+
       const [result] = await pool.query(
         'UPDATE EMPLOYEE SET current = 0 WHERE employee_ID = ?',
         [employeeID]
@@ -2592,6 +2663,18 @@ try {
           `UPDATE EMPLOYMENT_HISTORY
            SET status = 'terminated', end_date = CURDATE()
            WHERE employee_ID = ? AND status = 'active'`,
+          [employeeID]
+        );
+
+        if (empRows.length > 0 && empRows[0].email) {
+          await pool.query(
+            "UPDATE users SET role = 'visitor' WHERE email = ?",
+            [empRows[0].email]
+          );
+        }
+
+        await pool.query(
+          'UPDATE DEPARTMENT SET head_employee_ID = NULL WHERE head_employee_ID = ?',
           [employeeID]
         );
 
@@ -2771,6 +2854,12 @@ try {
         if (data.is_dept_head === true) {
           const targetDept = data.department_ID !== undefined ? data.department_ID : oldEmp[0].department_ID;
           if (targetDept) {
+            const [prevHeadRows] = await connection.query(
+              'SELECT head_employee_ID FROM DEPARTMENT WHERE department_ID = ?',
+              [targetDept]
+            );
+            const oldHeadID = prevHeadRows.length > 0 ? prevHeadRows[0].head_employee_ID : null;
+
             await connection.query(
               'UPDATE DEPARTMENT SET head_employee_ID = ? WHERE department_ID = ?',
               [employeeID, targetDept]
@@ -2783,6 +2872,23 @@ try {
               await connection.query(
                 "UPDATE users SET role = 'manager' WHERE email = ?",
                 [oldEmp[0].email]
+              );
+            }
+
+            if (oldHeadID && Number(oldHeadID) !== Number(employeeID)) {
+              const [oldHeadEmp] = await connection.query(
+                'SELECT email FROM EMPLOYEE WHERE employee_ID = ?',
+                [oldHeadID]
+              );
+              if (oldHeadEmp.length > 0 && oldHeadEmp[0].email) {
+                await connection.query(
+                  "UPDATE users SET role = 'employee' WHERE email = ?",
+                  [oldHeadEmp[0].email]
+                );
+              }
+              await connection.query(
+                'UPDATE EMPLOYEE SET manager_ID = ? WHERE employee_ID = ?',
+                [employeeID, oldHeadID]
               );
             }
           }
@@ -2996,10 +3102,33 @@ try {
         }
 
         if (data.is_dept_head && data.department_ID) {
+          const [prevHeadRows] = await connection.query(
+            'SELECT head_employee_ID FROM DEPARTMENT WHERE department_ID = ?',
+            [data.department_ID]
+          );
+          const oldHeadID = prevHeadRows.length > 0 ? prevHeadRows[0].head_employee_ID : null;
+
           await connection.query(
             'UPDATE DEPARTMENT SET head_employee_ID = ? WHERE department_ID = ?',
             [newEmployeeID, data.department_ID]
           );
+
+          if (oldHeadID && Number(oldHeadID) !== Number(newEmployeeID)) {
+            const [oldHeadEmp] = await connection.query(
+              'SELECT email FROM EMPLOYEE WHERE employee_ID = ?',
+              [oldHeadID]
+            );
+            if (oldHeadEmp.length > 0 && oldHeadEmp[0].email) {
+              await connection.query(
+                "UPDATE users SET role = 'employee' WHERE email = ?",
+                [oldHeadEmp[0].email]
+              );
+            }
+            await connection.query(
+              'UPDATE EMPLOYEE SET manager_ID = ? WHERE employee_ID = ?',
+              [newEmployeeID, oldHeadID]
+            );
+          }
         }
 
         const defaultPassword = `${data.first_name.trim().toLowerCase()}123`;
@@ -3426,26 +3555,18 @@ try {
 
         let generatedCouponCode = null;
         if (isSponsorship) {
-          const [animalRows] = await connection.query(
-            'SELECT name FROM ANIMAL WHERE animal_ID = ?',
-            [animalID]
+          const [couponRows] = await connection.query(
+            `SELECT code
+             FROM COUPON
+             WHERE donor_email = ?
+               AND code = ?
+               AND is_used = FALSE`,
+            [
+              donor_email.trim().toLowerCase(),
+              `SPONSOR-DONATION-${donationID}`
+            ]
           );
-          const rawName = animalRows.length > 0 && animalRows[0].name ? animalRows[0].name : 'ANIMAL';
-          const cleanName = rawName.trim().toUpperCase().replace(/[^A-Z0-9]/g, '') || 'ANIMAL';
-
-          const tempPlaceholder = `TEMP-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
-          const [couponResult] = await connection.query(
-            `INSERT INTO COUPON (donor_email, code, discount_percent, is_used)
-             VALUES (?, ?, 15, FALSE)`,
-            [donor_email.trim().toLowerCase(), tempPlaceholder]
-          );
-          const couponID = couponResult.insertId;
-          generatedCouponCode = `SPONSOR-${cleanName}-${couponID}`;
-
-          await connection.query(
-            'UPDATE COUPON SET code = ? WHERE coupon_ID = ?',
-            [generatedCouponCode, couponID]
-          );
+          generatedCouponCode = couponRows.length > 0 ? couponRows[0].code : null;
         }
 
         const [transactionResult] = await connection.query(
@@ -3531,16 +3652,21 @@ try {
       }
 
       for (const item of data.items) {
-        if (!item.item_ID || !item.quantity || item.quantity <= 0) {
+        if (
+          !Number.isSafeInteger(Number(item.item_ID)) ||
+          Number(item.item_ID) <= 0 ||
+          !Number.isSafeInteger(Number(item.quantity)) ||
+          Number(item.quantity) <= 0
+        ) {
           res.statusCode = 400;
           res.end(JSON.stringify({ error: 'Invalid item details in cart.' }));
           return;
         }
       }
 
-      const subtotal = data.items.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 1), 0);
       let discountAmount = 0;
       let appliedCouponCode = null;
+      let checkoutItems = data.items;
 
       const allowedMethods = ['credit', 'debit', 'digital_wallet', 'paypal', 'cash'];
       let chosenMethod = data.payment_method === 'card' ? 'credit' : data.payment_method;
@@ -3550,6 +3676,46 @@ try {
       try {
         connection = await pool.getConnection();
         await connection.beginTransaction();
+
+        if (itemType === 'product' || itemType === 'food') {
+          const itemIds = [...new Set(data.items.map(item => Number(item.item_ID)))];
+          const placeholders = itemIds.map(() => '?').join(', ');
+          const table = itemType === 'product' ? 'PRODUCT' : 'MENU_ITEM';
+          const idColumn = itemType === 'product' ? 'product_ID' : 'item_ID';
+          const [catalogItems] = await connection.query(
+            `SELECT ${idColumn} AS item_ID, name, price
+             FROM ${table}
+             WHERE ${idColumn} IN (${placeholders})`,
+            itemIds
+          );
+          const catalogById = new Map(
+            catalogItems.map(item => [Number(item.item_ID), item])
+          );
+
+          if (catalogItems.length !== itemIds.length) {
+            await connection.rollback();
+            res.statusCode = 400;
+            res.end(JSON.stringify({
+              error: `One or more ${itemType} items are no longer available.`
+            }));
+            return;
+          }
+
+          checkoutItems = data.items.map(item => {
+            const catalogItem = catalogById.get(Number(item.item_ID));
+            return {
+              ...item,
+              item_ID: Number(item.item_ID),
+              price: Number(catalogItem.price),
+              name: catalogItem.name
+            };
+          });
+        }
+
+        const subtotal = checkoutItems.reduce(
+          (sum, item) => sum + item.price * Number(item.quantity),
+          0
+        );
 
         if (data.coupon_code && typeof data.coupon_code === 'string' && data.coupon_code.trim()) {
           const rawCode = data.coupon_code.trim().toUpperCase();
@@ -3573,7 +3739,7 @@ try {
 
         const discountedSubtotal = Math.max(0, subtotal - discountAmount);
         const tax = discountedSubtotal * 0.0825;
-        const totalAmount = data.total ? Number(data.total) : discountedSubtotal + tax;
+        const totalAmount = discountedSubtotal + tax;
 
         let visitorID = data.visitor_ID || null;
         const receiptEmail = typeof data.email === 'string' && data.email.trim() ? data.email.trim() : null;
@@ -3613,7 +3779,7 @@ try {
         );
         const transactionID = transResult.insertId;
 
-        for (const item of data.items) {
+        for (const item of checkoutItems) {
           await connection.query(
             `INSERT INTO TRANSACTION_ITEM (transaction_ID, item_type, item_ID, quantity, price)
              VALUES (?, ?, ?, ?, ?)`,
@@ -3644,7 +3810,7 @@ try {
             customerEmail: dispatchEmail,
             transactionID,
             storeName: storeLabel,
-            items: data.items.map(it => ({
+            items: checkoutItems.map(it => ({
               name: it.name || `${storeLabel} Item #${it.item_ID}`,
               quantity: it.quantity,
               price: it.price
@@ -3673,7 +3839,7 @@ try {
           cash_tendered: data.cash_tendered || null,
           change_due: data.change_due || null,
           item_type: itemType,
-          item_count: data.items.reduce((sum, item) => sum + Number(item.quantity), 0),
+          item_count: checkoutItems.reduce((sum, item) => sum + Number(item.quantity), 0),
           message: 'Order processed successfully!'
         }));
       } catch (err) {
