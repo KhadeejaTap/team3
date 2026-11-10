@@ -41,6 +41,24 @@ function formatDate(value) {
   return date.toLocaleDateString();
 }
 
+function formatTime(value) {
+  if (!value) return 'Time not listed';
+
+  const parts = String(value).split(':');
+  if (parts.length < 2) return value;
+
+  const hours = Number(parts[0]);
+  const minutes = parts[1];
+  if (!Number.isFinite(hours)) return value;
+
+  const date = new Date();
+  date.setHours(hours, Number(minutes), 0, 0);
+  return date.toLocaleTimeString([], {
+    hour: 'numeric',
+    minute: '2-digit'
+  });
+}
+
 function getAnimalImage(animal) {
   if (animal.image_url) {
     if (/^https?:\/\//i.test(animal.image_url)) {
@@ -55,6 +73,8 @@ function getAnimalImage(animal) {
 
 function VisitorAnimalDirectory() {
   const [animals, setAnimals] = useState([]);
+  const [feedingSchedule, setFeedingSchedule] = useState([]);
+  const [scheduleError, setScheduleError] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -63,9 +83,7 @@ function VisitorAnimalDirectory() {
 
     async function loadAnimals() {
       try {
-        const response = await apiFetch(
-          `${API_URL}/api/public/animals`
-        );
+        const response = await apiFetch(`${API_URL}/api/public/animals`);
 
         if (!response.ok) {
           throw new Error(
@@ -89,12 +107,59 @@ function VisitorAnimalDirectory() {
       }
     }
 
+    async function loadFeedingSchedule() {
+      try {
+        const response = await apiFetch(
+          `${API_URL}/api/public/feeding-schedule`
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            `Unable to load feeding schedule. Server returned ${response.status}.`
+          );
+        }
+
+        const data = await response.json();
+
+        if (!cancelled) {
+          setFeedingSchedule(Array.isArray(data) ? data : []);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setScheduleError(
+            err.message || 'Unable to load the feeding schedule.'
+          );
+        }
+      }
+    }
+
     loadAnimals();
+    loadFeedingSchedule();
 
     return () => {
       cancelled = true;
     };
   }, []);
+
+  const enclosureSchedules = Object.values(
+    feedingSchedule.reduce((groups, item) => {
+      const key = item.enclosure_ID ?? item.enclosure_name ?? 'unassigned';
+
+      if (!groups[key]) {
+        groups[key] = {
+          enclosure_ID: item.enclosure_ID,
+          enclosure_name: item.enclosure_name || 'Unassigned enclosure',
+          times: []
+        };
+      }
+
+      groups[key].times.push(item.feeding_time);
+      return groups;
+    }, {})
+  ).map((group) => ({
+    ...group,
+    times: [...new Set(group.times)].sort()
+  }));
 
   if (loading) {
     return (
@@ -118,10 +183,35 @@ function VisitorAnimalDirectory() {
     <main className="visitor-animals">
       <header className="visitor-animals-header">
         <h1>Meet the Animals</h1>
-        <p>
-          Get to know the animals who call Cougar Zoo home.
-        </p>
+        <p>Get to know the animals who call Cougar Zoo home.</p>
       </header>
+
+      <section className="visitor-feeding-schedule visitor-feeding-schedule-compact">
+        <h2>Daily Feeding Schedule</h2>
+        <p>Feeding times by enclosure</p>
+
+        {scheduleError ? (
+          <p className="visitor-animals-error" role="alert">
+            {scheduleError}
+          </p>
+        ) : enclosureSchedules.length === 0 ? (
+          <p>There are no feeding times listed right now.</p>
+        ) : (
+          <div className="visitor-feeding-schedule-grid">
+            {enclosureSchedules.map((enclosure) => (
+              <article
+                className="visitor-feeding-schedule-item"
+                key={enclosure.enclosure_ID ?? enclosure.enclosure_name}
+              >
+                <h3>{enclosure.enclosure_name}</h3>
+                <p>
+                  {enclosure.times.map(formatTime).join(' • ')}
+                </p>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
 
       {animals.length === 0 ? (
         <p>No animal records are available right now.</p>
@@ -166,6 +256,11 @@ function VisitorAnimalDirectory() {
                 </p>
 
                 <dl>
+                  <div>
+                    <dt>Enclosure</dt>
+                    <dd>{animal.enclosure_name || 'Not available'}</dd>
+                  </div>
+
                   <div>
                     <dt>Age</dt>
                     <dd>{animal.age ?? 'Not available'}</dd>
