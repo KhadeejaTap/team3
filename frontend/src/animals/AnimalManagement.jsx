@@ -245,6 +245,9 @@ function AnimalManagement({ role, userEmail }) {
     const [animals, setAnimals] = useState([]);
     const [loadingAnimals, setLoadingAnimals] = useState(false);
     const [selectedAnimalID, setSelectedAnimalID] = useState('');
+    const [selectedImage, setSelectedImage] = useState(null);
+    const [imagePreview, setImagePreview] = useState('');
+    const [currentImageUrl, setCurrentImageUrl] = useState('');
 
     useEffect(() => {
         async function fetchSpecies() {
