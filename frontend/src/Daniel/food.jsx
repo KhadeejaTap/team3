@@ -47,10 +47,20 @@ async function getFoodData() {
   );
 
   const stallsWithImages = await Promise.all(
-    stalls.map(async stall => ({
-      ...stall,
-      image: await loadStallImage(stall.stall_ID)
-    }))
+    stalls.map(async stall => {
+      try {
+        return {
+          ...stall,
+          image: await loadStallImage(stall.stall_ID)
+        };
+      } catch {
+        return {
+          ...stall,
+          image: null,
+          imageError: true
+        };
+      }
+    })
   );
 
   return { stalls: stallsWithImages, items };
@@ -483,7 +493,9 @@ export default function Food({ role, userDept }) {
           {stall.image ? (
             <img src={stall.image} alt={`${stall.name}`} />
           ) : (
-            <span>Stall image</span>
+            <span>
+              {stall.imageError ? 'Image could not be loaded' : 'Stall image'}
+            </span>
           )}
         </div>
         {canManage && (
