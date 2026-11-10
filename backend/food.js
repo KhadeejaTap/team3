@@ -140,12 +140,28 @@ async function handleFood(req, res, pool, send, readBody) {
       return true;
     }
 
-    const [result] = await pool.execute(
-      `UPDATE FOOD_STALL
-       SET image_data = ?, image_mime = ?
-       WHERE stall_ID = ?`,
-      [imageBuffer, match[1], stallId]
-    );
+    let result;
+    try {
+      [result] = await pool.execute(
+        `UPDATE FOOD_STALL
+         SET image_data = ?, image_mime = ?
+         WHERE stall_ID = ?`,
+        [imageBuffer, match[1], stallId]
+      );
+    } catch (error) {
+      if (
+        error.code === 'ER_BAD_FIELD_ERROR' &&
+        /image_data|image_mime/i.test(error.message)
+      ) {
+        const migrationError = new Error(
+          'Food stall image storage is not configured. Apply migrations/food_stall_images.sql to the database.'
+        );
+        migrationError.status = 503;
+        throw migrationError;
+      }
+
+      throw error;
+    }
 
     if (result.affectedRows === 0) {
       const [rows] = await pool.execute(
