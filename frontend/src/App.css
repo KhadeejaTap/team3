@@ -274,10 +274,64 @@ article h3 {
   font-size: 1.15rem;
 }
 
+.food-stall-link,
+.food-stall-link:visited {
+  color: inherit;
+  text-decoration: none;
+}
+
+.food-stall-link:hover {
+  color: inherit;
+  text-decoration: none;
+}
+
+.food-stall-link:focus-visible {
+  outline: 2px solid #2d5a37;
+  outline-offset: 3px;
+}
+
 article p {
   margin: 4px 0;
   font-size: 14px;
   color: #4a574d;
+}
+
+.food-stall-image-placeholder {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  margin-bottom: 14px;
+  border: 1px dashed #9cab99;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #f0f5ee, #e4ece3);
+  color: #526553;
+  font-size: 14px;
+}
+
+.food-stall-image-placeholder img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 5px;
+  object-fit: cover;
+}
+
+.food-stall-image-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: -4px 0 14px;
+}
+
+.food-stall-image-actions label {
+  margin: 0;
+}
+
+.food-stall-image-actions input[type='file'] {
+  display: block;
+  max-width: 100%;
+  margin-top: 4px;
 }
 
 /* Fieldsets & Legends (Daniel's Add Forms) */
@@ -877,6 +931,25 @@ main form {
 .donation-form-field select {
   box-sizing: border-box;
   width: 100%;
+}
+
+.ticket-date-input-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.ticket-date-input-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.ticket-date-picker-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
 }
 
 .ticket-purchase form button,
