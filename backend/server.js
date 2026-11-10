@@ -137,6 +137,7 @@ async function checkEnclosureCapacityAlert(enclosureID) {
       const result = await sendDepartmentAlert({
         pool,
         departmentID: ENCLOSURE_ALERT_DEPARTMENT_ID,
+        referenceType: 'enclosure_capacity',
         subject: `ENCLOSURE CAPACITY WARNING: ${enclosure.name}`,
         body: `Enclosure '${enclosure.name}' has reached ${percentage}% capacity. Current animal count: ${enclosure.animal_count}. Maximum capacity: ${enclosure.capacity}. Please review the enclosure's occupancy.`,
         referenceID: Number(enclosureID)
@@ -598,6 +599,46 @@ const server = http.createServer(async (req, res) => {
       send(res, 200, rows);
     } catch (err) {
       send(res, 500, { error: err.message });
+    }
+  } else if (req.url === '/api/alerts/enclosure-capacity' && req.method === 'GET') {
+    try {
+      const allowed = await requireRoles(req, res, pool, send, ['manager']);
+      if (!allowed) return;
+
+      const [rows] = await pool.query(`
+        SELECT
+          e.enclosure_ID,
+          e.name AS enclosure_name,
+          COUNT(a.animal_ID) AS animal_count,
+          e.capacity,
+          ROUND(COUNT(a.animal_ID) / NULLIF(e.capacity, 0) * 100, 1) AS occupancy_percent,
+          COALESCE(
+            (SELECT MAX(el.sent_at)
+             FROM EMAIL_LOG el
+             WHERE el.reference_type = 'enclosure_capacity'
+               AND el.reference_ID = e.enclosure_ID),
+            state.updated_at
+          ) AS created_at
+        FROM ENCLOSURE e
+        LEFT JOIN ANIMAL a ON a.enclosure_ID = e.enclosure_ID
+          AND NOT EXISTS (
+            SELECT 1 FROM ANIMAL_REMOVAL ar
+            WHERE ar.animal_ID = a.animal_ID
+          )
+        LEFT JOIN ENCLOSURE_CAPACITY_ALERT_STATE state
+          ON state.enclosure_ID = e.enclosure_ID
+        WHERE e.capacity > 0
+        GROUP BY e.enclosure_ID, e.name, e.capacity, state.updated_at
+        HAVING COUNT(a.animal_ID) / e.capacity >= ?
+        ORDER BY occupancy_percent DESC, e.name ASC
+      `, [ENCLOSURE_ALERT_THRESHOLD * 100 / 100]);
+
+      send(res, 200, rows);
+      return;
+    } catch (err) {
+      console.error('Error loading enclosure capacity alerts:', err);
+      send(res, 500, { error: 'Could not load enclosure capacity alerts.' });
+      return;
     }
   } else if (req.url === '/api/alerts/upcoming-events' && req.method === 'GET') {
     try {
@@ -3701,7 +3742,7 @@ try {
           END AS occupancy_percent,
           CASE
             WHEN e.capacity > 0
-              AND COUNT(a.animal_ID) / e.capacity > 0.75
+              AND COUNT(a.animal_ID) / e.capacity >= 0.75
               THEN 1
             ELSE 0
           END AS crowding_flag

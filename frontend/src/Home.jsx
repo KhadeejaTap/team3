@@ -372,6 +372,7 @@ function Home({ role, userEmail, userDept }) {
 			}
 		}
 
+
 		async function fetchCoupons() {
 			try {
 				const res = await apiFetch(`/api/coupons?email=${encodeURIComponent(effectiveEmail)}`);
@@ -392,11 +393,10 @@ function Home({ role, userEmail, userDept }) {
 		fetchCoupons();
 		fetchCommercialAlerts();
 		fetchGuestOpsAlerts();
-
 		return () => {
 			isMounted = false;
 		};
-	}, [role, effectiveEmail, isCommercialManager, isGuestOpsManager]);
+	}, [role, effectiveEmail, isCommercialManager, isGuestOpsManager, isAnimalManager]);
 
 	return (
 		<div className="home-container">
@@ -485,6 +485,7 @@ function Home({ role, userEmail, userDept }) {
 					</table>
 				</section>
 			)}
+
 
 			{isGuestOpsManager && guestOpsAlerts.length > 0 && (
 				<section style={{
