@@ -19,6 +19,9 @@ function MedicalRecords() {
     const [animals, setAnimals] = useState([]);
     const [search, setSearch] = useState('');
     const [selectedAnimalID, setSelectedAnimalID] = useState('');
+    const [selectedImage, setSelectedImage] = useState(null);
+    const [imagePreview, setImagePreview] = useState('');
+    const [currentImageUrl, setCurrentImageUrl] = useState('');
     const [records, setRecords] = useState([]);
     const [isSick, setIsSick] = useState(false);
     const [form, setForm] = useState({ diagnosis: '', treatment: '', notes: '', vet_ID: '', follow_up: '' });
@@ -321,6 +324,9 @@ function AnimalManagement({ role, userEmail }) {
 
         if (!animalID) {
             setFormData(EMPTY_FORM);
+            setSelectedImage(null);
+            setImagePreview('');
+            setCurrentImageUrl('');
             return;
         }
 
@@ -346,7 +352,20 @@ function AnimalManagement({ role, userEmail }) {
                     ? 'Breeding'
                     : 'Not Breeding'
         });
+        setSelectedImage(null);
+        setImagePreview('');
+        setCurrentImageUrl(animal.image_url || '');
         setMessage(`Loaded ${animal.name}. Make your changes and select Update Animal Record.`);
+    }
+
+    function handleImageChange(event) {
+        const file = event.target.files?.[0] || null;
+        setSelectedImage(file);
+        if (file) {
+            setImagePreview(URL.createObjectURL(file));
+        } else {
+            setImagePreview('');
+        }
     }
 
     async function handleSubmit(event) {
@@ -358,13 +377,15 @@ function AnimalManagement({ role, userEmail }) {
             return;
         }
 
-        const payload = {
+        const payload = new FormData();
+        Object.entries({
             ...formData,
             species_ID: Number(formData.species_ID),
             enclosure_ID: Number(formData.enclosure_ID),
-            age: formData.age === '' ? null : Number(formData.age),
-            weight: formData.weight === '' ? null : Number(formData.weight)
-        };
+            age: formData.age === '' ? '' : Number(formData.age),
+            weight: formData.weight === '' ? '' : Number(formData.weight)
+        }).forEach(([key, value]) => payload.append(key, value ?? ''));
+        if (selectedImage) payload.append('image', selectedImage);
 
         try {
             const response = await fetch(
@@ -373,8 +394,7 @@ function AnimalManagement({ role, userEmail }) {
                     : `${API_URL}/api/animals`,
                 {
                     method: isEditing ? 'PUT' : 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
+                    body: payload
                 }
             );
 
@@ -392,10 +412,22 @@ function AnimalManagement({ role, userEmail }) {
             if (isEditing) {
                 // Refresh the list so the selected record reflects its latest values.
                 const refreshResponse = await fetch(`${API_URL}/api/animals`);
-                if (refreshResponse.ok) setAnimals(await refreshResponse.json());
+                if (refreshResponse.ok) {
+                    const refreshedAnimals = await refreshResponse.json();
+                    setAnimals(refreshedAnimals);
+                    const refreshedAnimal = refreshedAnimals.find((item) => String(item.animal_ID) === String(selectedAnimalID));
+                    setCurrentImageUrl(refreshedAnimal?.image_url || currentImageUrl);
+                }
             } else {
                 setFormData(EMPTY_FORM);
+                setSelectedImage(null);
+                setImagePreview('');
+                setCurrentImageUrl('');
+                const imageInput = document.getElementById('animal_image');
+                if (imageInput) imageInput.value = '';
             }
+            setSelectedImage(null);
+            setImagePreview('');
         } catch (error) {
             setMessage(`Error: ${error.message}`);
         }
@@ -450,6 +482,9 @@ function AnimalManagement({ role, userEmail }) {
         setIsEditing(nextIsEditing);
         setSelectedAnimalID('');
         setFormData(EMPTY_FORM);
+        setSelectedImage(null);
+        setImagePreview('');
+        setCurrentImageUrl('');
         setMessage('');
     }
 
@@ -703,6 +738,25 @@ function AnimalManagement({ role, userEmail }) {
                             <option value="Breeding">Breeding</option>
                             <option value="Not Breeding">Not Breeding</option>
                         </select>
+
+                        <label htmlFor="animal_image">Animal Photo:</label>
+                        <input
+                            id="animal_image"
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            onChange={handleImageChange}
+                        />
+                        <small>Accepted formats: JPG, PNG, or WEBP. Maximum size: 5 MB.</small>
+                        {(imagePreview || currentImageUrl) && (
+                            <div style={{ margin: '12px 0' }}>
+                                <p>{imagePreview ? 'New image preview:' : 'Current animal photo:'}</p>
+                                <img
+                                    src={imagePreview || `${API_URL}${currentImageUrl}`}
+                                    alt="Animal preview"
+                                    style={{ width: '180px', height: '140px', objectFit: 'cover', borderRadius: '8px' }}
+                                />
+                            </div>
+                        )}
 
                         <button type="submit">
                             {isEditing ? 'Update Animal Record' : 'Save Animal'}
