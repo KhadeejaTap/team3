@@ -19,6 +19,14 @@
 import { useState, useEffect } from 'react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const EXPENSE_CATEGORIES = ['Habitat Operations', 'Animal Healthcare'];
+
+function formatCurrency(value) {
+	return Number(value || 0).toLocaleString(undefined, {
+		minimumFractionDigits: 2,
+		maximumFractionDigits: 2
+	});
+}
 
 function RevenueDetails({ role, userDept }) {
 	const [reportData, setReportData] = useState([]);
@@ -33,24 +41,16 @@ function RevenueDetails({ role, userDept }) {
 		Number(userDept) === 1 ||
 		Number(localStorage.getItem('user_dept')) === 1;
 
-	if (!isFinAdmin) {
-		return (
-			<div>
-				<h2>Access Denied</h2>
-				<p>Revenue Details report is restricted to Financial & HR personnel.</p>
-			</div>
-		);
-	}
-
 	const fetchSummary = () => {
 		fetch(`${API_URL}/api/reports/financial-summary`)
 			.then(async (res) => {
-				if (!res.ok) return null;
+				if (!res.ok) {
+					const body = await res.json().catch(() => ({}));
+					throw new Error(body.error || `Server returned status ${res.status}`);
+				}
 				return res.json();
 			})
-			.then((data) => {
-				if (data) setSummary(data);
-			})
+			.then(setSummary)
 			.catch((err) => console.error('Error fetching financial summary:', err));
 	};
 
@@ -74,19 +74,29 @@ function RevenueDetails({ role, userDept }) {
 			.then((data) => {
 				setReportData(data);
 				setLastUpdated(new Date().toLocaleTimeString());
-				setLoading(false);
 			})
 			.catch((err) => {
 				console.error('Error fetching revenue report:', err);
 				setError(`Failed to load report: ${err.message}`);
-				setLoading(false);
-			});
+			})
+			.finally(() => setLoading(false));
 	};
 
 	useEffect(() => {
-		fetchReport();
-		fetchSummary();
+		if (isFinAdmin) {
+			fetchReport();
+			fetchSummary();
+		}
 	}, []);
+
+	if (!isFinAdmin) {
+		return (
+			<div>
+				<h2>Access Denied</h2>
+				<p>Revenue Details report is restricted to Financial & HR personnel.</p>
+			</div>
+		);
+	}
 
 	const handleFilterSubmit = (e) => {
 		e.preventDefault();
@@ -104,15 +114,16 @@ function RevenueDetails({ role, userDept }) {
 			'Stream Category',
 			'Stream / Source',
 			'Transaction Count',
-			'Total Revenue ($)',
+			'Total Amount ($)',
 			'Average Amount ($)',
 			'Min Amount ($)',
 			'Max Amount ($)'
 		];
 
+		const escapeCSV = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
 		const rows = reportData.map((row) => [
-			`"${row.stream_category}"`,
-			`"${row.stream_name}"`,
+			escapeCSV(row.stream_category),
+			escapeCSV(row.stream_name),
 			row.transaction_count,
 			row.total_revenue,
 			row.avg_amount,
@@ -125,81 +136,80 @@ function RevenueDetails({ role, userDept }) {
 		const url = URL.createObjectURL(blob);
 		const link = document.createElement('a');
 		link.href = url;
-		link.setAttribute('download', 'zoo_revenue_report.csv');
+		link.setAttribute('download', 'zoo_revenue_and_expense_report.csv');
 		document.body.appendChild(link);
 		link.click();
 		document.body.removeChild(link);
 		URL.revokeObjectURL(url);
 	};
 
-	const handlePrintPDF = () => {
-		window.print();
-	};
+	const handlePrintPDF = () => window.print();
 
-	// Separate revenue and enclosure expenses
 	const revenueRows = reportData.filter(
-		r => r.stream_category !== 'Habitat Operations'
+		(row) => !EXPENSE_CATEGORIES.includes(row.stream_category)
 	);
-
 	const expenseRows = reportData.filter(
-		r => r.stream_category === 'Habitat Operations'
+		(row) => EXPENSE_CATEGORIES.includes(row.stream_category)
+	);
+	const habitatExpenseRows = expenseRows.filter(
+		(row) => row.stream_category === 'Habitat Operations'
+	);
+	const medicalExpenseRows = expenseRows.filter(
+		(row) => row.stream_category === 'Animal Healthcare'
 	);
 
 	const totalTransactions = revenueRows.reduce(
-		(sum, r) => sum + Number(r.transaction_count || 0),
-		0
+		(sum, row) => sum + Number(row.transaction_count || 0), 0
 	);
-
 	const grandTotalRevenue = revenueRows.reduce(
-		(sum, r) => sum + Number(r.total_revenue || 0),
-		0
+		(sum, row) => sum + Number(row.total_revenue || 0), 0
 	);
-
 	const grandTotalExpenses = expenseRows.reduce(
-		(sum, r) => sum + Number(r.total_revenue || 0),
-		0
+		(sum, row) => sum + Number(row.total_revenue || 0), 0
 	);
-
 	const netOperatingBalance = grandTotalRevenue - grandTotalExpenses;
-
-	const overallAverage =
-		totalTransactions > 0
-			? (grandTotalRevenue / totalTransactions).toFixed(2)
-			: '0.00';
+	const overallAverage = totalTransactions > 0
+		? (grandTotalRevenue / totalTransactions).toFixed(2)
+		: '0.00';
 
 	return (
 		<div>
 			<h2>Zoo Revenue & Financial Statement</h2>
-			<p>Aggregated financial breakdown of ticket admissions, fundraising donations, gift shop retail sales, and habitat operational expenses.</p>
+			<p>Financial breakdown of ticket admissions, fundraising donations, gift shop retail sales, habitat operations, and animal healthcare expenses.</p>
 
-			{/* Executive Operating Statement */}
 			{summary && (
 				<fieldset style={{ margin: '16px 0', padding: '12px' }}>
-					<legend><strong>Executive Operating Statement (Habitat P&L)</strong></legend>
+					<legend><strong>Executive Operating Statement</strong></legend>
 					<table border="1" cellPadding="6" cellSpacing="0" style={{ width: '100%', marginBottom: '8px' }}>
 						<thead>
 							<tr>
 								<th>Gross Revenue (Inflows)</th>
 								<th>Habitat Operations (Outflows)</th>
+								<th>Animal Healthcare (Outflows)</th>
+								<th>Total Expenses</th>
 								<th>Net Operating Balance</th>
 							</tr>
 						</thead>
 						<tbody>
 							<tr>
 								<td>
-									<strong>+${Number(summary.gross_revenue).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
+									<strong>+${formatCurrency(summary.gross_revenue)}</strong>
 									<br />
-									<small>Admissions: ${Number(summary.admissions_total).toLocaleString(undefined, { minimumFractionDigits: 2 })} | Donations: ${Number(summary.donations_total).toLocaleString(undefined, { minimumFractionDigits: 2 })} | Retail: ${Number(summary.retail_total).toLocaleString(undefined, { minimumFractionDigits: 2 })}</small>
+									<small>Admissions: ${formatCurrency(summary.admissions_total)} | Donations: ${formatCurrency(summary.donations_total)} | Retail: ${formatCurrency(summary.retail_total)}</small>
 								</td>
 								<td>
-									<strong>-${Number(summary.enclosure_costs_total).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
+									<strong>-${formatCurrency(summary.enclosure_costs_total)}</strong>
 									<br />
-									<small>
-										{summary.enclosure_categories.map(c => `${c.category}: $${Number(c.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}`).join(' | ')}
-									</small>
+									<small>{(summary.enclosure_categories || []).map((category) => `${category.category}: $${formatCurrency(category.amount)}`).join(' | ') || 'No habitat expenses recorded'}</small>
 								</td>
+								<td>
+									<strong>-${formatCurrency(summary.medical_costs_total)}</strong>
+									<br />
+									<small>{(summary.medical_categories || []).map((category) => `${category.category}: $${formatCurrency(category.amount)}`).join(' | ') || 'No medical expenses recorded'}</small>
+								</td>
+								<td><strong>-${formatCurrency(summary.total_expenses)}</strong></td>
 								<td style={{ color: Number(summary.net_balance) < 0 ? '#b00' : '#070' }}>
-									<strong>{Number(summary.net_balance) < 0 ? '-' : '+'}${Math.abs(Number(summary.net_balance)).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
+									<strong>{Number(summary.net_balance) < 0 ? '-' : '+'}${formatCurrency(Math.abs(Number(summary.net_balance)))}</strong>
 									<br />
 									<small>{Number(summary.net_balance) < 0 ? 'Operating Deficit' : 'Operating Surplus'}</small>
 								</td>
@@ -209,30 +219,22 @@ function RevenueDetails({ role, userDept }) {
 				</fieldset>
 			)}
 
-			{/* Filter Parameters Form */}
 			<form onSubmit={handleFilterSubmit}>
 				<label htmlFor="stream-select">Financial Stream: </label>
-				<select
-					id="stream-select"
-					value={streamType}
-					onChange={(e) => setStreamType(e.target.value)}
-				>
-					<option value="all">All Revenue Streams (Admissions, Donations, Retail)</option>
+				<select id="stream-select" value={streamType} onChange={(e) => setStreamType(e.target.value)}>
+					<option value="all">All Revenue & Expense Streams</option>
 					<option value="tickets">Admissions (Ticket Sales Only)</option>
 					<option value="donations">Fundraising (Donations Only)</option>
 					<option value="retail">Gift Shop (Retail Merchandise Only)</option>
-					<option value="expenses">Habitat Operations (Enclosure Expenses Only)</option>
+					<option value="expenses">All Expenses (Habitat + Animal Healthcare)</option>
+					<option value="medical_expenses">Animal Healthcare Expenses Only</option>
 				</select>
 				&nbsp;&nbsp;
 
 				<label htmlFor="sort-select">Sort By: </label>
-				<select
-					id="sort-select"
-					value={sortBy}
-					onChange={(e) => setSortBy(e.target.value)}
-				>
-					<option value="revenue">Total Revenue (High to Low)</option>
-					<option value="count">Transaction Count (Most popular first)</option>
+				<select id="sort-select" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+					<option value="revenue">Total Amount (High to Low)</option>
+					<option value="count">Transaction Count (Most frequent first)</option>
 					<option value="avg">Average Amount (High to Low)</option>
 					<option value="name">Stream Name (A to Z)</option>
 				</select>
@@ -249,30 +251,22 @@ function RevenueDetails({ role, userDept }) {
 			</form>
 
 			<br />
-
-			{/* Export Buttons */}
 			<div>
-				<button type="button" onClick={handleExportCSV}>
-					Export to CSV (Excel)
-				</button>
+				<button type="button" onClick={handleExportCSV}>Export to CSV (Excel)</button>
 				&nbsp;&nbsp;
-				<button type="button" onClick={handlePrintPDF}>
-					Print / Save as PDF
-				</button>
+				<button type="button" onClick={handlePrintPDF}>Print / Save as PDF</button>
 			</div>
-
 			<br />
 
 			{error && <p role="alert">{error}</p>}
 
-			{/* Report Data Table */}
 			<table border="1" cellPadding="6" cellSpacing="0">
 				<thead>
 					<tr>
 						<th>Category</th>
 						<th>Stream / Source</th>
 						<th>Transaction Count</th>
-						<th>Total Revenue ($)</th>
+						<th>Total Amount ($)</th>
 						<th>Average Amount ($)</th>
 						<th>Min Amount ($)</th>
 						<th>Max Amount ($)</th>
@@ -280,19 +274,17 @@ function RevenueDetails({ role, userDept }) {
 				</thead>
 				<tbody>
 					{reportData.length === 0 && !loading && !error && (
-						<tr>
-							<td colSpan="7">No revenue records found.</td>
-						</tr>
+						<tr><td colSpan="7">No financial records found.</td></tr>
 					)}
-					{reportData.map((row, idx) => (
-						<tr key={`${row.stream_category}-${row.stream_name}-${idx}`}>
+					{reportData.map((row, index) => (
+						<tr key={`${row.stream_category}-${row.stream_name}-${index}`}>
 							<td>{row.stream_category}</td>
 							<td>{row.stream_name}</td>
-							<td>{Number(row.transaction_count).toLocaleString()}</td>
-							<td>${Number(row.total_revenue).toLocaleString()}</td>
-							<td>${Number(row.avg_amount).toLocaleString()}</td>
-							<td>${Number(row.min_amount).toLocaleString()}</td>
-							<td>${Number(row.max_amount).toLocaleString()}</td>
+							<td>{Number(row.transaction_count || 0).toLocaleString()}</td>
+							<td>${formatCurrency(row.total_revenue)}</td>
+							<td>${formatCurrency(row.avg_amount)}</td>
+							<td>${formatCurrency(row.min_amount)}</td>
+							<td>${formatCurrency(row.max_amount)}</td>
 						</tr>
 					))}
 				</tbody>
@@ -301,17 +293,25 @@ function RevenueDetails({ role, userDept }) {
 						<tr>
 							<th colSpan="2">Total Revenue</th>
 							<th>{totalTransactions.toLocaleString()}</th>
-							<th>${grandTotalRevenue.toLocaleString()}</th>
-							<th>${Number(overallAverage).toLocaleString()}</th>
+							<th>${formatCurrency(grandTotalRevenue)}</th>
+							<th>${formatCurrency(overallAverage)}</th>
 							<th>-</th>
 							<th>-</th>
 						</tr>
 						<tr>
-							<th colSpan="3">Total Enclosure Expenses</th>
-							<th>-${grandTotalExpenses.toLocaleString()}</th>
-							<th colSpan="3">
-								Net Operating Balance: ${netOperatingBalance.toLocaleString()}
-							</th>
+							<th colSpan="3">Total Habitat Operations Expenses</th>
+							<th>-${formatCurrency(habitatExpenseRows.reduce((sum, row) => sum + Number(row.total_revenue || 0), 0))}</th>
+							<th colSpan="3"></th>
+						</tr>
+						<tr>
+							<th colSpan="3">Total Animal Healthcare Expenses</th>
+							<th>-${formatCurrency(medicalExpenseRows.reduce((sum, row) => sum + Number(row.total_revenue || 0), 0))}</th>
+							<th colSpan="3"></th>
+						</tr>
+						<tr>
+							<th colSpan="3">Total Expenses</th>
+							<th>-${formatCurrency(grandTotalExpenses)}</th>
+							<th colSpan="3">Net for Selected Streams: ${formatCurrency(netOperatingBalance)}</th>
 						</tr>
 					</tfoot>
 				)}
