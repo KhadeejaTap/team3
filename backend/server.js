@@ -601,6 +601,19 @@ const server = http.createServer(async (req, res) => {
             LEFT JOIN product p ON ti.item_ID = p.product_ID
             WHERE ti.item_type = 'product'
             GROUP BY p.product_ID, p.name, ti.item_ID
+
+            UNION ALL
+
+          SELECT
+         'Habitat Operations' AS stream_category,
+          cost_category AS stream_name,
+          COUNT(*) AS transaction_count,
+          COALESCE(SUM(amount), 0) AS total_revenue,
+          COALESCE(ROUND(AVG(amount), 2), 0) AS avg_amount,
+          COALESCE(MIN(amount), 0) AS min_amount,
+          COALESCE(MAX(amount), 0) AS max_amount
+          FROM ENCLOSURE_COST
+          GROUP BY cost_category
           ) AS streams
         `;
       }
