@@ -45,7 +45,9 @@ function stallValues(data) {
   );
 }
 
-const MAX_IMAGE_BYTES = 1024 * 1024;
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+const MAX_IMAGE_DATA_URL_LENGTH = Math.ceil(MAX_IMAGE_BYTES / 3) * 4 + 64;
+const MAX_IMAGE_REQUEST_BYTES = MAX_IMAGE_DATA_URL_LENGTH + 32;
 const IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 
 function isValidImage(buffer, mimeType) {
@@ -111,14 +113,14 @@ async function handleFood(req, res, pool, send, readBody) {
 
   if (stallImageMatch && req.method === 'PUT') {
     const stallId = Number(stallImageMatch[1]);
-    const data = await readBody(req, 1500000);
+    const data = await readBody(req, MAX_IMAGE_REQUEST_BYTES);
 
     if (
       !data ||
       typeof data.image !== 'string' ||
-      data.image.length > 1450000
+      data.image.length > MAX_IMAGE_DATA_URL_LENGTH
     ) {
-      send(res, 400, { error: 'Choose an image smaller than 1 MB.' });
+      send(res, 400, { error: 'Choose an image no larger than 10 MB.' });
       return true;
     }
 
@@ -138,7 +140,7 @@ async function handleFood(req, res, pool, send, readBody) {
       imageBuffer.toString('base64') !== match[2] ||
       !isValidImage(imageBuffer, match[1])
     ) {
-      send(res, 400, { error: 'The selected file is not a valid supported image under 1 MB.' });
+      send(res, 400, { error: 'The selected file is not a valid supported image no larger than 10 MB.' });
       return true;
     }
 

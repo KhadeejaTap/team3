@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { apiFetch } from '../api';
 import '../App.css';
 
@@ -17,7 +18,7 @@ function formatDate(isoString) {
 	});
 }
 
-function VisitorAttractions() {
+function VisitorAttractions({ canManage = false }) {
 	const [attractions, setAttractions] = useState([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState('');
@@ -56,6 +57,11 @@ function VisitorAttractions() {
 			<header className="attractions-header">
 				<h1>Upcoming Exhibits & Shows</h1>
 				<p>Browse upcoming attractions and live events scheduled at Cougar Zoo.</p>
+				{canManage && (
+					<Link className="attractions-manage-link" to="/attractions-management">
+						Add an exhibit or show
+					</Link>
+				)}
 			</header>
 
 			{types.length > 1 && (

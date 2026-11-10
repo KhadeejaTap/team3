@@ -491,7 +491,7 @@ CREATE TABLE IF NOT EXISTS EMAIL_LOG (
     email_ID INT AUTO_INCREMENT PRIMARY KEY,
     recipient_email VARCHAR(100) NOT NULL,
     email_type VARCHAR(20) NOT NULL CHECK (email_type IN ('receipt', 'alert')),
-    reference_type VARCHAR(30) NOT NULL CHECK (reference_type IN ('low_stock', 'event', 'receipt', 'enclosure')),
+    reference_type VARCHAR(30) NOT NULL CHECK (reference_type IN ('low_stock', 'event', 'receipt', 'enclosure', 'enclosure_capacity')),
     subject VARCHAR(255) NOT NULL,
     body TEXT NOT NULL,
     sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
