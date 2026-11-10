@@ -221,6 +221,7 @@ CREATE TABLE MENU_ITEM (
 item_ID INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(100),
   price DECIMAL(8, 2),
+  cost_to_make DECIMAL(8, 2) NOT NULL DEFAULT 0.00,
   category VARCHAR(50),
   stall_ID INT NOT NULL
 
@@ -440,6 +441,25 @@ BEGIN
     END IF;
 END$$
 
+DROP TRIGGER IF EXISTS sponsorship_coupon_after_donation$$
+CREATE TRIGGER sponsorship_coupon_after_donation
+AFTER INSERT ON DONATION
+FOR EACH ROW
+BEGIN
+    IF NEW.purpose = 'Sponsor an Animal'
+       AND NEW.amount >= 150
+       AND NEW.animal_ID IS NOT NULL
+    THEN
+        INSERT INTO COUPON (donor_email, code, discount_percent, is_used)
+        SELECT d.donor_email,
+               CONCAT('SPONSOR-DONATION-', NEW.donation_ID),
+               15,
+               FALSE
+        FROM DONOR d
+        WHERE d.donor_ID = NEW.donor_ID;
+    END IF;
+END$$
+
 CREATE TABLE IF NOT EXISTS LOW_STOCK_ALERT (
     alert_ID INT AUTO_INCREMENT PRIMARY KEY,
     product_ID INT NOT NULL,
@@ -471,7 +491,7 @@ CREATE TABLE IF NOT EXISTS EMAIL_LOG (
     email_ID INT AUTO_INCREMENT PRIMARY KEY,
     recipient_email VARCHAR(100) NOT NULL,
     email_type VARCHAR(20) NOT NULL CHECK (email_type IN ('receipt', 'alert')),
-    reference_type VARCHAR(30) NOT NULL CHECK (reference_type IN ('low_stock', 'event', 'receipt')),
+    reference_type VARCHAR(30) NOT NULL CHECK (reference_type IN ('low_stock', 'event', 'receipt', 'enclosure', 'enclosure_capacity')),
     subject VARCHAR(255) NOT NULL,
     body TEXT NOT NULL,
     sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

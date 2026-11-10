@@ -7,6 +7,7 @@ const MENU_CATEGORIES = [
   'Entree',
   'Side',
   'Beverage',
+  'Dessert',
 ];
 const MAX_STALL_IMAGE_BYTES = 10 * 1024 * 1024;
 const STALL_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
@@ -349,6 +350,7 @@ export default function Food({ role, userDept }) {
       name: fields.get('name').trim(),
       category: fields.get('category').trim(),
       price: fields.get('price'),
+      cost_to_make: fields.get('cost_to_make') || '0.00',
       stall_ID: Number(fields.get('stall_ID'))
     };
 
@@ -395,6 +397,7 @@ export default function Food({ role, userDept }) {
       name: fields.get('name').trim(),
       category: fields.get('category').trim(),
       price: fields.get('price'),
+      cost_to_make: fields.get('cost_to_make') || '0.00',
       stall_ID: Number(fields.get('stall_ID'))
     };
 
@@ -582,6 +585,20 @@ export default function Food({ role, userDept }) {
             />
           </label>
         </p>
+        <p>
+          <label>
+            Cost to make / Unit cost ($)<br />
+            <input
+              name="cost_to_make"
+              type="number"
+              min="0"
+              max="999999.99"
+              step="0.01"
+              defaultValue={item?.cost_to_make ?? '0.00'}
+              required
+            />
+          </label>
+        </p>
       </>
     );
   }
@@ -666,6 +683,11 @@ export default function Food({ role, userDept }) {
               <p>
                 Hours: {displayTime(stall.opening_time)} – {displayTime(stall.closing_time)}
               </p>
+              <p>
+                <Link to={`/food/stalls/${stall.stall_ID}`} style={{ fontWeight: 600 }}>
+                  View Menu ({items.filter(i => Number(i.stall_ID) === Number(stall.stall_ID)).length} items) →
+                </Link>
+              </p>
               {canManage && (
                 <>
                   <button type="button" disabled={saving} onClick={() => setEditingStall(stall.stall_ID)}>
@@ -722,6 +744,12 @@ export default function Food({ role, userDept }) {
                   <h3>{item.name}</h3>
                   <p>Category: {item.category}</p>
                   <p>Price: ${Number(item.price).toFixed(2)}</p>
+                  {canManage && (
+                    <p style={{ fontSize: '0.9rem', color: '#555' }}>
+                      Cost to make: ${Number(item.cost_to_make || 0).toFixed(2)}
+                      {' '}(Margin: ${(Number(item.price) - Number(item.cost_to_make || 0)).toFixed(2)})
+                    </p>
+                  )}
                   {canManage && (
                     <>
                       <button type="button" disabled={saving} onClick={() => setEditingItem(item.item_ID)}>

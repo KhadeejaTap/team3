@@ -38,4 +38,3 @@ https://victorious-field-058fd0510.5.azurestaticapps.net/
 - `visitor@zoo.com` / `visitor123` (Khadeeja Tapkirwala)
 - `olumide.a810@gmail.com` / `Wacko910` (Olumide Aina)
 - `sallu@gmail.com` / `sallu123` (sallu tap)
-
