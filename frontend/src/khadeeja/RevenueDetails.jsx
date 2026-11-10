@@ -321,8 +321,3 @@ function RevenueDetails({ role, userDept }) {
 }
 
 export default RevenueDetails;
-
-	);
-}
-
-export default RevenueDetails;
