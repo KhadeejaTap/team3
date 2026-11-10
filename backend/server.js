@@ -102,6 +102,73 @@ function generatePaychecksForPeriod(employeeID, departmentID, salary, startDateS
 const animalUploadDirectory = path.join(__dirname, 'uploads', 'animals');
 const MAX_ANIMAL_IMAGE_SIZE = 5 * 1024 * 1024;
 
+const ENCLOSURE_ALERT_DEPARTMENT_ID = 2;
+const ENCLOSURE_ALERT_THRESHOLD = 0.75;
+
+async function checkEnclosureCapacityAlert(enclosureID) {
+  if (!enclosureID) return;
+
+  try {
+    const [[enclosure]] = await pool.query(
+      `SELECT e.enclosure_ID, e.name, e.capacity, COUNT(a.animal_ID) AS animal_count
+       FROM ENCLOSURE e
+       LEFT JOIN ANIMAL a ON a.enclosure_ID = e.enclosure_ID
+       AND NOT EXISTS (SELECT 1 FROM ANIMAL_REMOVAL ar WHERE ar.animal_ID = a.animal_ID)
+       WHERE e.enclosure_ID = ?
+       GROUP BY e.enclosure_ID, e.name, e.capacity`,
+      [Number(enclosureID)]
+    );
+
+    if (!enclosure || !Number(enclosure.capacity)) return;
+
+    const occupancy = Number(enclosure.animal_count) / Number(enclosure.capacity);
+    const isOverThreshold = occupancy >= ENCLOSURE_ALERT_THRESHOLD;
+
+    const [[state]] = await pool.query(
+      'SELECT is_over_threshold FROM ENCLOSURE_CAPACITY_ALERT_STATE WHERE enclosure_ID = ?',
+      [Number(enclosureID)]
+    );
+
+    const wasOverThreshold = state ? Boolean(state.is_over_threshold) : false;
+
+    if (isOverThreshold && !wasOverThreshold) {
+      const percentage = (occupancy * 100).toFixed(1);
+
+      const result = await sendDepartmentAlert({
+        pool,
+        departmentID: ENCLOSURE_ALERT_DEPARTMENT_ID,
+        subject: `ENCLOSURE CAPACITY WARNING: ${enclosure.name}`,
+        body: `Enclosure '${enclosure.name}' has reached ${percentage}% capacity. Current animal count: ${enclosure.animal_count}. Maximum capacity: ${enclosure.capacity}. Please review the enclosure's occupancy.`,
+        referenceID: Number(enclosureID)
+      });
+
+      if (!result || !result.success) {
+        console.warn('[ENCLOSURE CAPACITY ALERT] Alert was not logged:', result?.error || 'Unknown mailer response');
+      }
+    }
+
+    await pool.query(
+      `INSERT INTO ENCLOSURE_CAPACITY_ALERT_STATE (enclosure_ID, is_over_threshold, updated_at)
+       VALUES (?, ?, CURRENT_TIMESTAMP)
+       ON DUPLICATE KEY UPDATE
+         is_over_threshold = VALUES(is_over_threshold),
+         updated_at = CURRENT_TIMESTAMP`,
+      [Number(enclosureID), isOverThreshold ? 1 : 0]
+    );
+  } catch (err) {
+    console.error('[ENCLOSURE CAPACITY ALERT ERROR]', err);
+  }
+}
+
+async function checkEnclosureCapacityAlertForRemoval(animalID) {
+  try {
+    const [[row]] = await pool.query('SELECT enclosure_ID FROM ANIMAL WHERE animal_ID = ?', [animalID]);
+    if (row?.enclosure_ID) await checkEnclosureCapacityAlert(row.enclosure_ID);
+  } catch (err) {
+    console.error('[ENCLOSURE CAPACITY ALERT ERROR]', err);
+  }
+}
+
 async function readMultipart(req) {
   const contentType = req.headers['content-type'] || '';
   const boundaryMatch = contentType.match(/boundary=(?:"([^"]+)"|([^;]+))/i);
@@ -1308,6 +1375,7 @@ const server = http.createServer(async (req, res) => {
           COUNT(CASE WHEN a.breeding_status = 'Breeding' THEN 1 END) AS breeding_count
         FROM SPECIES s
         LEFT JOIN ANIMAL a ON s.species_ID = a.species_ID
+          AND NOT EXISTS (SELECT 1 FROM ANIMAL_REMOVAL ar WHERE ar.animal_ID = a.animal_ID)
       `;
       const params = [];
 
@@ -1790,6 +1858,7 @@ const server = http.createServer(async (req, res) => {
                 ORDER BY mr.record_ID DESC LIMIT 1) AS next_appointment
         FROM ANIMAL a
         LEFT JOIN SPECIES s ON s.species_ID = a.species_ID
+        WHERE NOT EXISTS (SELECT 1 FROM ANIMAL_REMOVAL ar WHERE ar.animal_ID = a.animal_ID)
         ORDER BY a.name
       `);
       send(res, 200, rows);
@@ -2025,6 +2094,7 @@ const server = http.createServer(async (req, res) => {
         JOIN SPECIES s ON a.species_ID = s.species_ID
         JOIN ENCLOSURE e ON a.enclosure_ID = e.enclosure_ID
         WHERE a.breeding_status = 'Breeding'
+          AND NOT EXISTS (SELECT 1 FROM ANIMAL_REMOVAL ar WHERE ar.animal_ID = a.animal_ID)
         ORDER BY s.common_name, a.name
       `);
 
@@ -2054,6 +2124,7 @@ try {
        a.image_url
      FROM ANIMAL a
      LEFT JOIN SPECIES s ON a.species_ID = s.species_ID
+     WHERE NOT EXISTS (SELECT 1 FROM ANIMAL_REMOVAL ar WHERE ar.animal_ID = a.animal_ID)
      ORDER BY a.name`
   );
       send(res, 200, rows);
@@ -2071,6 +2142,7 @@ try {
         SELECT a.*, s.common_name, s.endangered_status
         FROM ANIMAL a
         LEFT JOIN SPECIES s ON a.species_ID = s.species_ID
+        WHERE NOT EXISTS (SELECT 1 FROM ANIMAL_REMOVAL ar WHERE ar.animal_ID = a.animal_ID)
         ORDER BY a.name
       `);
       send(res, 200, rows);
@@ -2133,6 +2205,8 @@ try {
         ]
       );
 
+      await checkEnclosureCapacityAlert(Number(animal.enclosure_ID));
+
       send(res, 201, {
         message: 'Animal saved successfully.',
         animal_ID: result.insertId
@@ -2141,6 +2215,63 @@ try {
     } catch (err) {
       console.error('Error saving animal:', err);
       send(res, 500, { error: 'Could not save animal. Check that the selected species and enclosure exist and that the ANIMAL table has a weight_unit column.' });
+      return;
+    }
+  } else if (
+    req.method === 'POST' &&
+    /^\/api\/animals\/\d+\/remove$/.test(req.url)
+  ) {
+    const animalID = Number(req.url.split('/')[3]);
+    try {
+      const data = await readBody(req);
+      const allowedReasons = ['Death', 'Relocation', 'Transfer', 'Reintroduction', 'Other'];
+      if (!data || !allowedReasons.includes(data.reason)) {
+        send(res, 400, { error: 'Select a valid reason for removing the animal.' });
+        return;
+      }
+      if (data.reason === 'Death' && (typeof data.death_reason !== 'string' || !data.death_reason.trim())) {
+        send(res, 400, { error: 'A cause or description of death is required.' });
+        return;
+      }
+      const [[animal]] = await pool.query(
+        'SELECT animal_ID, name FROM ANIMAL WHERE animal_ID = ?', [animalID]
+      );
+      if (!animal) {
+        send(res, 404, { error: 'Animal not found.' });
+        return;
+      }
+      let medicalRecordID = null;
+      if (data.medical_record_ID !== null && data.medical_record_ID !== undefined && data.medical_record_ID !== '') {
+        medicalRecordID = Number(data.medical_record_ID);
+        if (!Number.isInteger(medicalRecordID) || medicalRecordID <= 0) {
+          send(res, 400, { error: 'Enter a valid medical record ID.' });
+          return;
+        }
+        const [records] = await pool.query(
+          'SELECT record_ID FROM MEDICAL_RECORD WHERE record_ID = ? AND animal_ID = ?',
+          [medicalRecordID, animalID]
+        );
+        if (records.length === 0) {
+          send(res, 400, { error: 'The selected medical record does not belong to this animal.' });
+          return;
+        }
+      }
+      await pool.execute(
+        `INSERT INTO ANIMAL_REMOVAL
+         (animal_ID, animal_name, removal_reason, death_reason, medical_record_ID)
+         VALUES (?, ?, ?, ?, ?)`,
+        [animalID, animal.name, data.reason, data.reason === 'Death' ? data.death_reason.trim() : null, medicalRecordID]
+      );
+      await checkEnclosureCapacityAlertForRemoval(animalID);
+      send(res, 200, { success: true, message: `${animal.name} was removed from active animal records. Historical medical records were preserved.` });
+      return;
+    } catch (err) {
+      if (err.code === 'ER_DUP_ENTRY') {
+        send(res, 409, { error: 'This animal has already been removed from active records.' });
+        return;
+      }
+      console.error('Error removing animal:', err);
+      send(res, 500, { error: 'Could not remove animal from active records.' });
       return;
     }
   } else if (
@@ -2180,7 +2311,7 @@ try {
 
     try {
       const [existing] = await pool.execute(
-        'SELECT animal_ID FROM ANIMAL WHERE animal_ID = ?',
+        'SELECT animal_ID, enclosure_ID FROM ANIMAL WHERE animal_ID = ?',
         [animalID]
       );
 
@@ -2209,6 +2340,14 @@ try {
           animalID
         ]
       );
+
+      const previousEnclosureID = Number(existing[0].enclosure_ID);
+      const newEnclosureID = Number(animal.enclosure_ID);
+
+      await checkEnclosureCapacityAlert(previousEnclosureID);
+      if (newEnclosureID !== previousEnclosureID) {
+        await checkEnclosureCapacityAlert(newEnclosureID);
+      }
 
       send(res, 200, { message: 'Animal record updated successfully.', animal_ID: animalID });
       return;
@@ -3429,6 +3568,7 @@ try {
           END AS crowding_flag
         FROM ENCLOSURE e
         LEFT JOIN ANIMAL a ON a.enclosure_ID = e.enclosure_ID
+       AND NOT EXISTS (SELECT 1 FROM ANIMAL_REMOVAL ar WHERE ar.animal_ID = a.animal_ID)
         GROUP BY
           e.enclosure_ID, e.name, e.location, e.capacity,
           e.indoor_outdoor, e.size, e.department_ID,
@@ -3495,6 +3635,8 @@ try {
         send(res, 404, { error: 'Enclosure not found.' });
         return;
       }
+
+      await checkEnclosureCapacityAlert(enclosureID);
 
       send(res, 200, { message: 'Enclosure details updated successfully.' });
       return;
