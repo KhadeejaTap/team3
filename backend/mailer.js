@@ -162,7 +162,16 @@ async function autoDispatchAlerts(pool) {
 	if (!pool) return;
 
 	try {
-		// 0. Continuous Low-Stock Protection:
+		// 0. Auto-resolve/dismiss alerts for products that have been restocked above reorder level
+		await pool.query(`
+			UPDATE low_stock_alert lsa
+			JOIN product p ON lsa.product_ID = p.product_ID
+			SET lsa.status = 'dismissed'
+			WHERE p.quantity_in_stock > COALESCE(p.reorder_level, 5)
+			  AND lsa.status != 'dismissed'
+		`);
+
+		// Continuous Low-Stock Protection:
 		// Ensure any product currently at or below reorder level has an active unaddressed alert.
 		// This guarantees alerts are created even if the MySQL trigger missed an update (e.g. stock was already below threshold or manually edited).
 		await pool.query(`
