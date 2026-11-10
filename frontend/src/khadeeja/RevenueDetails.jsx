@@ -226,8 +226,8 @@ function RevenueDetails({ role, userDept }) {
 					<option value="tickets">Admissions (Ticket Sales Only)</option>
 					<option value="donations">Fundraising (Donations Only)</option>
 					<option value="retail">Gift Shop (Retail Merchandise Only)</option>
-					<option value="expenses">All Expenses (Habitat + Animal Healthcare)</option>
-					<option value="medical_expenses">Animal Healthcare Expenses Only</option>
+					<option value="expenses">Habitat Care (Expenses Only)</option>
+					<option value="medical_expenses">Animal Healthcare (Expenses Only)</option>
 				</select>
 				&nbsp;&nbsp;
 
@@ -317,6 +317,11 @@ function RevenueDetails({ role, userDept }) {
 				)}
 			</table>
 		</div>
+	);
+}
+
+export default RevenueDetails;
+
 	);
 }
 
