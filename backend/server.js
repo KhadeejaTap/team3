@@ -2,6 +2,8 @@ const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const http = require('http');
+const fs = require('fs');
+const crypto = require('crypto');
 const pool = require('./db');
 const handleFood = require('./food');
 const handleParking = require('./parking');
@@ -16,13 +18,88 @@ function send(res, status, data) {
   res.end(JSON.stringify(data));
 }
 
-async function readBody(req, maxBytes = 16384) {
+
+const animalUploadDirectory = path.join(__dirname, 'uploads', 'animals');
+const MAX_ANIMAL_IMAGE_SIZE = 5 * 1024 * 1024;
+
+async function readMultipart(req) {
+  const contentType = req.headers['content-type'] || '';
+  const boundaryMatch = contentType.match(/boundary=(?:"([^"]+)"|([^;]+))/i);
+  if (!boundaryMatch) throw new Error('Invalid image upload request.');
+  const boundary = Buffer.from(`--${boundaryMatch[1] || boundaryMatch[2]}`);
+  const chunks = [];
+  let total = 0;
+  for await (const chunk of req) {
+    total += chunk.length;
+    if (total > MAX_ANIMAL_IMAGE_SIZE + 1024 * 1024) {
+      const error = new Error('The upload is too large. Maximum image size is 5 MB.');
+      error.status = 413;
+      throw error;
+    }
+    chunks.push(chunk);
+  }
+  const body = Buffer.concat(chunks);
+  const fields = {};
+  let image = null;
+  let position = 0;
+
+  while (position < body.length) {
+    const boundaryStart = body.indexOf(boundary, position);
+    if (boundaryStart === -1) break;
+    let partStart = boundaryStart + boundary.length;
+    if (body.subarray(partStart, partStart + 2).toString() === '--') break;
+    if (body.subarray(partStart, partStart + 2).toString() === '\r\n') partStart += 2;
+    const headerEnd = body.indexOf(Buffer.from('\r\n\r\n'), partStart);
+    if (headerEnd === -1) break;
+    const headers = body.subarray(partStart, headerEnd).toString('utf8');
+    const nextBoundary = body.indexOf(boundary, headerEnd + 4);
+    if (nextBoundary === -1) break;
+    let dataEnd = nextBoundary;
+    if (body.subarray(dataEnd - 2, dataEnd).toString() === '\r\n') dataEnd -= 2;
+    const data = body.subarray(headerEnd + 4, dataEnd);
+    const disposition = headers.match(/content-disposition:\s*form-data;\s*name="([^"]+)"(?:;\s*filename="([^"]*)")?/i);
+    if (disposition) {
+      const fieldName = disposition[1];
+      const filename = disposition[2];
+      if (filename !== undefined && filename !== '') {
+        const mimeMatch = headers.match(/content-type:\s*([^\r\n]+)/i);
+        image = { buffer: data, mimeType: mimeMatch ? mimeMatch[1].trim().toLowerCase() : '' };
+      } else {
+        fields[fieldName] = data.toString('utf8');
+      }
+    }
+    position = nextBoundary;
+  }
+
+  if (image) {
+    const extensions = {
+      'image/jpeg': '.jpg',
+      'image/png': '.png',
+      'image/webp': '.webp'
+    };
+    const extension = extensions[image.mimeType];
+    if (!extension) throw new Error('Please upload a JPG, PNG, or WEBP image.');
+    if (image.buffer.length > MAX_ANIMAL_IMAGE_SIZE) {
+      const error = new Error('The upload is too large. Maximum image size is 5 MB.');
+      error.status = 413;
+      throw error;
+    }
+    const filename = `${crypto.randomUUID()}${extension}`;
+    await fs.promises.mkdir(animalUploadDirectory, { recursive: true });
+    await fs.promises.writeFile(path.join(animalUploadDirectory, filename), image.buffer, { flag: 'wx' });
+    image.url = `/uploads/animals/${filename}`;
+  }
+
+  return { fields, image };
+}
+
+async function readBody(req) {
   let body = '';
 
   for await (const chunk of req) {
     body += chunk;
 
-    if (Buffer.byteLength(body) > maxBytes) {
+    if (Buffer.byteLength(body) > 16384) {
       const error = new Error('Request is too large.');
       error.status = 413;
       throw error;
@@ -54,6 +131,23 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') {
     res.writeHead(204);
     res.end();
+    return;
+  }
+
+  const uploadMatch = req.method === 'GET' && req.url.match(/^\/uploads\/animals\/([a-f0-9-]+\.(?:jpg|png|webp))$/i);
+  if (uploadMatch) {
+    try {
+      const filePath = path.join(animalUploadDirectory, path.basename(uploadMatch[1]));
+      const image = await fs.promises.readFile(filePath);
+      const extension = path.extname(filePath).toLowerCase();
+      res.statusCode = 200;
+      res.setHeader('Content-Type', extension === '.png' ? 'image/png' : extension === '.webp' ? 'image/webp' : 'image/jpeg');
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      res.end(image);
+    } catch {
+      res.statusCode = 404;
+      res.end('Image not found.');
+    }
     return;
   }
 
@@ -1544,7 +1638,8 @@ try {
        s.scientific_name,
        COALESCE(s.endangered_status, 'Unknown') AS endangered_status,
        a.weight,
-       a.weight_unit
+       a.weight_unit,
+       a.image_url
      FROM ANIMAL a
      LEFT JOIN SPECIES s ON a.species_ID = s.species_ID
      ORDER BY a.name`
@@ -1576,7 +1671,16 @@ try {
     req.url === '/api/animals' &&
     req.method === 'POST'
   ) {
-    const animal = await readBody(req);
+    let upload;
+    try {
+      upload = (req.headers['content-type'] || '').includes('multipart/form-data')
+        ? await readMultipart(req)
+        : { fields: await readBody(req), image: null };
+    } catch (err) {
+      send(res, err.status || 400, { error: err.message || 'Could not process animal image.' });
+      return;
+    }
+    const animal = upload.fields;
 
     const validAnimal = animal &&
       typeof animal.name === 'string' &&
@@ -1601,8 +1705,8 @@ try {
       const [result] = await pool.execute(
         `INSERT INTO ANIMAL
          (name, species_ID, enclosure_ID, age, gender, weight, weight_unit,
-          arrival_date, breeding_status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          arrival_date, breeding_status, image_url)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           animal.name.trim(),
           Number(animal.species_ID),
@@ -1612,7 +1716,8 @@ try {
           animal.weight === '' || animal.weight == null ? null : Number(animal.weight),
           animal.weight_unit,
           animal.arrival_date || null,
-          animal.breeding_status
+          animal.breeding_status,
+          upload.image ? upload.image.url : null
         ]
       );
 
@@ -1631,7 +1736,16 @@ try {
     /^\/api\/animals\/\d+$/.test(req.url)
   ) {
     const animalID = Number(req.url.split('/')[3]);
-    const animal = await readBody(req);
+    let upload;
+    try {
+      upload = (req.headers['content-type'] || '').includes('multipart/form-data')
+        ? await readMultipart(req)
+        : { fields: await readBody(req), image: null };
+    } catch (err) {
+      send(res, err.status || 400, { error: err.message || 'Could not process animal image.' });
+      return;
+    }
+    const animal = upload.fields;
 
     const validAnimal = animal &&
       typeof animal.name === 'string' &&
@@ -1666,7 +1780,8 @@ try {
       await pool.execute(
         `UPDATE ANIMAL
          SET name = ?, species_ID = ?, enclosure_ID = ?, age = ?, gender = ?,
-             weight = ?, weight_unit = ?, arrival_date = ?, breeding_status = ?
+             weight = ?, weight_unit = ?, arrival_date = ?, breeding_status = ?,
+             image_url = COALESCE(?, image_url)
          WHERE animal_ID = ?`,
         [
           animal.name.trim(),
@@ -1678,6 +1793,7 @@ try {
           animal.weight_unit,
           animal.arrival_date || null,
           animal.breeding_status,
+          upload.image ? upload.image.url : null,
           animalID
         ]
       );
