@@ -398,28 +398,44 @@ function AnimalManagement({ role, userEmail }) {
             return;
         }
 
-        const payload = new FormData();
-        Object.entries({
+        const animalData = {
             ...formData,
             species_ID: Number(formData.species_ID),
             enclosure_ID: Number(formData.enclosure_ID),
             age: formData.age === '' ? '' : Number(formData.age),
             weight: formData.weight === '' ? '' : Number(formData.weight)
-        }).forEach(([key, value]) => payload.append(key, value ?? ''));
-        if (selectedImage) payload.append('image', selectedImage);
+        };
 
         try {
+            let body;
+            const headers = {};
+
+            if (selectedImage) {
+                body = new FormData();
+
+                Object.entries(animalData).forEach(([key, value]) => {
+                    body.append(key, value ?? '');
+                });
+
+                body.append('image', selectedImage);
+            } else {
+                headers['Content-Type'] = 'application/json';
+                body = JSON.stringify(animalData);
+            }
+
             const response = await fetch(
                 isEditing
                     ? `${API_URL}/api/animals/${selectedAnimalID}`
                     : `${API_URL}/api/animals`,
                 {
                     method: isEditing ? 'PUT' : 'POST',
-                    body: payload
+                    headers,
+                    body
                 }
             );
 
             const result = await response.json();
+
             if (!response.ok) {
                 throw new Error(result.error || (isEditing
                     ? 'Could not update animal.'
@@ -431,24 +447,31 @@ function AnimalManagement({ role, userEmail }) {
                 : `Animal saved successfully! ID: ${result.animal_ID}`);
 
             if (isEditing) {
-                // Refresh the list so the selected record reflects its latest values.
                 const refreshResponse = await fetch(`${API_URL}/api/animals`);
+
                 if (refreshResponse.ok) {
                     const refreshedAnimals = await refreshResponse.json();
                     setAnimals(refreshedAnimals);
-                    const refreshedAnimal = refreshedAnimals.find((item) => String(item.animal_ID) === String(selectedAnimalID));
-                    setCurrentImageUrl(refreshedAnimal?.image_url || currentImageUrl);
+
+                    const refreshedAnimal = refreshedAnimals.find(
+                        (item) => String(item.animal_ID) === String(selectedAnimalID)
+                    );
+
+                    setCurrentImageUrl(
+                        refreshedAnimal?.image_url || currentImageUrl
+                    );
                 }
             } else {
                 setFormData(EMPTY_FORM);
-                setSelectedImage(null);
-                setImagePreview('');
                 setCurrentImageUrl('');
-                const imageInput = document.getElementById('animal_image');
-                if (imageInput) imageInput.value = '';
+                setSelectedAnimalID('');
             }
+
             setSelectedImage(null);
             setImagePreview('');
+
+            const imageInput = document.getElementById('animal_image');
+            if (imageInput) imageInput.value = '';
         } catch (error) {
             setMessage(`Error: ${error.message}`);
         }
@@ -872,7 +895,7 @@ function AnimalManagement({ role, userEmail }) {
                             <div style={{ margin: '12px 0' }}>
                                 <p>{imagePreview ? 'New image preview:' : 'Current animal photo:'}</p>
                                 <img
-                                    src={imagePreview || `${API_URL}${currentImageUrl}`}
+                                    src={imagePreview || (/^https?:\\/\\//i.test(currentImageUrl) ? currentImageUrl : `${API_URL}${currentImageUrl.startsWith('/') ? '' : '/'}${currentImageUrl}`)}
                                     alt="Animal preview"
                                     style={{ width: '180px', height: '140px', objectFit: 'cover', borderRadius: '8px' }}
                                 />
