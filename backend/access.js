@@ -79,16 +79,10 @@ async function handleAccess(req, res, pool, send, readBody) {
       /^\/api\/menu-items\/\d+$/.test(pathname)) &&
     ['POST', 'PUT', 'DELETE'].includes(req.method);
 
-  const isParkingSessionRequest =
-    pathname === '/api/parking-sessions' ||
-    pathname.startsWith('/api/parking-sessions/');
-
   let allowedRoles = null;
 
   if (isProductWrite || isFoodWrite) {
     allowedRoles = ['manager'];
-  } else if (isParkingSessionRequest) {
-    allowedRoles = ['manager', 'employee'];
   }
 
   if (allowedRoles) {

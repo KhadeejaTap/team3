@@ -15,8 +15,6 @@ export default function GiftShop({ role, userEmail, userDept }) {
 	const [selectedVariants, setSelectedVariants] = useState({});
 	const [selectedSizes, setSelectedSizes] = useState({});
 
-	const activeEmail = userEmail || localStorage.getItem('user_email') || '';
-
 	// Workstation view toggles
 	const [cashierTab, setCashierTab] = useState('pos');
 	const [managerTab, setManagerTab] = useState('inventory');
@@ -313,7 +311,7 @@ export default function GiftShop({ role, userEmail, userDept }) {
 							price: item.price,
 							quantity: item.quantity
 						}))}
-						onSuccess={(receipt) => {
+						onSuccess={() => {
 							setCart([]);
 							loadProducts();
 						}}

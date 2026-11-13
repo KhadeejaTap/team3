@@ -19,9 +19,6 @@ function MedicalRecords() {
     const [animals, setAnimals] = useState([]);
     const [search, setSearch] = useState('');
     const [selectedAnimalID, setSelectedAnimalID] = useState('');
-    const [selectedImage, setSelectedImage] = useState(null);
-    const [imagePreview, setImagePreview] = useState('');
-    const [currentImageUrl, setCurrentImageUrl] = useState('');
     const [records, setRecords] = useState([]);
     const [isSick, setIsSick] = useState(false);
     const [form, setForm] = useState({ diagnosis: '', treatment: '', notes: '', vet_ID: '', follow_up: '' });
