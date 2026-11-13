@@ -1,3 +1,95 @@
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+
+const ANIMAL_UPLOAD_DIR = path.join(__dirname, '..', 'uploads', 'animals');
+const MAX_ANIMAL_IMAGE_BYTES = 5 * 1024 * 1024;
+
+async function readAnimalRequest(req, readBody) {
+	const contentType = req.headers['content-type'] || '';
+	if (!contentType.toLowerCase().startsWith('multipart/form-data')) {
+		return { fields: await readBody(req), imageUrl: null };
+	}
+
+	const boundaryMatch = contentType.match(/boundary=(?:"([^"]+)"|([^;]+))/i);
+	const boundary = boundaryMatch && (boundaryMatch[1] || boundaryMatch[2]);
+	if (!boundary) {
+		const error = new Error('Invalid image upload request.');
+		error.status = 400;
+		throw error;
+	}
+
+	const chunks = [];
+	let totalBytes = 0;
+	const maxRequestBytes = MAX_ANIMAL_IMAGE_BYTES + 256 * 1024;
+	for await (const chunk of req) {
+		totalBytes += chunk.length;
+		if (totalBytes > maxRequestBytes) {
+			const error = new Error('Image is too large. Please use an image smaller than 5 MB.');
+			error.status = 413;
+			throw error;
+		}
+		chunks.push(chunk);
+	}
+
+	const body = Buffer.concat(chunks);
+	const delimiter = Buffer.from(`--${boundary}`);
+	const fields = {};
+	let imageUrl = null;
+	let position = body.indexOf(delimiter);
+
+	while (position !== -1) {
+		position += delimiter.length;
+		if (body[position] === 45 && body[position + 1] === 45) break;
+		if (body[position] === 13 && body[position + 1] === 10) position += 2;
+
+		const headerEnd = body.indexOf(Buffer.from('\r\n\r\n'), position);
+		if (headerEnd === -1) break;
+		const headers = body.slice(position, headerEnd).toString('utf8');
+		const nextDelimiter = body.indexOf(delimiter, headerEnd + 4);
+		if (nextDelimiter === -1) break;
+		let partEnd = nextDelimiter;
+		if (body[partEnd - 2] === 13 && body[partEnd - 1] === 10) partEnd -= 2;
+		const content = body.slice(headerEnd + 4, partEnd);
+		const nameMatch = headers.match(/name="([^"]+)"/i);
+		const filenameMatch = headers.match(/filename="([^"]*)"/i);
+
+		if (nameMatch) {
+			const fieldName = nameMatch[1];
+			if (filenameMatch && filenameMatch[1]) {
+				const typeMatch = headers.match(/content-type:\s*([^\r\n]+)/i);
+				const mimeType = typeMatch ? typeMatch[1].trim().toLowerCase() : '';
+				const extensions = {
+					'image/jpeg': '.jpg',
+					'image/png': '.png',
+					'image/webp': '.webp'
+				};
+				if (fieldName === 'image' && content.length > 0) {
+					if (!extensions[mimeType]) {
+						const error = new Error('Please upload a JPG, PNG, or WEBP image.');
+						error.status = 400;
+						throw error;
+					}
+					if (content.length > MAX_ANIMAL_IMAGE_BYTES) {
+						const error = new Error('Image is too large. Please use an image smaller than 5 MB.');
+						error.status = 413;
+						throw error;
+					}
+					await fs.promises.mkdir(ANIMAL_UPLOAD_DIR, { recursive: true });
+					const filename = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${extensions[mimeType]}`;
+					await fs.promises.writeFile(path.join(ANIMAL_UPLOAD_DIR, filename), content, { flag: 'wx' });
+					imageUrl = `/api/animal-images/${filename}`;
+				}
+			} else {
+				fields[fieldName] = content.toString('utf8');
+			}
+		}
+		position = nextDelimiter;
+	}
+
+	return { fields, imageUrl };
+}
+
 async function handleAnimals(req, res, pool, send, readBody) {
 	const parsedUrl = new URL(req.url, "http://localhost");
 	const pathname = parsedUrl.pathname;
@@ -14,10 +106,26 @@ async function handleAnimals(req, res, pool, send, readBody) {
 		pathname === "/api/public/feeding-schedule" ||
 		pathname === "/api/medical-costs" ||
 		pathname === "/api/reports/medical-costs" ||
-		pathname === "/api/species";
+		pathname === "/api/species" ||
+		/^\/api\/animal-images\/[a-zA-Z0-9-]+\.(jpg|png|webp)$/.test(pathname);
 
 	if (!isAnimalRoute) {
 		return false;
+	}
+
+	const imageMatch = pathname.match(/^\/api\/animal-images\/([a-zA-Z0-9-]+\.(?:jpg|png|webp))$/);
+	if (imageMatch && req.method === 'GET') {
+		const imagePath = path.join(ANIMAL_UPLOAD_DIR, imageMatch[1]);
+		try {
+			await fs.promises.access(imagePath, fs.constants.R_OK);
+			res.statusCode = 200;
+			res.setHeader('Content-Type', imageMatch[1].endsWith('.png') ? 'image/png' : imageMatch[1].endsWith('.webp') ? 'image/webp' : 'image/jpeg');
+			res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+			fs.createReadStream(imagePath).pipe(res);
+		} catch (err) {
+			send(res, 404, { error: 'Animal image not found.' });
+		}
+		return true;
 	}
 
 	if (
@@ -412,7 +520,10 @@ async function handleAnimals(req, res, pool, send, readBody) {
 		req.url === '/api/animals' &&
 		req.method === 'POST'
 	) {
-		const animal = await readBody(req);
+		let upload;
+		try { upload = await readAnimalRequest(req, readBody); }
+		catch (err) { send(res, err.status || 400, { error: err.message }); return; }
+		const animal = upload.fields;
 
 		const validAnimal = animal &&
 			typeof animal.name === 'string' &&
@@ -437,8 +548,8 @@ async function handleAnimals(req, res, pool, send, readBody) {
 			const [result] = await pool.execute(
 				`INSERT INTO ANIMAL
          (name, species_ID, enclosure_ID, age, gender, weight, weight_unit,
-          arrival_date, breeding_status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          arrival_date, breeding_status, image_url)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 				[
 					animal.name.trim(),
 					Number(animal.species_ID),
@@ -448,7 +559,8 @@ async function handleAnimals(req, res, pool, send, readBody) {
 					animal.weight === '' || animal.weight == null ? null : Number(animal.weight),
 					animal.weight_unit,
 					animal.arrival_date || null,
-					animal.breeding_status
+					animal.breeding_status,
+					upload.imageUrl
 				]
 			);
 
@@ -522,8 +634,11 @@ async function handleAnimals(req, res, pool, send, readBody) {
 		req.method === 'PUT' &&
 		/^\/api\/animals\/\d+$/.test(pathname)
 	) {
-		const animalID = Number(req.url.split('/')[3]);
-		const animal = await readBody(req);
+		const animalID = Number(pathname.split('/')[3]);
+		let upload;
+		try { upload = await readAnimalRequest(req, readBody); }
+		catch (err) { send(res, err.status || 400, { error: err.message }); return; }
+		const animal = upload.fields;
 
 		const validAnimal = animal &&
 			typeof animal.name === 'string' &&
@@ -546,7 +661,7 @@ async function handleAnimals(req, res, pool, send, readBody) {
 
 		try {
 			const [existing] = await pool.execute(
-				'SELECT animal_ID FROM ANIMAL WHERE animal_ID = ?',
+				'SELECT animal_ID, image_url FROM ANIMAL WHERE animal_ID = ?',
 				[animalID]
 			);
 
@@ -558,7 +673,8 @@ async function handleAnimals(req, res, pool, send, readBody) {
 			await pool.execute(
 				`UPDATE ANIMAL
          SET name = ?, species_ID = ?, enclosure_ID = ?, age = ?, gender = ?,
-             weight = ?, weight_unit = ?, arrival_date = ?, breeding_status = ?
+             weight = ?, weight_unit = ?, arrival_date = ?, breeding_status = ?,
+             image_url = ?
          WHERE animal_ID = ?`,
 				[
 					animal.name.trim(),
@@ -570,6 +686,7 @@ async function handleAnimals(req, res, pool, send, readBody) {
 					animal.weight_unit,
 					animal.arrival_date || null,
 					animal.breeding_status,
+					upload.imageUrl || existing[0].image_url || null,
 					animalID
 				]
 			);
