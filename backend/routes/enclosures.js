@@ -13,7 +13,8 @@ async function handleEnclosures(req, res, pool, send, readBody) {
 	}
 
 	if (
-		req.method === 'GET'
+		req.method === 'GET' &&
+    	pathname === '/api/enclosures'
 	) {
 		try {
 			const allowed = await requireRoles(req, res, pool, send, ['admin', 'manager', 'employee']);
