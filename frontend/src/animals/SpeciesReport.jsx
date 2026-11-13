@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
-function SpeciesReport({ role, userEmail }) {
+function SpeciesReport({ userEmail }) {
 	const [reportData, setReportData] = useState([]);
 	const [statusFilter, setStatusFilter] = useState('all');
 	const [sortBy, setSortBy] = useState('population_desc');

@@ -140,7 +140,7 @@ CREATE TABLE IF NOT EXISTS PAYCHECK (
 	benefits_deduction DECIMAL(10,2) NOT NULL DEFAULT 0.00,
 	net_pay DECIMAL(10,2) NOT NULL,
 	payment_method VARCHAR(30) NOT NULL DEFAULT 'direct_deposit',
-	status ENUM('paid', 'pending') NOT NULL DEFAULT 'paid',
+	UNIQUE KEY unique_employee_pay_period (employee_ID, pay_period_start, pay_period_end),
 	FOREIGN KEY (employee_ID) REFERENCES EMPLOYEE(employee_ID) ON DELETE CASCADE,
 	FOREIGN KEY (department_ID) REFERENCES DEPARTMENT(department_ID)
 );

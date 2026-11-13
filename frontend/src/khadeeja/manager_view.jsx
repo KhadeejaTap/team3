@@ -8,7 +8,6 @@ function MgrView({ userEmail }) {
 	const [activeTab, setActiveTab] = useState('team');
 	const [employees, setEmployees] = useState([]);
 	const [attractionsList, setAttractionsList] = useState([]);
-	const [selectedDept, setSelectedDept] = useState('');
 	const [selectedAttr, setSelectedAttr] = useState('');
 	const [searchTerm, setSearchTerm] = useState('');
 	const [error, setError] = useState('');
