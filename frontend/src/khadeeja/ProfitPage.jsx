@@ -254,7 +254,7 @@ function ProfitPage() {
 					</>
 				)}
 
-				{['tickets', 'donations'].includes(stream) && (
+				{['tickets', 'donations', 'giftShop'].includes(stream) && (
 					<>
 						<label htmlFor="report-sort">Sort logs by: </label>
 						<select
@@ -271,7 +271,7 @@ function ProfitPage() {
 				{!customDatesAreValid && (
 					<p role="alert">Choose a valid custom start and end date.</p>
 				)}
-				{['food', 'tickets', 'donations'].includes(stream) && (
+				{['food', 'tickets', 'donations', 'giftShop'].includes(stream) && (
 					<button
 						type="button"
 						onClick={showReport ? handleResetReport : handleGenerateReport}
@@ -279,9 +279,6 @@ function ProfitPage() {
 					>
 						{loadingReport ? 'Loading...' : showReport ? 'Reset Report' : 'Generate Report'}
 					</button>
-				)}
-				{!['food', 'tickets', 'donations'].includes(stream) && (
-					<p role="status">Detailed logs are currently available for Food Stalls, Tickets, and Donations.</p>
 				)}
 				{error && <p role="alert">{error}</p>}
 			</section>
@@ -351,79 +348,6 @@ function ProfitPage() {
 						</tbody>
 					</table>
 
-				</section>
-			)}
-			{showReport && stream === 'giftShop' && (
-				<section>
-					{/* Table 1: Detailed Sales Log */}
-					<h3>Gift Shop Sales Log</h3>
-					<table>
-						<thead>
-							<tr>
-								<th>Date</th>
-								<th>Customer</th>
-								<th>Product</th>
-								<th>Category</th>
-								<th>Quantity</th>
-								<th>Sale Price</th>
-								<th>{metricLabels[metric]}</th>
-							</tr>
-						</thead>
-						<tbody>
-							<tr>
-								<th>Totals</th>
-								<td colSpan="3">{reportRows.length}
-									sales</td>
-								<td>{quantityTotal}</td>
-								<td></td>
-								<th>{formatMoney(reportTotal)}</th>
-							</tr>
-							{reportRows.map((row) => (
-								<tr key={row.transaction_ID}>
-									<td>{String(row.transaction_date).slice(0, 10)}</td>
-									<td>{row.customer_name}</td>
-									<td>{row.item_name}</td>
-									<td>{row.category}</td>
-									<td>{row.quantity}</td>
-									<td>{formatMoney(row.sale_price)}</td>
-									<td>{formatMoney(row.report_amount)}</
-									td>
-								</tr>
-							))}
-						</tbody>
-					</table>
-
-					{/* Table 2: Summary by Product */}
-					<h3>Gift Shop Sales by Product</h3>
-					<table>
-						<thead>
-							<tr>
-								<th>Product</th>
-								<th>Category</th>
-								<th>Sales Count</th>
-								<th>Quantity Sold</th>
-								<th>{metricLabels[metric]}</th>
-							</tr>
-						</thead>
-						<tbody>
-							<tr>
-								<th>Totals</th>
-								<td>{itemSummary.length} products</td>
-								<td>{reportRows.length}</td>
-								<td>{quantityTotal}</td>
-								<th>{formatMoney(reportTotal)}</th>
-							</tr>
-							{itemSummary.map((item) => (
-								<tr key={item.item_ID}>
-									<td>{item.item_name}</td>
-									<td>{item.category}</td>
-									<td>{item.sale_count}</td>
-									<td>{item.quantity_sold}</td>
-									<td>{formatMoney(item.report_amount)}</td>
-								</tr>
-							))}
-						</tbody>
-					</table>
 				</section>
 			)}
 			{showReport && stream === 'tickets' && (
