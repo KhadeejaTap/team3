@@ -1,4 +1,3 @@
-
 import { useCallback, useEffect, useState } from 'react';
 import { apiFetch } from '../api';
 
@@ -122,8 +121,15 @@ function EnclosureManagement() {
     }
   }
 
+  function getDateOnly(value) {
+    if (!value) return '';
+    const match = String(value).match(/^\d{4}-\d{2}-\d{2}/);
+    return match ? match[0] : '';
+  }
+
   const filteredCostRecords = costReportRecords.filter(record => {
-    const recordDate = String(record.cost_date || '').slice(0, 10);
+    const recordDate = getDateOnly(record.cost_date);
+    if (!recordDate) return false;
     if (costStartDate && recordDate < costStartDate) return false;
     if (costEndDate && recordDate > costEndDate) return false;
     return true;
@@ -133,21 +139,25 @@ function EnclosureManagement() {
     const enclosureRecords = filteredCostRecords.filter(
       record => String(record.enclosure_ID) === String(enclosure.enclosure_ID)
     );
-    const categoryTotals = Object.fromEntries(COST_CATEGORIES.map(category => [category, 0]));
+    const categoryTotals = Object.fromEntries(
+      COST_CATEGORIES.map(category => [category, 0])
+    );
     enclosureRecords.forEach(record => {
       const category = String(record.cost_category || '').trim().toLowerCase();
-      if (!category) return;
-      const matchedCategory = COST_CATEGORIES.find(item => {
-        const normalized = item.toLowerCase();
-        return category === normalized || category.includes(normalized) || normalized.includes(category);
-      });
-      if (matchedCategory) categoryTotals[matchedCategory] += Number(record.amount) || 0;
+      const matchedCategory = COST_CATEGORIES.find(
+        item => item.toLowerCase() === category
+      );
+      if (matchedCategory) {
+        categoryTotals[matchedCategory] += Number(record.amount) || 0;
+      }
     });
-    const total = enclosureRecords.reduce((sum, record) => sum + (Number(record.amount) || 0), 0);
+    const total = Object.values(categoryTotals).reduce(
+      (sum, amount) => sum + amount,
+      0
+    );
     return { ...enclosure, categoryTotals, total };
   });
 
-  // Overall expense totals used by the pie chart
   const overallCategoryTotals = Object.fromEntries(
     COST_CATEGORIES.map(category => [
       category,
@@ -331,7 +341,6 @@ function EnclosureManagement() {
               <p style={styles.muted}>No enclosure cost records were found for the selected date range.</p>
             ) : (
               <>
-                {/* Expense Pie Chart */}
                 <section style={{
                   marginTop: 24,
                   marginBottom: 24,
