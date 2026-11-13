@@ -577,7 +577,7 @@ function RevenueDetails({ userDept }) {
 																	<td>
 																		{transaction.transaction_ID
 																			? `#${transaction.transaction_ID}`
-																			: `Record #${transaction.record_ID}`}
+																			: `Unlinked ${transaction.record_type || 'expense record'} #${transaction.record_ID}`}
 																	</td>
 																	<td>
 																		{transaction.item_name || '—'}
