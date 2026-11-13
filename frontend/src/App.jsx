@@ -173,9 +173,6 @@ function AppContent() {
 									<li className="nav-item">
 										<Link to="/profit">Profit Reports</Link>
 									</li>
-									<li className="nav-item">
-										<Link to="/revenue-details">Revenue Details</Link>
-									</li>
 								</>
 							)}
 
