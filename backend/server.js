@@ -1115,201 +1115,6 @@ const server = http.createServer(async (req, res) => {
       send(res, 500, { error: err.message });
     }
   } else if (
-    req.url.startsWith('/api/reports/revenue/transactions') &&
-    req.method === 'GET'
-  ) {
-    try {
-      const parsedUrl = new URL(req.url, 'http://localhost');
-      const category = parsedUrl.searchParams.get('stream_category');
-      const streamName = parsedUrl.searchParams.get('stream_name');
-      const timeFrame = parsedUrl.searchParams.get('time_frame') || 'ytd';
-      let startDate = parsedUrl.searchParams.get('start_date');
-      let endDate = parsedUrl.searchParams.get('end_date');
-
-      if (!category || !streamName) {
-        send(res, 400, { error: 'Stream category and name are required.' });
-        return;
-      }
-
-      if (timeFrame === 'ytd') {
-        const currentYear = new Date().getFullYear();
-        startDate = `${currentYear}-01-01`;
-        endDate = new Date().toISOString().split('T')[0];
-      } else if (timeFrame === 'all') {
-        startDate = null;
-        endDate = null;
-      } else if (timeFrame !== 'custom') {
-        send(res, 400, { error: 'Invalid time frame.' });
-        return;
-      }
-
-      if (startDate && endDate && startDate > endDate) {
-        send(res, 400, { error: 'Start date cannot be after end date.' });
-        return;
-      }
-
-      const addDateClause = (dateCol) => {
-        let sql = '';
-        if (startDate) sql += ` AND ${dateCol} >= ?`;
-        if (endDate) sql += ` AND ${dateCol} <= ?`;
-        return sql;
-      };
-      const dateParams = () => [
-        ...(startDate ? [startDate] : []),
-        ...(endDate ? [endDate] : [])
-      ];
-
-      let query;
-      let params;
-      if (category === 'Admissions') {
-        query = `
-          SELECT
-            t.ticket_ID AS record_ID,
-            ti.transaction_ID,
-            DATE_FORMAT(t.purchase_date, '%Y-%m-%d') AS transaction_date,
-            t.ticket_type AS item_name,
-            1 AS quantity,
-            t.price AS unit_price,
-            t.price AS amount,
-            CONCAT('Visit date: ', DATE_FORMAT(t.visit_date, '%Y-%m-%d')) AS description,
-            ct.payment_method
-          FROM TICKET t
-          JOIN TRANSACTION_ITEM ti
-            ON ti.item_ID = t.ticket_ID AND ti.item_type = 'ticket'
-          JOIN CUST_TRANSACTION ct ON ti.transaction_ID = ct.transaction_ID
-          WHERE t.ticket_type = ? ${addDateClause('t.purchase_date')}
-          ORDER BY t.purchase_date DESC, t.ticket_ID DESC
-        `;
-        params = [streamName, ...dateParams()];
-      } else if (category === 'Fundraising') {
-        query = `
-          SELECT
-            d.donation_ID AS record_ID,
-            ti.transaction_ID,
-            DATE_FORMAT(d.donation_date, '%Y-%m-%d') AS transaction_date,
-            d.purpose AS item_name,
-            1 AS quantity,
-            d.amount AS unit_price,
-            d.amount AS amount,
-            CONCAT('Donor #', d.donor_ID) AS description,
-            ct.payment_method
-          FROM DONATION d
-          JOIN TRANSACTION_ITEM ti
-            ON ti.item_ID = d.donation_ID AND ti.item_type = 'donation'
-          JOIN CUST_TRANSACTION ct ON ti.transaction_ID = ct.transaction_ID
-          WHERE d.purpose = ? ${addDateClause('d.donation_date')}
-          ORDER BY d.donation_date DESC, d.donation_ID DESC
-        `;
-        params = [streamName, ...dateParams()];
-      } else if (category === 'Retail Merchandise') {
-        query = `
-          SELECT
-            ti.transaction_item_ID AS record_ID,
-            ct.transaction_ID,
-            DATE_FORMAT(ct.transaction_date, '%Y-%m-%d') AS transaction_date,
-            COALESCE(p.name, CONCAT('Product #', ti.item_ID)) AS item_name,
-            ti.quantity,
-            ti.price AS unit_price,
-            ti.price * ti.quantity AS amount,
-            NULL AS description,
-            ct.payment_method
-          FROM TRANSACTION_ITEM ti
-          JOIN CUST_TRANSACTION ct ON ti.transaction_ID = ct.transaction_ID
-          LEFT JOIN PRODUCT p ON ti.item_ID = p.product_ID
-          WHERE ti.item_type = 'product'
-            AND COALESCE(p.name, CONCAT('Product #', ti.item_ID)) = ?
-            ${addDateClause('DATE(ct.transaction_date)')}
-          ORDER BY ct.transaction_date DESC, ti.transaction_ID DESC, ti.transaction_item_ID DESC
-        `;
-        params = [streamName, ...dateParams()];
-      } else if (category === 'Food Concessions') {
-        query = `
-          SELECT
-            ti.transaction_item_ID AS record_ID,
-            ct.transaction_ID,
-            DATE_FORMAT(ct.transaction_date, '%Y-%m-%d') AS transaction_date,
-            COALESCE(m.name, CONCAT('Menu Item #', ti.item_ID)) AS item_name,
-            ti.quantity,
-            ti.price AS unit_price,
-            ti.price * ti.quantity AS amount,
-            NULL AS description,
-            ct.payment_method
-          FROM TRANSACTION_ITEM ti
-          JOIN CUST_TRANSACTION ct ON ti.transaction_ID = ct.transaction_ID
-          LEFT JOIN MENU_ITEM m ON ti.item_ID = m.item_ID
-          WHERE ti.item_type = 'food'
-            AND COALESCE(m.name, CONCAT('Menu Item #', ti.item_ID)) = ?
-            ${addDateClause('DATE(ct.transaction_date)')}
-          ORDER BY ct.transaction_date DESC, ti.transaction_ID DESC, ti.transaction_item_ID DESC
-        `;
-        params = [streamName, ...dateParams()];
-      } else if (category === 'Habitat Operations') {
-        query = `
-          SELECT
-            ec.cost_ID AS record_ID,
-            NULL AS transaction_ID,
-            DATE_FORMAT(ec.cost_date, '%Y-%m-%d') AS transaction_date,
-            ec.cost_category AS item_name,
-            1 AS quantity,
-            ec.amount AS unit_price,
-            ec.amount AS amount,
-            ec.description,
-            NULL AS payment_method
-          FROM ENCLOSURE_COST ec
-          WHERE ec.cost_category = ? ${addDateClause('ec.cost_date')}
-          ORDER BY ec.cost_date DESC, ec.cost_ID DESC
-        `;
-        params = [streamName, ...dateParams()];
-      } else if (category === 'Animal Healthcare' && streamName.startsWith('Animal Feeding: ')) {
-        const foodCategory = streamName.slice('Animal Feeding: '.length);
-        query = `
-          SELECT
-            fc.food_ID AS record_ID,
-            NULL AS transaction_ID,
-            DATE_FORMAT(fc.cost_date, '%Y-%m-%d') AS transaction_date,
-            CONCAT('Animal Feeding: ', fi.food_category) AS item_name,
-            1 AS quantity,
-            fc.amount AS unit_price,
-            fc.amount AS amount,
-            CONCAT('Food item: ', fi.food_name, '; Supplier: ', fi.supplier) AS description,
-            NULL AS payment_method
-          FROM FOOD_COST fc
-          JOIN FEED_ITEM fi ON fc.food_ID = fi.food_ID
-          WHERE fi.food_category = ? ${addDateClause('fc.cost_date')}
-          ORDER BY fc.cost_date DESC, fc.food_ID DESC
-        `;
-        params = [foodCategory, ...dateParams()];
-      } else if (category === 'Animal Healthcare') {
-        query = `
-          SELECT
-            mc.medical_cost_ID AS record_ID,
-            NULL AS transaction_ID,
-            DATE_FORMAT(mc.cost_date, '%Y-%m-%d') AS transaction_date,
-            mc.cost_category AS item_name,
-            1 AS quantity,
-            mc.amount AS unit_price,
-            mc.amount AS amount,
-            mc.description,
-            NULL AS payment_method
-          FROM MEDICAL_COST mc
-          WHERE mc.cost_category = ? ${addDateClause('mc.cost_date')}
-          ORDER BY mc.cost_date DESC, mc.medical_cost_ID DESC
-        `;
-        params = [streamName, ...dateParams()];
-      } else {
-        send(res, 400, { error: 'Invalid revenue stream.' });
-        return;
-      }
-
-      const [rows] = await pool.query(query, params);
-      send(res, 200, rows);
-      return;
-    } catch (err) {
-      console.error('Error fetching revenue transactions:', err);
-      send(res, 500, { error: 'Could not load revenue transactions.' });
-      return;
-    }
-  } else if (
     req.url.startsWith('/api/reports/revenue') &&
     req.method === 'GET'
   ) {
@@ -1387,7 +1192,7 @@ const server = http.createServer(async (req, res) => {
         JOIN cust_transaction ct ON ti.transaction_ID = ct.transaction_ID
         LEFT JOIN product p ON ti.item_ID = p.product_ID
         WHERE ti.item_type = 'product' ${addDateClause('DATE(ct.transaction_date)')}
-        GROUP BY COALESCE(p.name, CONCAT('Product #', ti.item_ID))
+        GROUP BY p.product_ID, p.name, ti.item_ID
       `;
 
       const foodSalesQuery = `
@@ -1403,7 +1208,7 @@ const server = http.createServer(async (req, res) => {
         JOIN cust_transaction ct ON ti.transaction_ID = ct.transaction_ID
         LEFT JOIN menu_item m ON ti.item_ID = m.item_ID
         WHERE ti.item_type = 'food' ${addDateClause('DATE(ct.transaction_date)')}
-        GROUP BY COALESCE(m.name, CONCAT('Menu Item #', ti.item_ID))
+        GROUP BY m.item_ID, m.name, ti.item_ID
       `;
 
       const expensesQuery = `
@@ -1444,7 +1249,7 @@ const server = http.createServer(async (req, res) => {
         FROM FOOD_COST fc
         JOIN FEED_ITEM fi ON fc.food_ID = fi.food_ID
         WHERE 1=1 ${addDateClause('fc.cost_date')}
-        GROUP BY fi.food_category
+        GROUP BY fi.food_ID, fi.food_name, fi.supplier
       `;
 
       let innerQuery = '';
