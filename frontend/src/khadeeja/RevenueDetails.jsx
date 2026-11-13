@@ -575,9 +575,7 @@ function RevenueDetails({ userDept }) {
 																<tr key={`${transaction.record_ID}-${transaction.transaction_ID}-${detailIndex}`}>
 																	<td>{transaction.transaction_date || '—'}</td>
 																	<td>
-																		{transaction.transaction_ID
-																			? `#${transaction.transaction_ID}`
-																			: `Unlinked ${transaction.record_type || 'expense record'} #${transaction.record_ID}`}
+																		#{transaction.transaction_ID || transaction.record_ID}
 																	</td>
 																	<td>
 																		{transaction.item_name || '—'}
