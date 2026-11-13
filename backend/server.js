@@ -1164,6 +1164,7 @@ const server = http.createServer(async (req, res) => {
       if (category === 'Admissions') {
         query = `
           SELECT
+            'Ticket' AS record_type,
             t.ticket_ID AS record_ID,
             ti.transaction_ID,
             DATE_FORMAT(t.purchase_date, '%Y-%m-%d') AS transaction_date,
@@ -1174,9 +1175,9 @@ const server = http.createServer(async (req, res) => {
             CONCAT('Visit date: ', DATE_FORMAT(t.visit_date, '%Y-%m-%d')) AS description,
             ct.payment_method
           FROM TICKET t
-          JOIN TRANSACTION_ITEM ti
+          LEFT JOIN TRANSACTION_ITEM ti
             ON ti.item_ID = t.ticket_ID AND ti.item_type = 'ticket'
-          JOIN CUST_TRANSACTION ct ON ti.transaction_ID = ct.transaction_ID
+          LEFT JOIN CUST_TRANSACTION ct ON ti.transaction_ID = ct.transaction_ID
           WHERE t.ticket_type = ? ${addDateClause('t.purchase_date')}
           ORDER BY t.purchase_date DESC, t.ticket_ID DESC
         `;
@@ -1184,6 +1185,7 @@ const server = http.createServer(async (req, res) => {
       } else if (category === 'Fundraising') {
         query = `
           SELECT
+            'Donation' AS record_type,
             d.donation_ID AS record_ID,
             ti.transaction_ID,
             DATE_FORMAT(d.donation_date, '%Y-%m-%d') AS transaction_date,
@@ -1194,9 +1196,9 @@ const server = http.createServer(async (req, res) => {
             CONCAT('Donor #', d.donor_ID) AS description,
             ct.payment_method
           FROM DONATION d
-          JOIN TRANSACTION_ITEM ti
+          LEFT JOIN TRANSACTION_ITEM ti
             ON ti.item_ID = d.donation_ID AND ti.item_type = 'donation'
-          JOIN CUST_TRANSACTION ct ON ti.transaction_ID = ct.transaction_ID
+          LEFT JOIN CUST_TRANSACTION ct ON ti.transaction_ID = ct.transaction_ID
           WHERE d.purpose = ? ${addDateClause('d.donation_date')}
           ORDER BY d.donation_date DESC, d.donation_ID DESC
         `;
