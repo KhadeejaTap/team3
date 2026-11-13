@@ -823,6 +823,59 @@ if (pathname === '/api/reports/revenue/transactions' && req.method === 'GET') {
           ORDER BY ct.transaction_date DESC, ti.transaction_ID DESC, ti.transaction_item_ID DESC
         `;
 			params = [streamName, ...dateParams()];
+		} else if (category === 'Habitat Operations') {
+			query = `
+          SELECT
+            ec.cost_ID AS record_ID,
+            NULL AS transaction_ID,
+            DATE_FORMAT(ec.cost_date, '%Y-%m-%d') AS transaction_date,
+            ec.cost_category AS item_name,
+            1 AS quantity,
+            ec.amount AS unit_price,
+            ec.amount AS amount,
+            ec.description,
+            NULL AS payment_method
+          FROM ENCLOSURE_COST ec
+          WHERE ec.cost_category = ? ${addDateClause('ec.cost_date')}
+          ORDER BY ec.cost_date DESC, ec.cost_ID DESC
+        `;
+			params = [streamName, ...dateParams()];
+		} else if (category === 'Animal Healthcare' && streamName.startsWith('Animal Feeding: ')) {
+			const foodCategory = streamName.slice('Animal Feeding: '.length);
+			query = `
+          SELECT
+            fc.food_ID AS record_ID,
+            NULL AS transaction_ID,
+            DATE_FORMAT(fc.cost_date, '%Y-%m-%d') AS transaction_date,
+            CONCAT('Animal Feeding: ', fi.food_category) AS item_name,
+            1 AS quantity,
+            fc.amount AS unit_price,
+            fc.amount AS amount,
+            CONCAT('Food item: ', fi.food_name, '; Supplier: ', fi.supplier) AS description,
+            NULL AS payment_method
+          FROM FOOD_COST fc
+          JOIN FEED_ITEM fi ON fc.food_ID = fi.food_ID
+          WHERE fi.food_category = ? ${addDateClause('fc.cost_date')}
+          ORDER BY fc.cost_date DESC, fc.food_ID DESC
+        `;
+			params = [foodCategory, ...dateParams()];
+		} else if (category === 'Animal Healthcare') {
+			query = `
+          SELECT
+            mc.medical_cost_ID AS record_ID,
+            NULL AS transaction_ID,
+            DATE_FORMAT(mc.cost_date, '%Y-%m-%d') AS transaction_date,
+            mc.cost_category AS item_name,
+            1 AS quantity,
+            mc.amount AS unit_price,
+            mc.amount AS amount,
+            mc.description,
+            NULL AS payment_method
+          FROM MEDICAL_COST mc
+          WHERE mc.cost_category = ? ${addDateClause('mc.cost_date')}
+          ORDER BY mc.cost_date DESC, mc.medical_cost_ID DESC
+        `;
+			params = [streamName, ...dateParams()];
 		} else {
 			send(res, 400, { error: 'Invalid revenue stream.' });
 			return;
@@ -933,6 +986,47 @@ if (pathname === '/api/reports/revenue' && req.method === 'GET') {
         GROUP BY COALESCE(m.name, CONCAT('Menu Item #', ti.item_ID))
       `;
 
+		const expensesQuery = `
+        SELECT
+          'Habitat Operations' AS stream_category,
+          cost_category AS stream_name,
+          COUNT(*) AS transaction_count,
+          COALESCE(SUM(amount), 0) AS total_revenue,
+          COALESCE(ROUND(AVG(amount), 2), 0) AS avg_amount,
+          COALESCE(MIN(amount), 0) AS min_amount,
+          COALESCE(MAX(amount), 0) AS max_amount
+        FROM ENCLOSURE_COST
+        WHERE 1=1 ${addDateClause('cost_date')}
+        GROUP BY cost_category
+      `;
+
+		const medicalExpensesQuery = `
+        SELECT
+          'Animal Healthcare' AS stream_category,
+          cost_category AS stream_name,
+          COUNT(*) AS transaction_count,
+          COALESCE(SUM(amount), 0) AS total_revenue,
+          COALESCE(ROUND(AVG(amount), 2), 0) AS avg_amount,
+          COALESCE(MIN(amount), 0) AS min_amount,
+          COALESCE(MAX(amount), 0) AS max_amount
+        FROM MEDICAL_COST
+        WHERE 1=1 ${addDateClause('cost_date')}
+        GROUP BY cost_category
+        UNION ALL
+        SELECT
+          'Animal Healthcare' AS stream_category,
+          CONCAT('Animal Feeding: ', fi.food_category) AS stream_name,
+          COUNT(*) AS transaction_count,
+          COALESCE(SUM(fc.amount), 0) AS total_revenue,
+          COALESCE(ROUND(AVG(fc.amount), 2), 0) AS avg_amount,
+          COALESCE(MIN(fc.amount), 0) AS min_amount,
+          COALESCE(MAX(fc.amount), 0) AS max_amount
+        FROM FOOD_COST fc
+        JOIN FEED_ITEM fi ON fc.food_ID = fi.food_ID
+        WHERE 1=1 ${addDateClause('fc.cost_date')}
+        GROUP BY fi.food_category
+      `;
+
 		let innerQuery = '';
 		let queryParams = [];
 
@@ -948,6 +1042,12 @@ if (pathname === '/api/reports/revenue' && req.method === 'GET') {
 		} else if (streamType === 'food_sales') {
 			innerQuery = foodSalesQuery;
 			queryParams = pushDates();
+		} else if (streamType === 'expenses') {
+			innerQuery = expensesQuery;
+			queryParams = pushDates();
+		} else if (streamType === 'medical_expenses') {
+			innerQuery = medicalExpensesQuery;
+			queryParams = [...pushDates(), ...pushDates()];
 		} else {
 			innerQuery = `
           ${ticketsQuery}
@@ -957,8 +1057,15 @@ if (pathname === '/api/reports/revenue' && req.method === 'GET') {
           ${retailQuery}
           UNION ALL
           ${foodSalesQuery}
+          UNION ALL
+          ${expensesQuery}
+          UNION ALL
+          ${medicalExpensesQuery}
         `;
 			queryParams = [
+				...pushDates(),
+				...pushDates(),
+				...pushDates(),
 				...pushDates(),
 				...pushDates(),
 				...pushDates(),

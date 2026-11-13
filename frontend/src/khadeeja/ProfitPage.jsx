@@ -5,8 +5,7 @@ const streamOptions = [
 	{ value: 'tickets', label: 'Tickets', metrics: ['revenue'] },
 	{ value: 'donations', label: 'Donations', metrics: ['revenue'] },
 	{ value: 'giftShop', label: 'Gift Shop', metrics: ['revenue', 'profit'] },
-	{ value: 'food', label: 'Food Stalls', metrics: ['revenue', 'profit'] },
-	{ value: 'animals', label: 'Animals', metrics: ['expenses'] }
+	{ value: 'food', label: 'Food Stalls', metrics: ['revenue', 'profit'] }
 ];
 
 const metricLabels = {
@@ -162,7 +161,7 @@ function ProfitPage() {
 				<h3>Report Filters</h3>
 				<p>
 					Revenue reports are available for tickets, donations, the gift
-					shop, and food stalls. Profit reports are available for the gift shop and food stalls. Expenditure reports are only available for the animal category.
+					shop, and food stalls. Profit reports are available for the gift shop and food stalls.
 				</p>
 
 				<label htmlFor="profit-stream">Stream: </label>
