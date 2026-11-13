@@ -1,5 +1,6 @@
 import '.././App.css';
 import { useState, useEffect } from 'react';
+import { apiFetch } from '../api';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -27,7 +28,13 @@ const initialFormData = {
 	user_role: 'employee'
 };
 
-function AdminView({ isDirector }) {
+function formatDate(value) {
+	if (!value) return '—';
+	const [year, month, day] = String(value).slice(0, 10).split('-');
+	return `${month}/${day}/${year}`;
+}
+
+function AdminView({ isDirector, isFinHR }) {
 	const userDept = Number(localStorage.getItem('user_dept'));
 	const isDeptHead = localStorage.getItem('is_dept_head') === 'true';
 	const canDelete = isDirector !== undefined ? isDirector : (userDept === 1 && isDeptHead);
@@ -41,6 +48,39 @@ function AdminView({ isDirector }) {
 	const [editingEmployeeId, setEditingEmployeeId] = useState(null);
 	const [formData, setFormData] = useState(initialFormData);
 	const [attractionsList, setAttractionsList] = useState([]);
+	const [paycheckEmployee, setPaycheckEmployee] = useState(null);
+	const [paycheckStartDate, setPaycheckStartDate] = useState('');
+	const [paycheckEndDate, setPaycheckEndDate] = useState('');
+	const [paycheckRows, setPaycheckRows] = useState([]);
+	const [paycheckError, setPaycheckError] = useState('');
+	const [loadingPaychecks, setLoadingPaychecks] = useState(false);
+
+	const handlePrintPaychecks = async (event, employee) => {
+		event.preventDefault();
+		setLoadingPaychecks(true);
+		setPaycheckError('');
+
+		try {
+			const params = new URLSearchParams({
+				startDate: paycheckStartDate,
+				endDate: paycheckEndDate
+			});
+			const response = await apiFetch(
+				`/api/paychecks/${employee.employee_ID}?${params.toString()}`
+			);
+			const data = await response.json().catch(() => []);
+			if (!response.ok) {
+				throw new Error(data.error || 'Could not load paycheck records.');
+			}
+			setPaycheckEmployee(employee);
+			setPaycheckRows(data);
+			setTimeout(() => window.print(), 0);
+		} catch (err) {
+			setPaycheckError(err.message);
+		} finally {
+			setLoadingPaychecks(false);
+		}
+	};
 
 	const fetchAdminData = () => {
 		fetch(`${API_URL}/api/admin`)
@@ -238,6 +278,41 @@ function AdminView({ isDirector }) {
 	return (
 		<>
 			<div>
+				{paycheckEmployee && (
+					<section className="paycheck-print-view">
+						<h2>Paycheck Report</h2>
+						<h3>{paycheckEmployee.name}</h3>
+						<p>
+							{paycheckStartDate} through {paycheckEndDate}
+						</p>
+						<table>
+							<thead>
+								<tr>
+									<th>Pay Period</th>
+									<th>Gross Pay</th>
+									<th>Federal Tax</th>
+									<th>FICA Tax</th>
+									<th>Benefits</th>
+									<th>Net Pay</th>
+								</tr>
+							</thead>
+							<tbody>
+								{paycheckRows.map((paycheck) => (
+									<tr key={paycheck.paycheck_ID}>
+										<td>
+											{formatDate(paycheck.pay_period_start)} – {formatDate(paycheck.pay_period_end)}
+										</td>
+										<td>${Number(paycheck.gross_pay).toFixed(2)}</td>
+										<td>${Number(paycheck.federal_tax).toFixed(2)}</td>
+										<td>${Number(paycheck.fica_tax).toFixed(2)}</td>
+										<td>${Number(paycheck.benefits_deduction).toFixed(2)}</td>
+										<td>${Number(paycheck.net_pay).toFixed(2)}</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
+					</section>
+				)}
 				<h2>Executive Administration — Staff Directory</h2>
 				<p style={{ color: '#555' }}>
 					Manage personnel records, department assignments, compensations, and new staff onboarding across all 4 zoo departments: Financial and HR, Animal Operations, Commercial Operations, and Guest Operations.
@@ -364,7 +439,6 @@ function AdminView({ isDirector }) {
 									name="hire_date"
 									value={formData.hire_date}
 									onChange={handleChange}
-									disabled={Boolean(editingEmployeeId)}
 									required
 								/>
 							</div>
@@ -548,6 +622,46 @@ function AdminView({ isDirector }) {
 														>
 															Delete
 														</button>
+													</>
+												)}
+												{isFinHR && (
+													<>
+														&nbsp;
+														<button
+															type="button"
+															onClick={() => {
+																setPaycheckEmployee(item);
+																setPaycheckError('');
+															}}
+														>
+															Print Paychecks
+														</button>
+														{paycheckEmployee?.employee_ID === item.employee_ID && (
+															<form onSubmit={(event) => handlePrintPaychecks(event, item)}>
+																<label>
+																	Start date
+																	<input
+																		type="date"
+																		required
+																		value={paycheckStartDate}
+																		onChange={(event) => setPaycheckStartDate(event.target.value)}
+																	/>
+																</label>
+																<label>
+																	End date
+																	<input
+																		type="date"
+																		required
+																		value={paycheckEndDate}
+																		onChange={(event) => setPaycheckEndDate(event.target.value)}
+																	/>
+																</label>
+																<button type="submit" disabled={loadingPaychecks}>
+																	{loadingPaychecks ? 'Loading...' : 'Print'}
+																</button>
+																{paycheckError && <p role="alert">{paycheckError}</p>}
+															</form>
+														)}
 													</>
 												)}
 											</>

@@ -219,12 +219,40 @@ td {
   color: #243327;
 }
 
+.department-head-name {
+  color: #198754;
+  font-weight: 600;
+}
+
 tr:nth-child(even) {
   background-color: #fafcf9;
 }
 
 tr:hover {
   background-color: #f0f5ee;
+}
+
+.paycheck-print-view {
+  display: none;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .paycheck-print-view,
+  .paycheck-print-view * {
+    visibility: visible;
+  }
+
+  .paycheck-print-view {
+    display: block;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+  }
 }
 
 tfoot th, tfoot td {

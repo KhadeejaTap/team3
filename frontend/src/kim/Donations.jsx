@@ -179,7 +179,7 @@ function Donations({ role, userEmail, userID, token }) {
         setShowPaymentModal(true);
     }
 
-    async function handleProcessDonation(cardData) {
+    async function handleProcessDonation() {
         const response = await fetch(`${API_URL}/api/donations`, {
             method: "POST",
             headers: {

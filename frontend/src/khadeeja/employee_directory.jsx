@@ -1,13 +1,9 @@
-import { useState } from 'react';
 import '.././App.css';
 import MgrView from './manager_view';
 import AdminView from './admin_view';
 import EmpView from './employee_view';
-import PayrollReport from './PayrollReport';
 
 function ReturnDir({ role, userEmail, userDept, isDeptHead }) {
-	const [currentTab, setCurrentTab] = useState('directory');
-
 	if (!role) {
 		return (
 			<div>
@@ -37,25 +33,13 @@ function ReturnDir({ role, userEmail, userDept, isDeptHead }) {
 				<div>
 					<button
 						type="button"
-						onClick={() => setCurrentTab('directory')}
 					>
-						{currentTab === 'directory' ? <strong>Staff Directory</strong> : 'Staff Directory'}
-					</button>
-					&nbsp;&nbsp;
-					<button
-						type="button"
-						onClick={() => setCurrentTab('report')}
-					>
-						{currentTab === 'report' ? <strong>Payroll & Headcount Report</strong> : 'Payroll & Headcount Report'}
+						<strong>Staff Directory</strong>
 					</button>
 				</div>
 				<hr />
 
-				{currentTab === 'report' ? (
-					<PayrollReport role={role} userEmail={userEmail} />
-				) : (
-					<AdminView isDirector={isDirector} />
-				)}
+				<AdminView isDirector={isDirector} isFinHR={isFinHR} />
 			</div>
 		);
 	}
