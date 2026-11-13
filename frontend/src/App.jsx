@@ -18,6 +18,7 @@ import Tickets from './Tickets/Tickets';
 import SpeciesReport from './animals/SpeciesReport';
 import PayrollPage from './khadeeja/PayrollPage';
 import ProfitPage from './khadeeja/ProfitPage';
+import RevenueDetails from './khadeeja/RevenueDetails';
 
 import {
 	BrowserRouter as Router,
@@ -172,6 +173,9 @@ function AppContent() {
 									<li className="nav-item">
 										<Link to="/profit">Profit Reports</Link>
 									</li>
+									<li className="nav-item">
+										<Link to="/revenue-details">Revenue Details</Link>
+									</li>
 								</>
 							)}
 
@@ -287,6 +291,15 @@ function AppContent() {
 						element={
 							isFinHR
 								? <ProfitPage />
+								: <Navigate to="/" replace />
+						}
+					/>
+
+					<Route
+						path="/revenue-details"
+						element={
+							isFinHR
+								? <RevenueDetails role={role} userDept={userDept} />
 								: <Navigate to="/" replace />
 						}
 					/>
