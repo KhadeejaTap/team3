@@ -425,6 +425,127 @@ function EnclosureManagement() {
                   </div>
                 </section>
 
+                <section style={{
+                  marginTop: 24,
+                  marginBottom: 24,
+                  padding: 20,
+                  border: '1px solid #d7dce2',
+                  borderRadius: 10
+                }}>
+                  <h3>Itemized Expense Details</h3>
+                  <p style={styles.muted}>
+                    Expand a category to see the individual recorded expenses included in its total.
+                    Each entry shows the enclosure, date, description, and amount.
+                  </p>
+
+                  {COST_CATEGORIES.map((category, index) => {
+                    const categoryRecords = filteredCostRecords
+                      .filter(record =>
+                        String(record.cost_category || '').trim().toLowerCase() === category.toLowerCase()
+                      )
+                      .sort((a, b) =>
+                        getDateOnly(b.cost_date).localeCompare(getDateOnly(a.cost_date))
+                      );
+                    const categoryTotal = categoryRecords.reduce(
+                      (sum, record) => sum + (Number(record.amount) || 0),
+                      0
+                    );
+
+                    return (
+                      <details
+                        key={category}
+                        style={{
+                          border: '1px solid #e0e4e8',
+                          borderRadius: 8,
+                          padding: 14,
+                          marginTop: 12
+                        }}
+                      >
+                        <summary style={{
+                          cursor: 'pointer',
+                          display: 'flex',
+                          flexWrap: 'wrap',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          gap: 10,
+                          fontWeight: 700
+                        }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                            <span style={{
+                              width: 12,
+                              height: 12,
+                              borderRadius: 3,
+                              background: CHART_COLORS[index],
+                              display: 'inline-block'
+                            }} />
+                            {category} ({categoryRecords.length} records)
+                          </span>
+                          <span>${categoryTotal.toLocaleString(undefined, {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2
+                          })}</span>
+                        </summary>
+
+                        {categoryRecords.length === 0 ? (
+                          <p style={styles.muted}>No recorded expenses in this category for the selected date range.</p>
+                        ) : (
+                          <div style={{ overflowX: 'auto', marginTop: 14 }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                              <thead>
+                                <tr>
+                                  {['Date', 'Enclosure', 'Description', 'Amount'].map(label => (
+                                    <th key={label} style={{
+                                      padding: 9,
+                                      borderBottom: '2px solid #d7dce2',
+                                      whiteSpace: 'nowrap'
+                                    }}>{label}</th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {categoryRecords.map((record, recordIndex) => (
+                                  <tr key={record.cost_ID || `${category}-${record.enclosure_ID}-${recordIndex}`}>
+                                    <td style={{ padding: 9, borderBottom: '1px solid #e6e9ed', whiteSpace: 'nowrap' }}>
+                                      {getDateOnly(record.cost_date) || 'Not recorded'}
+                                    </td>
+                                    <td style={{ padding: 9, borderBottom: '1px solid #e6e9ed' }}>
+                                      {record.enclosure_name || enclosures.find(item =>
+                                        String(item.enclosure_ID) === String(record.enclosure_ID)
+                                      )?.name || 'Unknown enclosure'}
+                                    </td>
+                                    <td style={{ padding: 9, borderBottom: '1px solid #e6e9ed' }}>
+                                      {record.description || 'No description provided'}
+                                    </td>
+                                    <td style={{ padding: 9, borderBottom: '1px solid #e6e9ed', whiteSpace: 'nowrap', fontWeight: 700 }}>
+                                      ${(Number(record.amount) || 0).toLocaleString(undefined, {
+                                        minimumFractionDigits: 2,
+                                        maximumFractionDigits: 2
+                                      })}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                              <tfoot>
+                                <tr>
+                                  <th colSpan={3} style={{ padding: 9, borderTop: '2px solid #d7dce2', textAlign: 'right' }}>
+                                    Category total
+                                  </th>
+                                  <th style={{ padding: 9, borderTop: '2px solid #d7dce2', whiteSpace: 'nowrap' }}>
+                                    ${categoryTotal.toLocaleString(undefined, {
+                                      minimumFractionDigits: 2,
+                                      maximumFractionDigits: 2
+                                    })}
+                                  </th>
+                                </tr>
+                              </tfoot>
+                            </table>
+                          </div>
+                        )}
+                      </details>
+                    );
+                  })}
+                </section>
+
                 <div style={{ overflowX: 'auto', marginTop: 14 }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                     <thead>
