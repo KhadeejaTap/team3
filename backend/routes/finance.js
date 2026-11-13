@@ -107,8 +107,8 @@ async function handleFinance(req, res, pool, send, readBody) {
 		const nextFiscalYear = new Date().getFullYear() + 1;
 		const budget =
 			data.annual_salary_budget === null ||
-			data.annual_salary_budget === undefined ||
-			data.annual_salary_budget === ''
+				data.annual_salary_budget === undefined ||
+				data.annual_salary_budget === ''
 				? null
 				: Number(data.annual_salary_budget);
 
@@ -184,9 +184,9 @@ async function handleFinance(req, res, pool, send, readBody) {
 		const sortBy = parsedUrl.searchParams.get('sortBy') || (stream === 'food' ? 'salePrice' : 'date');
 		const stallId = parsedUrl.searchParams.get('stallId') || 'all';
 
-		if (!['food', 'tickets', 'donations'].includes(stream)) {
+		if (!['food', 'tickets', 'donations', 'giftShop'].includes(stream)) {
 			send(res, 400, {
-				error: 'Only food, ticket, and donation reports are currently supported.'
+				error: 'Only food, ticket, giftshop, and donation reports are currently supported.'
 			});
 			return true;
 		}
@@ -375,6 +375,14 @@ async function handleFinance(req, res, pool, send, readBody) {
 			return true;
 		}
 
+		if (stream === 'giftShop') {
+			const dateFilter = buildReportDateClause('ct.transaction_date', timeFrame, startDate, endDate);
+			if (dateFilter.error) {
+				send(res, 400, { error: dateFilter.error });
+				return true;
+			}
+			const whereConditions = ["ti.item_type = 'product'",]
+		}
 		const dateFilter = buildReportDateClause('ct.transaction_date', timeFrame, startDate, endDate);
 		if (dateFilter.error) {
 			send(res, 400, { error: dateFilter.error });
@@ -599,51 +607,51 @@ async function handleFinance(req, res, pool, send, readBody) {
 	}
 
 	if (pathname === '/api/reports/revenue/transactions' && req.method === 'GET') {
-        try {
-      const parsedUrl = new URL(req.url, 'http://localhost');
-      const category = parsedUrl.searchParams.get('stream_category');
-      const streamName = parsedUrl.searchParams.get('stream_name');
-      const timeFrame = parsedUrl.searchParams.get('time_frame') || 'ytd';
-      let startDate = parsedUrl.searchParams.get('start_date');
-      let endDate = parsedUrl.searchParams.get('end_date');
+		try {
+			const parsedUrl = new URL(req.url, 'http://localhost');
+			const category = parsedUrl.searchParams.get('stream_category');
+			const streamName = parsedUrl.searchParams.get('stream_name');
+			const timeFrame = parsedUrl.searchParams.get('time_frame') || 'ytd';
+			let startDate = parsedUrl.searchParams.get('start_date');
+			let endDate = parsedUrl.searchParams.get('end_date');
 
-      if (!category || !streamName) {
-        send(res, 400, { error: 'Stream category and name are required.' });
-        return;
-      }
+			if (!category || !streamName) {
+				send(res, 400, { error: 'Stream category and name are required.' });
+				return;
+			}
 
-      if (timeFrame === 'ytd') {
-        const currentYear = new Date().getFullYear();
-        startDate = `${currentYear}-01-01`;
-        endDate = new Date().toISOString().split('T')[0];
-      } else if (timeFrame === 'all') {
-        startDate = null;
-        endDate = null;
-      } else if (timeFrame !== 'custom') {
-        send(res, 400, { error: 'Invalid time frame.' });
-        return;
-      }
+			if (timeFrame === 'ytd') {
+				const currentYear = new Date().getFullYear();
+				startDate = `${currentYear}-01-01`;
+				endDate = new Date().toISOString().split('T')[0];
+			} else if (timeFrame === 'all') {
+				startDate = null;
+				endDate = null;
+			} else if (timeFrame !== 'custom') {
+				send(res, 400, { error: 'Invalid time frame.' });
+				return;
+			}
 
-      if (startDate && endDate && startDate > endDate) {
-        send(res, 400, { error: 'Start date cannot be after end date.' });
-        return;
-      }
+			if (startDate && endDate && startDate > endDate) {
+				send(res, 400, { error: 'Start date cannot be after end date.' });
+				return;
+			}
 
-      const addDateClause = (dateCol) => {
-        let sql = '';
-        if (startDate) sql += ` AND ${dateCol} >= ?`;
-        if (endDate) sql += ` AND ${dateCol} <= ?`;
-        return sql;
-      };
-      const dateParams = () => [
-        ...(startDate ? [startDate] : []),
-        ...(endDate ? [endDate] : [])
-      ];
+			const addDateClause = (dateCol) => {
+				let sql = '';
+				if (startDate) sql += ` AND ${dateCol} >= ?`;
+				if (endDate) sql += ` AND ${dateCol} <= ?`;
+				return sql;
+			};
+			const dateParams = () => [
+				...(startDate ? [startDate] : []),
+				...(endDate ? [endDate] : [])
+			];
 
-      let query;
-      let params;
-      if (category === 'Admissions') {
-        query = `
+			let query;
+			let params;
+			if (category === 'Admissions') {
+				query = `
           SELECT
             'Ticket' AS record_type,
             t.ticket_ID AS record_ID,
@@ -662,9 +670,9 @@ async function handleFinance(req, res, pool, send, readBody) {
           WHERE t.ticket_type = ? ${addDateClause('t.purchase_date')}
           ORDER BY t.purchase_date DESC, t.ticket_ID DESC
         `;
-        params = [streamName, ...dateParams()];
-      } else if (category === 'Fundraising') {
-        query = `
+				params = [streamName, ...dateParams()];
+			} else if (category === 'Fundraising') {
+				query = `
           SELECT
             'Donation' AS record_type,
             d.donation_ID AS record_ID,
@@ -683,9 +691,9 @@ async function handleFinance(req, res, pool, send, readBody) {
           WHERE d.purpose = ? ${addDateClause('d.donation_date')}
           ORDER BY d.donation_date DESC, d.donation_ID DESC
         `;
-        params = [streamName, ...dateParams()];
-      } else if (category === 'Retail Merchandise') {
-        query = `
+				params = [streamName, ...dateParams()];
+			} else if (category === 'Retail Merchandise') {
+				query = `
           SELECT
             ti.transaction_item_ID AS record_ID,
             ct.transaction_ID,
@@ -704,9 +712,9 @@ async function handleFinance(req, res, pool, send, readBody) {
             ${addDateClause('DATE(ct.transaction_date)')}
           ORDER BY ct.transaction_date DESC, ti.transaction_ID DESC, ti.transaction_item_ID DESC
         `;
-        params = [streamName, ...dateParams()];
-      } else if (category === 'Food Concessions') {
-        query = `
+				params = [streamName, ...dateParams()];
+			} else if (category === 'Food Concessions') {
+				query = `
           SELECT
             ti.transaction_item_ID AS record_ID,
             ct.transaction_ID,
@@ -725,9 +733,9 @@ async function handleFinance(req, res, pool, send, readBody) {
             ${addDateClause('DATE(ct.transaction_date)')}
           ORDER BY ct.transaction_date DESC, ti.transaction_ID DESC, ti.transaction_item_ID DESC
         `;
-        params = [streamName, ...dateParams()];
-      } else if (category === 'Habitat Operations') {
-        query = `
+				params = [streamName, ...dateParams()];
+			} else if (category === 'Habitat Operations') {
+				query = `
           SELECT
             ec.cost_ID AS record_ID,
             NULL AS transaction_ID,
@@ -742,10 +750,10 @@ async function handleFinance(req, res, pool, send, readBody) {
           WHERE ec.cost_category = ? ${addDateClause('ec.cost_date')}
           ORDER BY ec.cost_date DESC, ec.cost_ID DESC
         `;
-        params = [streamName, ...dateParams()];
-      } else if (category === 'Animal Healthcare' && streamName.startsWith('Animal Feeding: ')) {
-        const foodCategory = streamName.slice('Animal Feeding: '.length);
-        query = `
+				params = [streamName, ...dateParams()];
+			} else if (category === 'Animal Healthcare' && streamName.startsWith('Animal Feeding: ')) {
+				const foodCategory = streamName.slice('Animal Feeding: '.length);
+				query = `
           SELECT
             fc.food_ID AS record_ID,
             NULL AS transaction_ID,
@@ -761,9 +769,9 @@ async function handleFinance(req, res, pool, send, readBody) {
           WHERE fi.food_category = ? ${addDateClause('fc.cost_date')}
           ORDER BY fc.cost_date DESC, fc.food_ID DESC
         `;
-        params = [foodCategory, ...dateParams()];
-      } else if (category === 'Animal Healthcare') {
-        query = `
+				params = [foodCategory, ...dateParams()];
+			} else if (category === 'Animal Healthcare') {
+				query = `
           SELECT
             mc.medical_cost_ID AS record_ID,
             NULL AS transaction_ID,
@@ -778,58 +786,58 @@ async function handleFinance(req, res, pool, send, readBody) {
           WHERE mc.cost_category = ? ${addDateClause('mc.cost_date')}
           ORDER BY mc.cost_date DESC, mc.medical_cost_ID DESC
         `;
-        params = [streamName, ...dateParams()];
-      } else {
-        send(res, 400, { error: 'Invalid revenue stream.' });
-        return;
-      }
+				params = [streamName, ...dateParams()];
+			} else {
+				send(res, 400, { error: 'Invalid revenue stream.' });
+				return;
+			}
 
-      const [rows] = await pool.query(query, params);
-      send(res, 200, rows);
-      return;
-    } catch (err) {
-      console.error('Error fetching revenue transactions:', err);
-      send(res, 500, { error: 'Could not load revenue transactions.' });
-      return;
-    }
-        return true;
-    }
+			const [rows] = await pool.query(query, params);
+			send(res, 200, rows);
+			return;
+		} catch (err) {
+			console.error('Error fetching revenue transactions:', err);
+			send(res, 500, { error: 'Could not load revenue transactions.' });
+			return;
+		}
+		return true;
+	}
 
-    if (pathname === '/api/reports/revenue' && req.method === 'GET') {
-        try {
-      const parsedUrl = new URL(req.url, 'http://localhost');
-      const streamType = parsedUrl.searchParams.get('stream_type') || 'all';
-      const sortBy = parsedUrl.searchParams.get('sort_by') || 'revenue';
-      const timeFrame = parsedUrl.searchParams.get('time_frame') || 'ytd';
-      let startDate = parsedUrl.searchParams.get('start_date');
-      let endDate = parsedUrl.searchParams.get('end_date');
-      const minAmount = parsedUrl.searchParams.get('min_amount');
-      const maxAmount = parsedUrl.searchParams.get('max_amount');
+	if (pathname === '/api/reports/revenue' && req.method === 'GET') {
+		try {
+			const parsedUrl = new URL(req.url, 'http://localhost');
+			const streamType = parsedUrl.searchParams.get('stream_type') || 'all';
+			const sortBy = parsedUrl.searchParams.get('sort_by') || 'revenue';
+			const timeFrame = parsedUrl.searchParams.get('time_frame') || 'ytd';
+			let startDate = parsedUrl.searchParams.get('start_date');
+			let endDate = parsedUrl.searchParams.get('end_date');
+			const minAmount = parsedUrl.searchParams.get('min_amount');
+			const maxAmount = parsedUrl.searchParams.get('max_amount');
 
-      if (timeFrame === 'ytd') {
-        const currentYear = new Date().getFullYear();
-        startDate = `${currentYear}-01-01`;
-        endDate = new Date().toISOString().split('T')[0];
-      } else if (timeFrame === 'all') {
-        startDate = null;
-        endDate = null;
-      }
+			if (timeFrame === 'ytd') {
+				const currentYear = new Date().getFullYear();
+				startDate = `${currentYear}-01-01`;
+				endDate = new Date().toISOString().split('T')[0];
+			} else if (timeFrame === 'all') {
+				startDate = null;
+				endDate = null;
+			}
 
-      const addDateClause = (dateCol) => {
-        let sql = '';
-        if (startDate) sql += ` AND ${dateCol} >= ?`;
-        if (endDate) sql += ` AND ${dateCol} <= ?`;
-        return sql;
-      };
+			const addDateClause = (dateCol) => {
+				let sql = '';
+				if (startDate) sql += ` AND ${dateCol} >= ?`;
+				if (endDate) sql += ` AND ${dateCol} <= ?`;
+				return sql;
+			};
 
-      const pushDates = () => {
-        const p = [];
-        if (startDate) p.push(startDate);
-        if (endDate) p.push(endDate);
-        return p;
-      };
+			const pushDates = () => {
+				const p = [];
+				if (startDate) p.push(startDate);
+				if (endDate) p.push(endDate);
+				return p;
+			};
 
-      const ticketsQuery = `
+			const ticketsQuery = `
         SELECT
           'Admissions' AS stream_category,
           ticket_type AS stream_name,
@@ -843,7 +851,7 @@ async function handleFinance(req, res, pool, send, readBody) {
         GROUP BY ticket_type
       `;
 
-      const donationsQuery = `
+			const donationsQuery = `
         SELECT
           'Fundraising' AS stream_category,
           purpose AS stream_name,
@@ -857,7 +865,7 @@ async function handleFinance(req, res, pool, send, readBody) {
         GROUP BY purpose
       `;
 
-      const retailQuery = `
+			const retailQuery = `
         SELECT
           'Retail Merchandise' AS stream_category,
           COALESCE(p.name, CONCAT('Product #', ti.item_ID)) AS stream_name,
@@ -873,7 +881,7 @@ async function handleFinance(req, res, pool, send, readBody) {
         GROUP BY COALESCE(p.name, CONCAT('Product #', ti.item_ID))
       `;
 
-      const foodSalesQuery = `
+			const foodSalesQuery = `
         SELECT
           'Food Concessions' AS stream_category,
           COALESCE(m.name, CONCAT('Menu Item #', ti.item_ID)) AS stream_name,
@@ -889,7 +897,7 @@ async function handleFinance(req, res, pool, send, readBody) {
         GROUP BY COALESCE(m.name, CONCAT('Menu Item #', ti.item_ID))
       `;
 
-      const expensesQuery = `
+			const expensesQuery = `
         SELECT
           'Habitat Operations' AS stream_category,
           cost_category AS stream_name,
@@ -903,7 +911,7 @@ async function handleFinance(req, res, pool, send, readBody) {
         GROUP BY cost_category
       `;
 
-      const medicalExpensesQuery = `
+			const medicalExpensesQuery = `
         SELECT
           'Animal Healthcare' AS stream_category,
           cost_category AS stream_name,
@@ -930,29 +938,29 @@ async function handleFinance(req, res, pool, send, readBody) {
         GROUP BY fi.food_category
       `;
 
-      let innerQuery = '';
-      let queryParams = [];
+			let innerQuery = '';
+			let queryParams = [];
 
-      if (streamType === 'tickets') {
-        innerQuery = ticketsQuery;
-        queryParams = pushDates();
-      } else if (streamType === 'donations') {
-        innerQuery = donationsQuery;
-        queryParams = pushDates();
-      } else if (streamType === 'retail') {
-        innerQuery = retailQuery;
-        queryParams = pushDates();
-      } else if (streamType === 'food_sales') {
-        innerQuery = foodSalesQuery;
-        queryParams = pushDates();
-      } else if (streamType === 'expenses') {
-        innerQuery = expensesQuery;
-        queryParams = pushDates();
-      } else if (streamType === 'medical_expenses') {
-        innerQuery = medicalExpensesQuery;
-        queryParams = [...pushDates(), ...pushDates()];
-      } else {
-        innerQuery = `
+			if (streamType === 'tickets') {
+				innerQuery = ticketsQuery;
+				queryParams = pushDates();
+			} else if (streamType === 'donations') {
+				innerQuery = donationsQuery;
+				queryParams = pushDates();
+			} else if (streamType === 'retail') {
+				innerQuery = retailQuery;
+				queryParams = pushDates();
+			} else if (streamType === 'food_sales') {
+				innerQuery = foodSalesQuery;
+				queryParams = pushDates();
+			} else if (streamType === 'expenses') {
+				innerQuery = expensesQuery;
+				queryParams = pushDates();
+			} else if (streamType === 'medical_expenses') {
+				innerQuery = medicalExpensesQuery;
+				queryParams = [...pushDates(), ...pushDates()];
+			} else {
+				innerQuery = `
           ${ticketsQuery}
           UNION ALL
           ${donationsQuery}
@@ -965,107 +973,107 @@ async function handleFinance(req, res, pool, send, readBody) {
           UNION ALL
           ${medicalExpensesQuery}
         `;
-        queryParams = [
-          ...pushDates(),
-          ...pushDates(),
-          ...pushDates(),
-          ...pushDates(),
-          ...pushDates(),
-          ...pushDates(),
-          ...pushDates()
-        ];
-      }
+				queryParams = [
+					...pushDates(),
+					...pushDates(),
+					...pushDates(),
+					...pushDates(),
+					...pushDates(),
+					...pushDates(),
+					...pushDates()
+				];
+			}
 
-      const sortColumns = {
-        revenue: 'total_revenue DESC',
-        count: 'transaction_count DESC',
-        avg: 'avg_amount DESC',
-        name: 'stream_name ASC'
-      };
-      const orderClause = sortColumns[sortBy] || 'total_revenue DESC';
+			const sortColumns = {
+				revenue: 'total_revenue DESC',
+				count: 'transaction_count DESC',
+				avg: 'avg_amount DESC',
+				name: 'stream_name ASC'
+			};
+			const orderClause = sortColumns[sortBy] || 'total_revenue DESC';
 
-      let finalQuery = `SELECT * FROM (${innerQuery}) AS streams WHERE 1=1`;
-      if (minAmount) {
-        finalQuery += ' AND total_revenue >= ?';
-        queryParams.push(Number(minAmount));
-      }
-      if (maxAmount) {
-        finalQuery += ' AND total_revenue <= ?';
-        queryParams.push(Number(maxAmount));
-      }
-      finalQuery += ` ORDER BY ${orderClause}`;
+			let finalQuery = `SELECT * FROM (${innerQuery}) AS streams WHERE 1=1`;
+			if (minAmount) {
+				finalQuery += ' AND total_revenue >= ?';
+				queryParams.push(Number(minAmount));
+			}
+			if (maxAmount) {
+				finalQuery += ' AND total_revenue <= ?';
+				queryParams.push(Number(maxAmount));
+			}
+			finalQuery += ` ORDER BY ${orderClause}`;
 
-      const [rows] = await pool.query(finalQuery, queryParams);
-      send(res, 200, rows);
-      return;
-    } catch (err) {
-      console.error('Error fetching revenue report:', err);
-      send(res, 500, { error: 'Could not load revenue report.' });
-      return;
-    }
-        return true;
-    }
+			const [rows] = await pool.query(finalQuery, queryParams);
+			send(res, 200, rows);
+			return;
+		} catch (err) {
+			console.error('Error fetching revenue report:', err);
+			send(res, 500, { error: 'Could not load revenue report.' });
+			return;
+		}
+		return true;
+	}
 
-    if (pathname === '/api/reports/financial-summary' && req.method === 'GET') {
-        try {
-      const parsedUrl = new URL(req.url, 'http://localhost');
-      const timeFrame = parsedUrl.searchParams.get('time_frame') || 'ytd';
-      let startDate = parsedUrl.searchParams.get('start_date');
-      let endDate = parsedUrl.searchParams.get('end_date');
+	if (pathname === '/api/reports/financial-summary' && req.method === 'GET') {
+		try {
+			const parsedUrl = new URL(req.url, 'http://localhost');
+			const timeFrame = parsedUrl.searchParams.get('time_frame') || 'ytd';
+			let startDate = parsedUrl.searchParams.get('start_date');
+			let endDate = parsedUrl.searchParams.get('end_date');
 
-      if (timeFrame === 'ytd') {
-        const currentYear = new Date().getFullYear();
-        startDate = `${currentYear}-01-01`;
-        endDate = new Date().toISOString().split('T')[0];
-      } else if (timeFrame === 'all') {
-        startDate = null;
-        endDate = null;
-      }
+			if (timeFrame === 'ytd') {
+				const currentYear = new Date().getFullYear();
+				startDate = `${currentYear}-01-01`;
+				endDate = new Date().toISOString().split('T')[0];
+			} else if (timeFrame === 'all') {
+				startDate = null;
+				endDate = null;
+			}
 
-      const addDateClause = (dateCol) => {
-        let sql = '';
-        if (startDate) sql += ` AND ${dateCol} >= ?`;
-        if (endDate) sql += ` AND ${dateCol} <= ?`;
-        return sql;
-      };
+			const addDateClause = (dateCol) => {
+				let sql = '';
+				if (startDate) sql += ` AND ${dateCol} >= ?`;
+				if (endDate) sql += ` AND ${dateCol} <= ?`;
+				return sql;
+			};
 
-      const pushDates = () => {
-        const p = [];
-        if (startDate) p.push(startDate);
-        if (endDate) p.push(endDate);
-        return p;
-      };
+			const pushDates = () => {
+				const p = [];
+				if (startDate) p.push(startDate);
+				if (endDate) p.push(endDate);
+				return p;
+			};
 
-      const [[tickets]] = await pool.query(
-        `SELECT COALESCE(SUM(price), 0) AS total FROM TICKET WHERE 1=1 ${addDateClause('purchase_date')}`,
-        pushDates()
-      );
-      const [[donations]] = await pool.query(
-        `SELECT COALESCE(SUM(amount), 0) AS total FROM DONATION WHERE 1=1 ${addDateClause('donation_date')}`,
-        pushDates()
-      );
-      const [[retail]] = await pool.query(
-        `SELECT COALESCE(SUM(ti.price * ti.quantity), 0) AS total 
+			const [[tickets]] = await pool.query(
+				`SELECT COALESCE(SUM(price), 0) AS total FROM TICKET WHERE 1=1 ${addDateClause('purchase_date')}`,
+				pushDates()
+			);
+			const [[donations]] = await pool.query(
+				`SELECT COALESCE(SUM(amount), 0) AS total FROM DONATION WHERE 1=1 ${addDateClause('donation_date')}`,
+				pushDates()
+			);
+			const [[retail]] = await pool.query(
+				`SELECT COALESCE(SUM(ti.price * ti.quantity), 0) AS total
          FROM TRANSACTION_ITEM ti
          JOIN cust_transaction ct ON ti.transaction_ID = ct.transaction_ID
          WHERE ti.item_type = 'product' ${addDateClause('DATE(ct.transaction_date)')}`,
-        pushDates()
-      );
-      const [[foodConcessions]] = await pool.query(
-        `SELECT COALESCE(SUM(ti.price * ti.quantity), 0) AS total 
+				pushDates()
+			);
+			const [[foodConcessions]] = await pool.query(
+				`SELECT COALESCE(SUM(ti.price * ti.quantity), 0) AS total
          FROM TRANSACTION_ITEM ti
          JOIN cust_transaction ct ON ti.transaction_ID = ct.transaction_ID
          WHERE ti.item_type = 'food' ${addDateClause('DATE(ct.transaction_date)')}`,
-        pushDates()
-      );
-      const [categories] = await pool.query(`
+				pushDates()
+			);
+			const [categories] = await pool.query(`
         SELECT cost_category, COALESCE(SUM(amount), 0) AS total
         FROM ENCLOSURE_COST
         WHERE 1=1 ${addDateClause('cost_date')}
         GROUP BY cost_category
         ORDER BY total DESC
       `, pushDates());
-      const [medicalCategories] = await pool.query(`
+			const [medicalCategories] = await pool.query(`
         SELECT cost_category, COALESCE(SUM(total), 0) AS total
         FROM (
           SELECT cost_category, amount AS total
@@ -1081,51 +1089,51 @@ async function handleFinance(req, res, pool, send, readBody) {
         ORDER BY total DESC
       `, [...pushDates(), ...pushDates()]);
 
-      const admissionsTotal = Number(tickets.total || 0);
-      const donationsTotal = Number(donations.total || 0);
-      const retailTotal = Number(retail.total || 0);
-      const foodConcessionsTotal = Number(foodConcessions.total || 0);
-      const grossRevenue = admissionsTotal + donationsTotal + retailTotal + foodConcessionsTotal;
+			const admissionsTotal = Number(tickets.total || 0);
+			const donationsTotal = Number(donations.total || 0);
+			const retailTotal = Number(retail.total || 0);
+			const foodConcessionsTotal = Number(foodConcessions.total || 0);
+			const grossRevenue = admissionsTotal + donationsTotal + retailTotal + foodConcessionsTotal;
 
-      const enclosureCostsTotal = categories.reduce(
-        (sum, category) => sum + Number(category.total || 0), 0
-      );
-      const medicalCostsTotal = medicalCategories.reduce(
-        (sum, category) => sum + Number(category.total || 0), 0
-      );
-      const totalExpenses = enclosureCostsTotal + medicalCostsTotal;
-      const netBalance = grossRevenue - totalExpenses;
+			const enclosureCostsTotal = categories.reduce(
+				(sum, category) => sum + Number(category.total || 0), 0
+			);
+			const medicalCostsTotal = medicalCategories.reduce(
+				(sum, category) => sum + Number(category.total || 0), 0
+			);
+			const totalExpenses = enclosureCostsTotal + medicalCostsTotal;
+			const netBalance = grossRevenue - totalExpenses;
 
-      send(res, 200, {
-        time_frame: timeFrame,
-        start_date: startDate,
-        end_date: endDate,
-        gross_revenue: grossRevenue.toFixed(2),
-        admissions_total: admissionsTotal.toFixed(2),
-        donations_total: donationsTotal.toFixed(2),
-        retail_total: retailTotal.toFixed(2),
-        food_concessions_total: foodConcessionsTotal.toFixed(2),
-        enclosure_costs_total: enclosureCostsTotal.toFixed(2),
-        enclosure_categories: categories.map(category => ({
-          category: category.cost_category,
-          amount: Number(category.total || 0).toFixed(2)
-        })),
-        medical_costs_total: medicalCostsTotal.toFixed(2),
-        medical_categories: medicalCategories.map(category => ({
-          category: category.cost_category,
-          amount: Number(category.total || 0).toFixed(2)
-        })),
-        total_expenses: totalExpenses.toFixed(2),
-        net_balance: netBalance.toFixed(2)
-      });
-      return;
-    } catch (err) {
-      console.error('Error fetching financial summary:', err);
-      send(res, 500, { error: 'Could not calculate financial summary.' });
-      return;
-    }
-        return true;
-    }
+			send(res, 200, {
+				time_frame: timeFrame,
+				start_date: startDate,
+				end_date: endDate,
+				gross_revenue: grossRevenue.toFixed(2),
+				admissions_total: admissionsTotal.toFixed(2),
+				donations_total: donationsTotal.toFixed(2),
+				retail_total: retailTotal.toFixed(2),
+				food_concessions_total: foodConcessionsTotal.toFixed(2),
+				enclosure_costs_total: enclosureCostsTotal.toFixed(2),
+				enclosure_categories: categories.map(category => ({
+					category: category.cost_category,
+					amount: Number(category.total || 0).toFixed(2)
+				})),
+				medical_costs_total: medicalCostsTotal.toFixed(2),
+				medical_categories: medicalCategories.map(category => ({
+					category: category.cost_category,
+					amount: Number(category.total || 0).toFixed(2)
+				})),
+				total_expenses: totalExpenses.toFixed(2),
+				net_balance: netBalance.toFixed(2)
+			});
+			return;
+		} catch (err) {
+			console.error('Error fetching financial summary:', err);
+			send(res, 500, { error: 'Could not calculate financial summary.' });
+			return;
+		}
+		return true;
+	}
 
 	return false;
 }
