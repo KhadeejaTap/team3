@@ -895,7 +895,7 @@ function AnimalManagement({ role, userEmail }) {
                             <div style={{ margin: '12px 0' }}>
                                 <p>{imagePreview ? 'New image preview:' : 'Current animal photo:'}</p>
                                 <img
-                                    src={imagePreview || (/^https?:\\/\\//i.test(currentImageUrl) ? currentImageUrl : `${API_URL}${currentImageUrl.startsWith('/') ? '' : '/'}${currentImageUrl}`)}
+                                    src={imagePreview || (currentImageUrl.startsWith('http://') || currentImageUrl.startsWith('https://') ? currentImageUrl : `${API_URL}${currentImageUrl.startsWith('/') ? '' : '/'}${currentImageUrl}`)}
                                     alt="Animal preview"
                                     style={{ width: '180px', height: '140px', objectFit: 'cover', borderRadius: '8px' }}
                                 />
