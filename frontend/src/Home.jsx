@@ -613,7 +613,12 @@ function Home({ role, userEmail, userDept }) {
 									<p>No purchase history yet.</p>
 								) : (
 									<div className="recent-orders-list">
-										{orders.map((order) => (
+										{orders.filter((order) => {
+											const orderDate = new Date(order.transaction_date);
+											const oneYearAgo = new Date();
+											oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+											return orderDate >= oneYearAgo;
+										}).map((order) => (
 											<div key={order.transaction_ID} className="recent-order-item">
 												<div className="recent-order-header">
 													<span className="recent-order-id">Order #{order.transaction_ID}</span>
