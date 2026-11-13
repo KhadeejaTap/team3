@@ -1,4 +1,4 @@
-import { Fragment, useRef, useState } from 'react';
+import { useState } from 'react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 const EXPENSE_CATEGORIES = ['Habitat Operations', 'Animal Healthcare'];
@@ -10,7 +10,7 @@ function formatCurrency(value) {
 	});
 }
 
-function RevenueDetails({ userDept }) {
+function RevenueDetails({ role, userDept }) {
 	const [reportData, setReportData] = useState([]);
 	const [summary, setSummary] = useState(null);
 	const [streamType, setStreamType] = useState('all');
@@ -24,11 +24,6 @@ function RevenueDetails({ userDept }) {
 	const [hasGenerated, setHasGenerated] = useState(false);
 	const [error, setError] = useState('');
 	const [lastUpdated, setLastUpdated] = useState('');
-	const [selectedRowKey, setSelectedRowKey] = useState(null);
-	const [transactionDetails, setTransactionDetails] = useState([]);
-	const [detailsLoading, setDetailsLoading] = useState(false);
-	const [detailsError, setDetailsError] = useState('');
-	const detailRequestId = useRef(0);
 
 	const isFinAdmin =
 		Number(userDept) === 1 ||
@@ -60,11 +55,6 @@ function RevenueDetails({ userDept }) {
 	};
 
 	const fetchReport = (st, sb, tf, sDate, eDate, minAmt, maxAmt) => {
-		detailRequestId.current += 1;
-		setSelectedRowKey(null);
-		setTransactionDetails([]);
-		setDetailsError('');
-		setDetailsLoading(false);
 		setLoading(true);
 		setError('');
 
@@ -158,10 +148,6 @@ function RevenueDetails({ userDept }) {
 	};
 
 	const handleResetFilters = () => {
-		detailRequestId.current += 1;
-		setSelectedRowKey(null);
-		setTransactionDetails([]);
-		setDetailsError('');
 		setStreamType('all');
 		setSortBy('revenue');
 		setTimeFrame('ytd');
@@ -220,54 +206,6 @@ function RevenueDetails({ userDept }) {
 	};
 
 	const handlePrintPDF = () => window.print();
-
-	const handleRowClick = async (row, rowKey) => {
-		const requestId = ++detailRequestId.current;
-		if (selectedRowKey === rowKey) {
-			setSelectedRowKey(null);
-			setTransactionDetails([]);
-			setDetailsError('');
-			setDetailsLoading(false);
-			return;
-		}
-
-		setSelectedRowKey(rowKey);
-		setTransactionDetails([]);
-		setDetailsError('');
-		setDetailsLoading(true);
-
-		const params = new URLSearchParams({
-			stream_category: row.stream_category,
-			stream_name: row.stream_name,
-			time_frame: timeFrame
-		});
-		if (timeFrame === 'custom') {
-			if (startDate) params.append('start_date', startDate);
-			if (endDate) params.append('end_date', endDate);
-		}
-
-		try {
-			const response = await fetch(
-				`${API_URL}/api/reports/revenue/transactions?${params.toString()}`
-			);
-			const data = await response.json();
-			if (!response.ok) {
-				throw new Error(data.error || `Server returned status ${response.status}`);
-			}
-			if (detailRequestId.current === requestId) {
-				setTransactionDetails(data);
-			}
-		} catch (err) {
-			if (detailRequestId.current === requestId) {
-				console.error('Error fetching revenue transactions:', err);
-				setDetailsError(`Failed to load transactions: ${err.message}`);
-			}
-		} finally {
-			if (detailRequestId.current === requestId) {
-				setDetailsLoading(false);
-			}
-		}
-	};
 
 	const revenueRows = reportData.filter(
 		(row) => !EXPENSE_CATEGORIES.includes(row.stream_category)
@@ -505,23 +443,8 @@ function RevenueDetails({ userDept }) {
 							)}
 							{reportData.map((row, index) => {
 								const isExpense = EXPENSE_CATEGORIES.includes(row.stream_category);
-								const rowKey = `${row.stream_category}-${row.stream_name}-${index}`;
-								const isSelected = selectedRowKey === rowKey;
 								return (
-									<Fragment key={rowKey}>
-									<tr
-										onClick={() => handleRowClick(row, rowKey)}
-										onKeyDown={(event) => {
-											if (event.key === 'Enter' || event.key === ' ') {
-												event.preventDefault();
-												handleRowClick(row, rowKey);
-											}
-										}}
-										tabIndex={0}
-										aria-expanded={isSelected}
-										title="Click to view individual transactions"
-										style={{ cursor: 'pointer' }}
-									>
+									<tr key={`${row.stream_category}-${row.stream_name}-${index}`}>
 										<td>
 											<span style={{
 												display: 'inline-block',
@@ -545,61 +468,6 @@ function RevenueDetails({ userDept }) {
 										<td>${formatCurrency(row.min_amount)}</td>
 										<td>${formatCurrency(row.max_amount)}</td>
 									</tr>
-									{isSelected && (
-										<tr>
-											<td colSpan="8" style={{ padding: '16px', background: '#f8fafc' }}>
-												<strong style={{ display: 'block', marginBottom: '10px' }}>
-													Transactions for {row.stream_name}
-												</strong>
-												{detailsLoading ? (
-													<p role="status">Loading transactions...</p>
-												) : detailsError ? (
-													<p role="alert" style={{ color: '#b91c1c' }}>{detailsError}</p>
-												) : transactionDetails.length === 0 ? (
-													<p style={{ color: '#64748b' }}>No individual transactions found.</p>
-												) : (
-													<table border="1" cellPadding="6" cellSpacing="0" style={{ width: '100%', borderCollapse: 'collapse', borderColor: '#cbd5e1', background: '#fff' }}>
-														<thead>
-															<tr style={{ background: '#e2e8f0' }}>
-																<th>Date</th>
-																<th>Transaction / Record ID</th>
-																<th>Item / Description</th>
-																<th>Quantity</th>
-																<th>Unit Amount ($)</th>
-																<th>Total ($)</th>
-																<th>Payment Method</th>
-															</tr>
-														</thead>
-														<tbody>
-															{transactionDetails.map((transaction, detailIndex) => (
-																<tr key={`${transaction.record_ID}-${transaction.transaction_ID}-${detailIndex}`}>
-																	<td>{transaction.transaction_date || '—'}</td>
-																	<td>
-																		{transaction.transaction_ID
-																			? `#${transaction.transaction_ID}`
-																			: `Record #${transaction.record_ID}`}
-																	</td>
-																	<td>
-																		{transaction.item_name || '—'}
-																		{transaction.description && (
-																			<div style={{ color: '#64748b', fontSize: '0.9rem' }}>
-																				{transaction.description}
-																			</div>
-																		)}
-																	</td>
-																	<td>{Number(transaction.quantity || 0).toLocaleString()}</td>
-																	<td>${formatCurrency(transaction.unit_price)}</td>
-																	<td>${formatCurrency(transaction.amount)}</td>
-																	<td>{transaction.payment_method || '—'}</td>
-																</tr>
-															))}
-														</tbody>
-													</table>
-												)}
-											</td>
-										</tr>
-									)}
-									</Fragment>
 								);
 							})}
 						</tbody>
