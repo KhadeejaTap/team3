@@ -57,6 +57,7 @@ async function handleCheckout(req, res, pool, send, readBody) {
 		const subtotal = data.items.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 1), 0);
 		let discountAmount = 0;
 		let appliedCouponCode = null;
+		let appliedCouponId = null;
 
 		const allowedMethods = ['credit', 'debit', 'digital_wallet', 'paypal', 'cash'];
 		let chosenMethod = data.payment_method === 'card' ? 'credit' : data.payment_method;
@@ -78,6 +79,7 @@ async function handleCheckout(req, res, pool, send, readBody) {
 					const pct = coupon.discount_percent || 15;
 					discountAmount = subtotal * (pct / 100);
 					appliedCouponCode = coupon.code;
+					appliedCouponId = coupon.coupon_ID;
 					await connection.query('UPDATE COUPON SET is_used = TRUE WHERE coupon_ID = ?', [coupon.coupon_ID]);
 				} else {
 					await connection.rollback();
