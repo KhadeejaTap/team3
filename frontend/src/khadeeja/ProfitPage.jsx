@@ -83,7 +83,7 @@ function ProfitPage() {
 	};
 
 	const handleGenerateReport = async () => {
-		if (!['food', 'tickets', 'donations'].includes(stream) || !customDatesAreValid) return;
+		if (!['food', 'tickets', 'donations', 'giftShop'].includes(stream) || !customDatesAreValid) return;
 
 		const params = new URLSearchParams({
 			stream: stream,
@@ -476,7 +476,77 @@ function ProfitPage() {
 					</table>
 				</section>
 			)}
+			{showReport && stream === 'giftShop' && (
+				<section>
+					{/* Table 1: Detailed Sales Log */}
+					<h3>Gift Shop Sales Log</h3>
+					<table>
+						<thead>
+							<tr>
+								<th>Date</th>
+								<th>Customer</th>
+								<th>Product</th>
+								<th>Category</th>
+								<th>Quantity</th>
+								<th>Sale Price</th>
+								<th>{metricLabels[metric]}</th>
+							</tr>
+						</thead>
+						<tbody>
+							<tr>
+								<th>Totals</th>
+								<td colSpan="3">{reportRows.length} sales</td>
+								<td>{quantityTotal}</td>
+								<td></td>
+								<th>{formatMoney(reportTotal)}</th>
+							</tr>
+							{reportRows.map((row) => (
+								<tr key={row.transaction_ID}>
+									<td>{String(row.transaction_date).slice(0, 10)}</td>
+									<td>{row.customer_name}</td>
+									<td>{row.item_name}</td>
+									<td>{row.category}</td>
+									<td>{row.quantity}</td>
+									<td>{formatMoney(row.sale_price)}</td>
+									<td>{formatMoney(row.report_amount)}</td>
+								</tr>
+							))}
+						</tbody>
+					</table>
 
+					{/* Table 2: Summary by Product */}
+					<h3>Gift Shop Sales by Product</h3>
+					<table>
+						<thead>
+							<tr>
+								<th>Product</th>
+								<th>Category</th>
+								<th>Sales Count</th>
+								<th>Quantity Sold</th>
+								<th>{metricLabels[metric]}</th>
+							</tr>
+						</thead>
+						<tbody>
+							<tr>
+								<th>Totals</th>
+								<td>{itemSummary.length} products</td>
+								<td>{reportRows.length}</td>
+								<td>{quantityTotal}</td>
+								<th>{formatMoney(reportTotal)}</th>
+							</tr>
+							{itemSummary.map((item) => (
+								<tr key={item.item_ID}>
+									<td>{item.item_name}</td>
+									<td>{item.category}</td>
+									<td>{item.sale_count}</td>
+									<td>{item.quantity_sold}</td>
+									<td>{formatMoney(item.report_amount)}</td>
+								</tr>
+							))}
+						</tbody>
+					</table>
+				</section>
+			)}
 		</div>
 	);
 }
