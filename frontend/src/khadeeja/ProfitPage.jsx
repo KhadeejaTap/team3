@@ -154,10 +154,171 @@ function ProfitPage() {
 		0
 	);
 
+	const handleExportCSV = () => {
+		const timeframeLabel =
+			timeFrame === 'customDateFrame'
+				? `${customStartDate} to ${customEndDate}`
+				: timeFrame === 'yearToDate'
+					? 'Year to date'
+					: 'All time';
+		const csvRows = [
+			['Profit Report'],
+			['Stream', streamOptions.find((option) => option.value === stream)?.label || stream],
+			['Report type', metricLabels[metric]],
+			['Timeframe', timeframeLabel],
+			[]
+		];
+		const addSection = (title, headers, rows) => {
+			csvRows.push([title], headers, ...rows, []);
+		};
+
+		if (stream === 'tickets') {
+			addSection('Ticket Summary', ['Ticket Type', 'Ticket Count', 'Revenue'], [
+				...ticketTypeSummary.map((summary) => [
+					summary.ticket_type,
+					summary.ticket_count,
+					''
+				]),
+				['Total', ticketTotals.ticket_count, ticketTotals.revenue]
+			]);
+			addSection(
+				'Ticket Sales Log',
+				['Purchase Date', 'Visit Date', 'Customer', 'Email', 'Ticket Type', 'Price'],
+				[
+					[
+						'Totals',
+						'',
+						'',
+						'',
+						ticketTotals.ticket_count,
+						ticketTotals.revenue
+					],
+					...ticketRows.map((ticket) => [
+						formatDate(ticket.purchase_date),
+						formatDate(ticket.visit_date),
+						ticket.visitor_name || 'name not recorded',
+						ticket.visitor_email || 'email not recorded',
+						ticket.ticket_type,
+						Number(ticket.report_amount || 0)
+					])
+				]
+			);
+		} else if (stream === 'donations') {
+			addSection(
+				'Donor Summary',
+				['Donor Name', 'Email', 'Num Donations', 'Phone', 'Purpose', 'Amount'],
+				[
+					[
+						`Totals: Repeat Donors: ${donorSummary.length}`,
+						'',
+						donorSummaryTotals.donation_count,
+						'',
+						donorSummaryPurposeSummary
+							.map((purpose) => `${purpose.purpose}: ${formatMoney(purpose.total_amount)}`)
+							.join(' | '),
+						donorSummaryTotals.revenue
+					],
+					...donorSummary.map((donor) => [
+						`${donor.first_name} ${donor.last_name}`.trim(),
+						donor.donor_email,
+						donor.donation_count,
+						donor.donor_phone,
+						donor.purpose_breakdown,
+						Number(donor.total_amount || 0)
+					])
+				]
+			);
+			addSection(
+				'Donation Sales Log',
+				['Donation Date', 'Donor Name', 'Email', 'Phone', 'Purpose', 'Amount'],
+				[
+					[
+						'Totals',
+						donationTotals.donation_count,
+						'',
+						'',
+						donationPurposeSummary
+							.map((purpose) => `${purpose.purpose}: ${formatMoney(purpose.total_amount)}`)
+							.join(' | '),
+						donationTotals.revenue
+					],
+					...donationRows.map((row) => [
+						formatDate(row.donation_date),
+						`${row.first_name} ${row.last_name}`.trim(),
+						row.donor_email,
+						row.donor_phone,
+						row.purpose,
+						Number(row.amount || 0)
+					])
+				]
+			);
+		} else {
+			const isFood = stream === 'food';
+			addSection(
+				isFood ? 'Food Sales by Item' : 'Gift Shop Sales by Product',
+				isFood
+					? ['Food Item', 'Sales', 'Quantity Sold', metricLabels[metric]]
+					: ['Product', 'Category', 'Sales Count', 'Quantity Sold', metricLabels[metric]],
+				[
+					isFood
+						? ['Totals', reportRows.length, quantityTotal, reportTotal]
+						: ['Totals', `${itemSummary.length} products`, reportRows.length, quantityTotal, reportTotal],
+					...itemSummary.map((item) =>
+						isFood
+							? [item.item_name, item.sale_count, item.quantity_sold, Number(item.report_amount || 0)]
+							: [
+									item.item_name,
+									item.category,
+									item.sale_count,
+									item.quantity_sold,
+									Number(item.report_amount || 0)
+								]
+					)
+				]
+			);
+			addSection(
+				isFood ? 'Food Sales Log' : 'Gift Shop Sales Log',
+				isFood
+					? ['Date', 'Customer', 'Food Item', 'Food Stall', 'Quantity', 'Sale Price', metricLabels[metric]]
+					: ['Date', 'Customer', 'Product', 'Category', 'Quantity', 'Sale Price', metricLabels[metric]],
+				[
+					['Totals', `${reportRows.length} sales`, '', '', quantityTotal, '', reportTotal],
+					...reportRows.map((row) => [
+						String(row.transaction_date).slice(0, 10),
+						row.customer_name,
+						row.item_name,
+						isFood ? row.stall_name : row.category,
+						row.quantity,
+						Number(row.sale_price || 0),
+						Number(row.report_amount || 0)
+					])
+				]
+			);
+		}
+
+		const escapeCell = (value) => {
+			let cell = value == null ? '' : String(value);
+			if (typeof value === 'string' && /^[\t\r ]*[=+\-@]/.test(cell)) {
+				cell = `'${cell}`;
+			}
+			return `"${cell.replace(/"/g, '""')}"`;
+		};
+		const csvContent = csvRows.map((row) => row.map(escapeCell).join(',')).join('\r\n');
+		const blob = new Blob(['\uFEFF', csvContent], { type: 'text/csv;charset=utf-8;' });
+		const url = URL.createObjectURL(blob);
+		const link = document.createElement('a');
+		link.href = url;
+		link.download = `profit-${stream}-${metric}-${new Date().toISOString().slice(0, 10)}.csv`;
+		document.body.appendChild(link);
+		link.click();
+		document.body.removeChild(link);
+		window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+	};
+
 	return (
-		<div>
+		<div className="profit-report-page">
 			<h2>Profit Reports</h2>
-			<section className="payroll-filters">
+			<section className="payroll-filters profit-report-filters">
 				<h3>Report Filters</h3>
 				<p>
 					Revenue reports are available for tickets, donations, the gift
@@ -282,6 +443,22 @@ function ProfitPage() {
 				{error && <p role="alert">{error}</p>}
 			</section>
 
+			{showReport && (
+				<div className="profit-report-export-actions">
+					<button type="button" onClick={handleExportCSV}>
+						Export as CSV
+					</button>
+					<button type="button" onClick={() => window.print()}>
+						Export as PDF
+					</button>
+				</div>
+			)}
+
+			{showReport && (
+				<div className="profit-report-printable">
+					<h2>
+						{streamOptions.find((option) => option.value === stream)?.label} {metricLabels[metric]} Report
+					</h2>
 			{showReport && stream === 'food' && (
 				<section>
 					<h3>Food Sales by Item</h3>
@@ -542,6 +719,8 @@ function ProfitPage() {
 						</tbody>
 					</table>
 				</section>
+			)}
+				</div>
 			)}
 		</div>
 	);
