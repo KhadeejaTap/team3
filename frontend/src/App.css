@@ -253,6 +253,23 @@ tr:hover {
     left: 0;
     width: 100%;
   }
+
+  .profit-report-printable,
+  .profit-report-printable * {
+    visibility: visible;
+  }
+
+  .profit-report-printable {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+  }
+
+  .profit-report-filters,
+  .profit-report-export-actions {
+    display: none;
+  }
 }
 
 tfoot th, tfoot td {
