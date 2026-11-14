@@ -284,6 +284,34 @@ function ProfitPage() {
 
 			{showReport && stream === 'food' && (
 				<section>
+					<h3>Food Sales by Item</h3>
+					<table>
+						<thead>
+							<tr>
+								<th>Food item</th>
+								<th>Sales</th>
+								<th>Quantity sold</th>
+								<th>{metricLabels[metric]}</th>
+							</tr>
+						</thead>
+						<tbody>
+							<tr>
+								<th>Totals</th>
+								<td>{reportRows.length}</td>
+								<td>{quantityTotal}</td>
+								<th>{formatMoney(reportTotal)}</th>
+							</tr>
+							{itemSummary.map((item) => (
+								<tr key={item.item_ID}>
+									<td>{item.item_name}</td>
+									<td>{item.sale_count}</td>
+									<td>{item.quantity_sold}</td>
+									<td>{formatMoney(item.report_amount)}</td>
+								</tr>
+							))}
+						</tbody>
+					</table>
+
 					<h3>Food Sales Log</h3>
 					<table>
 						<thead>
@@ -318,35 +346,6 @@ function ProfitPage() {
 							))}
 						</tbody>
 					</table>
-
-					<h3>Food Sales by Item</h3>
-					<table>
-						<thead>
-							<tr>
-								<th>Food item</th>
-								<th>Sales</th>
-								<th>Quantity sold</th>
-								<th>{metricLabels[metric]}</th>
-							</tr>
-						</thead>
-						<tbody>
-							<tr>
-								<th>Totals</th>
-								<td>{reportRows.length}</td>
-								<td>{quantityTotal}</td>
-								<th>{formatMoney(reportTotal)}</th>
-							</tr>
-							{itemSummary.map((item) => (
-								<tr key={item.item_ID}>
-									<td>{item.item_name}</td>
-									<td>{item.sale_count}</td>
-									<td>{item.quantity_sold}</td>
-									<td>{formatMoney(item.report_amount)}</td>
-								</tr>
-							))}
-						</tbody>
-					</table>
-
 				</section>
 			)}
 			{showReport && stream === 'tickets' && (
@@ -396,41 +395,6 @@ function ProfitPage() {
 			)}
 			{showReport && stream === 'donations' && (
 				<section>
-					<h3>Donation Sales Log</h3>
-					<table>
-						<thead>
-							<tr>
-								<th>Donation Date</th>
-								<th>Donor Name</th>
-								<th>Email</th>
-								<th>Phone</th>
-								<th>Purpose</th>
-								<th>Amount</th>
-							</tr>
-						</thead>
-						<tbody>
-							<tr>
-								<th colSpan="4">Totals: Donations: {donationTotals.donation_count}</th>
-								<td>
-									{donationPurposeSummary
-										.map((p) => `${p.purpose}: ${formatMoney(p.total_amount)}`)
-										.join(' | ')}
-								</td>
-								<th>Total: {formatMoney(donationTotals.revenue)}</th>
-							</tr>
-							{donationRows.map((row) => (
-								<tr key={row.donation_ID}>
-									<td>{formatDate(row.donation_date)}</td>
-									<td>{`${row.first_name} ${row.last_name}`.trim()}</td>
-									<td>{row.donor_email}</td>
-									<td>{row.donor_phone}</td>
-									<td>{row.purpose}</td>
-									<td>{formatMoney(row.amount)}</td>
-								</tr>
-							))}
-						</tbody>
-					</table>
-
 					<h3>Donor Summary</h3>
 					<table>
 						<thead>
@@ -473,11 +437,76 @@ function ProfitPage() {
 							)}
 						</tbody>
 					</table>
+
+					<h3>Donation Sales Log</h3>
+					<table>
+						<thead>
+							<tr>
+								<th>Donation Date</th>
+								<th>Donor Name</th>
+								<th>Email</th>
+								<th>Phone</th>
+								<th>Purpose</th>
+								<th>Amount</th>
+							</tr>
+						</thead>
+						<tbody>
+							<tr>
+								<th colSpan="4">Totals: Donations: {donationTotals.donation_count}</th>
+								<td>
+									{donationPurposeSummary
+										.map((p) => `${p.purpose}: ${formatMoney(p.total_amount)}`)
+										.join(' | ')}
+								</td>
+								<th>Total: {formatMoney(donationTotals.revenue)}</th>
+							</tr>
+							{donationRows.map((row) => (
+								<tr key={row.donation_ID}>
+									<td>{formatDate(row.donation_date)}</td>
+									<td>{`${row.first_name} ${row.last_name}`.trim()}</td>
+									<td>{row.donor_email}</td>
+									<td>{row.donor_phone}</td>
+									<td>{row.purpose}</td>
+									<td>{formatMoney(row.amount)}</td>
+								</tr>
+							))}
+						</tbody>
+					</table>
 				</section>
 			)}
 			{showReport && stream === 'giftShop' && (
 				<section>
-					{/* Table 1: Detailed Sales Log */}
+					<h3>Gift Shop Sales by Product</h3>
+					<table>
+						<thead>
+							<tr>
+								<th>Product</th>
+								<th>Category</th>
+								<th>Sales Count</th>
+								<th>Quantity Sold</th>
+								<th>{metricLabels[metric]}</th>
+							</tr>
+						</thead>
+						<tbody>
+							<tr>
+								<th>Totals</th>
+								<td>{itemSummary.length} products</td>
+								<td>{reportRows.length}</td>
+								<td>{quantityTotal}</td>
+								<th>{formatMoney(reportTotal)}</th>
+							</tr>
+							{itemSummary.map((item) => (
+								<tr key={item.item_ID}>
+									<td>{item.item_name}</td>
+									<td>{item.category}</td>
+									<td>{item.sale_count}</td>
+									<td>{item.quantity_sold}</td>
+									<td>{formatMoney(item.report_amount)}</td>
+								</tr>
+							))}
+						</tbody>
+					</table>
+
 					<h3>Gift Shop Sales Log</h3>
 					<table>
 						<thead>
@@ -508,38 +537,6 @@ function ProfitPage() {
 									<td>{row.quantity}</td>
 									<td>{formatMoney(row.sale_price)}</td>
 									<td>{formatMoney(row.report_amount)}</td>
-								</tr>
-							))}
-						</tbody>
-					</table>
-
-					{/* Table 2: Summary by Product */}
-					<h3>Gift Shop Sales by Product</h3>
-					<table>
-						<thead>
-							<tr>
-								<th>Product</th>
-								<th>Category</th>
-								<th>Sales Count</th>
-								<th>Quantity Sold</th>
-								<th>{metricLabels[metric]}</th>
-							</tr>
-						</thead>
-						<tbody>
-							<tr>
-								<th>Totals</th>
-								<td>{itemSummary.length} products</td>
-								<td>{reportRows.length}</td>
-								<td>{quantityTotal}</td>
-								<th>{formatMoney(reportTotal)}</th>
-							</tr>
-							{itemSummary.map((item) => (
-								<tr key={item.item_ID}>
-									<td>{item.item_name}</td>
-									<td>{item.category}</td>
-									<td>{item.sale_count}</td>
-									<td>{item.quantity_sold}</td>
-									<td>{formatMoney(item.report_amount)}</td>
 								</tr>
 							))}
 						</tbody>
