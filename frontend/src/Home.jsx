@@ -3,12 +3,12 @@ import { Link } from 'react-router-dom';
 import { apiFetch } from './api';
 import './App.css';
 
-import animalImg from './assets/animal.png';
+import animalImg from './assets/animal.webp';
 import ticketImg from './assets/ticket.jpg';
-import attractionImg from './assets/attraction.png';
+import attractionImg from './assets/attraction.webp';
 import foodImg from './assets/food.webp';
-import giftsImg from './assets/gifts.png';
-import donateImg from './assets/donate.png';
+import giftsImg from './assets/gifts.webp';
+import donateImg from './assets/donate.webp';
 
 // Slideshow configuration with images and links to each zoo part
 const SLIDES = [
@@ -123,6 +123,8 @@ function HeroCarousel() {
 							src={slide.image}
 							alt={slide.title}
 							className="carousel-img"
+							decoding="async"
+							fetchPriority={current === 0 ? 'high' : 'auto'}
 						/>
 					) : (
 						<div className="carousel-image-empty">

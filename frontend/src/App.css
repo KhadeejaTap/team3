@@ -8,7 +8,7 @@ body {
   background-color: #f8f9f7;
   background-image:
     linear-gradient(rgba(248, 249, 247, 0.75), rgba(238, 243, 237, 0.75)),
-    url('./images/animals/Marketing/Site Background.png');
+    url('./images/animals/Marketing/Site Background.webp');
   background-position: center;
   background-size: cover;
   background-repeat: no-repeat;
@@ -50,7 +50,7 @@ h2 {
 .navbar {
   background:
     linear-gradient(rgba(22, 56, 32, 0.9), rgba(14, 88, 33, 0.9)),
-    url('./images/animals/Marketing/Site Background.png') center / cover no-repeat;
+    url('./images/animals/Marketing/Site Background.webp') center / cover no-repeat;
   border-bottom: 3px solid #d6b45a;
   padding: 16px 24px;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
