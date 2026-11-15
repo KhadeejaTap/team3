@@ -8,7 +8,7 @@ const API_URL = (
 ).replace(/\/+$/, '');
 
 const animalImageFiles = import.meta.glob(
-  './images/animals/*.{jpg,jpeg,png,webp}',
+  './images/animals/*.webp',
   {
     eager: true,
     query: '?url',
@@ -229,6 +229,8 @@ function VisitorAnimalDirectory() {
                     className="visitor-animal-image"
                     src={image}
                     alt={animal.name}
+                    loading="lazy"
+                    decoding="async"
                     onError={(event) => {
                       const fallback = animalImages[normalizeName(animal.name)];
                       if (fallback && event.currentTarget.src !== fallback) {
