@@ -112,3 +112,56 @@
 	color: #595959;
 	font-weight: 400;
 }
+
+.payroll-report-export .payroll-filters {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 12px;
+	margin: 16px 0 20px;
+	padding: 20px;
+	background: #ffffff;
+	border: 1px solid #dce3db;
+	border-radius: 8px;
+	box-shadow: 0 1px 4px rgba(32, 66, 40, 0.05);
+}
+
+.payroll-report-export .payroll-filters h3 {
+	flex-basis: 100%;
+	margin: 0 0 -4px;
+}
+
+.payroll-report-export .payroll-filters label {
+	margin: 0 -8px 0 0;
+}
+
+.payroll-report-export .payroll-filters [role='alert'] {
+	flex-basis: 100%;
+	margin: 0;
+	color: #a12622;
+}
+
+.payroll-report-export .payroll-filters button {
+	margin-left: auto;
+}
+
+@media (max-width: 700px) {
+	.payroll-report-export .payroll-filters {
+		align-items: stretch;
+		gap: 8px;
+	}
+
+	.payroll-report-export .payroll-filters label {
+		flex-basis: 100%;
+		margin: 8px 0 -6px;
+	}
+
+	.payroll-report-export .payroll-filters select,
+	.payroll-report-export .payroll-filters input {
+		width: 100%;
+	}
+
+	.payroll-report-export .payroll-filters button {
+		margin: 8px 0 0;
+	}
+}

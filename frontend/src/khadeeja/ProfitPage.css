@@ -1,0 +1,144 @@
+.profit-report-page {
+	color: #243327;
+}
+
+.profit-report-page > h2 {
+	margin-bottom: 16px;
+}
+
+.profit-report-filters {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 12px;
+	margin: 16px 0 20px;
+	padding: 20px;
+	background: #ffffff;
+	border: 1px solid #dce3db;
+	border-radius: 8px;
+	box-shadow: 0 1px 4px rgba(32, 66, 40, 0.05);
+}
+
+.profit-report-filters h3,
+.profit-report-filters > p {
+	flex-basis: 100%;
+	margin: 0;
+}
+
+.profit-report-filters h3 {
+	margin-bottom: -4px;
+}
+
+.profit-report-filters > p {
+	color: #475569;
+	margin-bottom: 4px;
+}
+
+.profit-report-filters label {
+	margin: 0 -8px 0 0;
+}
+
+.profit-report-filters select,
+.profit-report-filters input {
+	max-width: 100%;
+}
+
+.profit-report-filters [role='alert'] {
+	flex-basis: 100%;
+	margin: 0;
+	color: #a12622;
+}
+
+.profit-report-filters button {
+	margin-left: auto;
+}
+
+.profit-report-export-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin: 0 0 20px;
+}
+
+.profit-report-export-actions .export-button {
+	display: inline-block;
+	margin: 0;
+	padding: 8px 14px;
+	border: 1px solid #204228;
+	border-radius: 4px;
+	background: #204228;
+	color: #ffffff;
+	font-size: 0.9rem;
+	text-decoration: none;
+	cursor: pointer;
+}
+
+.profit-report-export-actions .export-button:hover {
+	background: #143d22;
+}
+
+.profit-report-printable > h2 {
+	margin-bottom: 16px;
+}
+
+.profit-report-printable > section {
+	margin: 0 0 20px;
+	padding: 20px;
+	background: #ffffff;
+	border: 1px solid #dce3db;
+	border-radius: 8px;
+	box-shadow: 0 1px 4px rgba(32, 66, 40, 0.05);
+}
+
+.profit-report-printable > section h3 {
+	margin: 0 0 12px;
+}
+
+.profit-report-printable > section h3:not(:first-child) {
+	margin-top: 24px;
+}
+
+.profit-report-printable table {
+	margin: 12px 0 20px;
+}
+
+.profit-report-printable table:last-child {
+	margin-bottom: 0;
+}
+
+@media (max-width: 700px) {
+	.profit-report-filters {
+		align-items: stretch;
+		gap: 8px;
+	}
+
+	.profit-report-filters label {
+		flex-basis: 100%;
+		margin: 8px 0 -6px;
+	}
+
+	.profit-report-filters select,
+	.profit-report-filters input {
+		width: 100%;
+	}
+
+	.profit-report-filters button {
+		margin: 8px 0 0;
+	}
+
+	.profit-report-printable > section {
+		padding: 14px;
+	}
+}
+
+@media print {
+	.profit-report-page {
+		background: #ffffff;
+	}
+
+	.profit-report-printable > section {
+		border: 0;
+		box-shadow: none;
+		padding: 0;
+	}
+}

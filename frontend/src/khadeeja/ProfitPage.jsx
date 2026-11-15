@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { apiFetch } from '../api';
+import './ProfitPage.css';
 
 const streamOptions = [
 	{ value: 'tickets', label: 'Tickets', metrics: ['revenue'] },
@@ -445,10 +446,10 @@ function ProfitPage() {
 
 			{showReport && (
 				<div className="profit-report-export-actions">
-					<button type="button" onClick={handleExportCSV}>
+					<button type="button" className="export-button" onClick={handleExportCSV}>
 						Export as CSV
 					</button>
-					<button type="button" onClick={() => window.print()}>
+					<button type="button" className="export-button" onClick={() => window.print()}>
 						Export as PDF
 					</button>
 				</div>

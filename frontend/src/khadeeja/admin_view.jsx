@@ -321,25 +321,6 @@ function AdminView({ isDirector, isFinHR }) {
 				{error && <p style={{ color: 'red' }}><strong>Error: </strong>{error}</p>}
 				{successMsg && <p style={{ color: 'green' }}><strong>Success: </strong>{successMsg}</p>}
 
-				<div>
-					{showForm ? (
-						<button type="button" onClick={handleCancelForm}>
-							Cancel {editingEmployeeId ? 'Editing' : 'Form'}
-						</button>
-					) : (
-						<button
-							type="button"
-							onClick={() => {
-								setEditingEmployeeId(null);
-								setFormData(initialFormData);
-								setShowForm(true);
-							}}
-						>
-							+ Add New Employee
-						</button>
-					)}
-				</div>
-
 				{showForm && (
 					<div>
 						<h3>{editingEmployeeId ? `Edit Employee (ID: ${editingEmployeeId})` : 'Add New Employee'}</h3>
@@ -525,7 +506,7 @@ function AdminView({ isDirector, isFinHR }) {
 
 				<br />
 
-				<div style={{ display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap' }}>
+				<div className="staff-directory-filters">
 					<div>
 						<label><strong>Department: </strong></label>
 						<select value={selectedDept} onChange={(e) => setSelectedDept(e.target.value)}>
@@ -546,9 +527,24 @@ function AdminView({ isDirector, isFinHR }) {
 							onChange={(e) => setSearchTerm(e.target.value)}
 						/>
 					</div>
-				</div>
 
-				<br />
+					{showForm ? (
+						<button type="button" onClick={handleCancelForm}>
+							Cancel {editingEmployeeId ? 'Editing' : 'Form'}
+						</button>
+					) : (
+						<button
+							type="button"
+							onClick={() => {
+								setEditingEmployeeId(null);
+								setFormData(initialFormData);
+								setShowForm(true);
+							}}
+						>
+							+ Add New Employee
+						</button>
+					)}
+				</div>
 
 				<table border="1" cellPadding="8">
 					<thead>

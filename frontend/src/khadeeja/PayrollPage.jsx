@@ -117,6 +117,8 @@ function PayrollPage({ isDeptHead, isFinHR }) {
 	const [sortBy, setSortBy] = useState('yearlySalary');
 	const [sortDirection, setSortDirection] = useState('ascending');
 	const [payrollRows, setPayrollRows] = useState([]);
+	const [generatedFilters, setGeneratedFilters] = useState(null);
+	const [hasGeneratedReport, setHasGeneratedReport] = useState(false);
 	const [loadingPayroll, setLoadingPayroll] = useState(false);
 	const [message, setMessage] = useState('');
 	const [error, setError] = useState('');
@@ -155,13 +157,23 @@ function PayrollPage({ isDeptHead, isFinHR }) {
 			.catch((err) => setError(err.message));
 	}, [isDeptHead]);
 
-	useEffect(() => {
-		if (!isFinHR) return;
-		if (timeFrame === 'customDateFrame' && (!customStartDate || !customEndDate)) {
-			setPayrollRows([]);
-			return;
-		}
+	const customDatesAreValid =
+		timeFrame !== 'customDateFrame' ||
+		(Boolean(customStartDate && customEndDate) && customStartDate <= customEndDate);
 
+	const handleGeneratePayrollReport = async () => {
+		if (!isFinHR || !customDatesAreValid || loadingPayroll) return;
+
+		const filters = {
+			department: selectedDepartment,
+			timeFrame,
+			customStartDate,
+			customEndDate,
+			staffType,
+			sex: sexFilter,
+			sortBy,
+			sortDirection
+		};
 		const params = new URLSearchParams({
 			department: selectedDepartment,
 			timeFrame,
@@ -177,28 +189,29 @@ function PayrollPage({ isDeptHead, isFinHR }) {
 		}
 
 		setLoadingPayroll(true);
-		apiFetch(`/api/payroll?${params.toString()}`)
-			.then(async (response) => {
-				const data = await response.json().catch(() => []);
-				if (!response.ok) {
-					throw new Error(data.error || 'Could not load payroll data.');
-				}
-				setPayrollRows(data);
-				setError('');
-			})
-			.catch((err) => setError(err.message))
-			.finally(() => setLoadingPayroll(false));
-	}, [
-		isFinHR,
-		selectedDepartment,
-		timeFrame,
-		customStartDate,
-		customEndDate,
-		staffType,
-		sexFilter,
-		sortBy,
-		sortDirection
-	]);
+		setError('');
+		try {
+			const response = await apiFetch(`/api/payroll?${params.toString()}`);
+			const data = await response.json().catch(() => []);
+			if (!response.ok) {
+				throw new Error(data.error || 'Could not load payroll data.');
+			}
+			setPayrollRows(data);
+			setGeneratedFilters(filters);
+			setHasGeneratedReport(true);
+		} catch (err) {
+			setError(err.message);
+		} finally {
+			setLoadingPayroll(false);
+		}
+	};
+
+	const handleResetPayrollReport = () => {
+		setPayrollRows([]);
+		setGeneratedFilters(null);
+		setHasGeneratedReport(false);
+		setError('');
+	};
 
 	const handleSubmit = async (event) => {
 		event.preventDefault();
@@ -336,6 +349,80 @@ function PayrollPage({ isDeptHead, isFinHR }) {
 			borderColor: '#CBD5E1'
 		}
 	];
+	const handleExportCSV = () => {
+		const reportFilters = generatedFilters;
+		const timeframeLabel =
+			reportFilters.timeFrame === 'customDateFrame'
+				? `${reportFilters.customStartDate} to ${reportFilters.customEndDate}`
+				: reportFilters.timeFrame === 'yearToDate'
+					? 'Year to date'
+					: 'All time cumulative';
+		const csvRows = [
+			['Payroll Report'],
+			['Department', reportFilters.department],
+			['Time frame', timeframeLabel],
+			['Staff type', reportFilters.staffType],
+			['Sex', reportFilters.sex],
+			[],
+			[
+				'Employee',
+				'Sex',
+				'Department',
+				'Role',
+				'Staff Type',
+				'Hours',
+				'Annual Salary',
+				'Gross Pay',
+				'Hire Date',
+				'Tenure'
+			],
+			...payrollRows.map((employee) => [
+				employee.employee_name,
+				employee.sex,
+				employee.department_name,
+				employee.role || '',
+				employee.staff_type,
+				employee.hours ?? '',
+				Number(employee.yearly_salary || 0),
+				Number(employee.gross_pay || 0),
+				formatDate(employee.hire_date),
+				formatTenure(employee.tenure_weeks)
+			]),
+			[
+				'Total',
+				`Female:Male ${overallTotals.femaleCount}:${overallTotals.maleCount}`,
+				'',
+				'',
+				'',
+				'',
+				overallTotals.salary,
+				overallTotals.grossPay,
+				'',
+				''
+			]
+		];
+		const escapeCell = (value) => {
+			let cell = value == null ? '' : String(value);
+			if (typeof value === 'string' && /^[\t\r ]*[=+\-@]/.test(cell)) {
+				cell = `'${cell}`;
+			}
+			return `"${cell.replace(/"/g, '""')}"`;
+		};
+		const csvContent = csvRows
+			.map((row) => row.map(escapeCell).join(','))
+			.join('\r\n');
+		const blob = new Blob(['\uFEFF', csvContent], {
+			type: 'text/csv;charset=utf-8;'
+		});
+		const url = URL.createObjectURL(blob);
+		const link = document.createElement('a');
+		link.href = url;
+		link.download = `payroll-report-${new Date().toISOString().slice(0, 10)}.csv`;
+		document.body.appendChild(link);
+		link.click();
+		document.body.removeChild(link);
+		window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+	};
 
 	return (
 		<div>
@@ -362,17 +449,8 @@ function PayrollPage({ isDeptHead, isFinHR }) {
 					{error && <p role="alert">{error}</p>}
 				</form>
 			)}
-			{isFinHR && (
-				<button
-					type="button"
-					className="export-button"
-					onClick={() => window.print()}
-				>
-					Export Reports to PDF
-				</button>
-			)}
 			<div className="payroll-report-export">
-				{isFinHR && (
+				{isFinHR && hasGeneratedReport && (
 					<section className="payroll-chart-section">
 						<h3>Charts</h3>
 						<h4>
@@ -390,7 +468,8 @@ function PayrollPage({ isDeptHead, isFinHR }) {
 								/>
 								Gender ratio
 							</label>
-							{selectedDepartment === 'all' && timeFrame === 'yearToDate' && (
+							{generatedFilters.department === 'all' &&
+								generatedFilters.timeFrame === 'yearToDate' && (
 								<label>
 									<input
 										type="checkbox"
@@ -403,7 +482,7 @@ function PayrollPage({ isDeptHead, isFinHR }) {
 									Annual salary
 								</label>
 							)}
-							{timeFrame === 'yearToDate' && (
+							{generatedFilters.timeFrame === 'yearToDate' && (
 								<label>
 									<input
 										type="checkbox"
@@ -524,10 +603,24 @@ function PayrollPage({ isDeptHead, isFinHR }) {
 							<option value="ascending">Ascending</option>
 							<option value="descending">Descending</option>
 						</select>
+						{!customDatesAreValid && (
+							<p role="alert">Choose a valid custom start and end date.</p>
+						)}
+						<button
+							type="button"
+							onClick={hasGeneratedReport ? handleResetPayrollReport : handleGeneratePayrollReport}
+							disabled={!hasGeneratedReport && (!customDatesAreValid || loadingPayroll)}
+						>
+							{loadingPayroll
+								? 'Loading...'
+								: hasGeneratedReport
+									? 'Reset Report'
+									: 'Generate Report'}
+						</button>
 					</section>
 				)}
 				{isFinHR && error && <p role="alert">{error}</p>}
-				{isFinHR && (
+				{isFinHR && hasGeneratedReport && (
 					<table>
 						<thead>
 							<tr>
@@ -599,7 +692,7 @@ function PayrollPage({ isDeptHead, isFinHR }) {
 						</tfoot>
 					</table>
 				)}
-				{isFinHR && selectedDepartment === 'all' && (
+				{isFinHR && hasGeneratedReport && generatedFilters.department === 'all' && (
 					<section>
 						<h3>Payroll by Department</h3>
 						{Object.entries(payrollByDepartment).map(([department, employees]) => (
@@ -677,6 +770,25 @@ function PayrollPage({ isDeptHead, isFinHR }) {
 					</section>
 				)}
 			</div>
+			{isFinHR && hasGeneratedReport && (
+				<div className="payroll-report-export-actions">
+					<button
+						type="button"
+						className="export-button"
+						onClick={() => window.print()}
+					>
+						Export Reports to PDF
+					</button>
+					<button
+						type="button"
+						className="export-button"
+						onClick={handleExportCSV}
+						disabled={loadingPayroll || payrollRows.length === 0}
+					>
+						Export as CSV
+					</button>
+				</div>
+			)}
 		</div>
 	);
 }
