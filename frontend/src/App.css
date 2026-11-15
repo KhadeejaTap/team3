@@ -1384,3 +1384,42 @@ main form {
   line-height: 1.6;
   margin: 0;
 }
+
+.staff-directory-filters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: end;
+  gap: 16px;
+  margin: 16px 0 20px;
+  padding: 20px;
+  background-color: #ffffff;
+  border: 1px solid #dce3db;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(32, 66, 40, 0.05);
+}
+
+.staff-directory-filters > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.staff-directory-filters label {
+  margin: 0;
+}
+
+.staff-directory-filters select,
+.staff-directory-filters input {
+  width: 100%;
+}
+
+.staff-directory-filters > button {
+  width: 100%;
+}
+
+@media (max-width: 600px) {
+  .staff-directory-filters {
+    grid-template-columns: 1fr;
+  }
+}

@@ -30,15 +30,6 @@ function ReturnDir({ role, userEmail, userDept, isDeptHead }) {
 	if (isFinHR) {
 		return (
 			<div>
-				<div>
-					<button
-						type="button"
-					>
-						<strong>Staff Directory</strong>
-					</button>
-				</div>
-				<hr />
-
 				<AdminView isDirector={isDirector} isFinHR={isFinHR} />
 			</div>
 		);
