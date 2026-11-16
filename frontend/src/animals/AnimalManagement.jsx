@@ -663,7 +663,7 @@ function AnimalManagement({ role, userEmail }) {
                     <h1>Animal Management</h1>
                     <p>Add a new animal or update an existing animal record.</p>
 
-                    <div>
+                    <div className="animal-management-actions">
                         <button type="button" onClick={() => switchMode(false)}>
                             Add New Animal
                         </button>
@@ -771,136 +771,155 @@ function AnimalManagement({ role, userEmail }) {
                     )}
 
                     {!isRemoving && <form onSubmit={handleSubmit}>
-                        <label htmlFor="name">Animal Name:</label>
-                        <input
-                            id="name"
-                            name="name"
-                            value={formData.name}
-                            onChange={handleChange}
-                            maxLength="100"
-                            required
-                        />
+                        <div className="animal-management-field">
+                            <label htmlFor="name">Animal Name:</label>
+                            <input
+                                id="name"
+                                name="name"
+                                value={formData.name}
+                                onChange={handleChange}
+                                maxLength="100"
+                                required
+                            />
+                        </div>
 
-                        <label htmlFor="species_ID">Species:</label>
-                        <select
-                            id="species_ID"
-                            name="species_ID"
-                            value={formData.species_ID}
-                            onChange={handleChange}
-                            required
-                            disabled={loadingSpecies || species.length === 0}
-                        >
-                            <option value="">
-                                {loadingSpecies ? 'Loading species...' : 'Select a species'}
-                            </option>
-                            {species.map((item) => (
-                                <option key={item.species_ID} value={item.species_ID}>
-                                    {item.common_name}
+                        <div className="animal-management-field">
+                            <label htmlFor="species_ID">Species:</label>
+                            <select
+                                id="species_ID"
+                                name="species_ID"
+                                value={formData.species_ID}
+                                onChange={handleChange}
+                                required
+                                disabled={loadingSpecies || species.length === 0}
+                            >
+                                <option value="">
+                                    {loadingSpecies ? 'Loading species...' : 'Select a species'}
                                 </option>
-                            ))}
-                        </select>
+                                {species.map((item) => (
+                                    <option key={item.species_ID} value={item.species_ID}>
+                                        {item.common_name}
+                                    </option>
+                                ))}
+                            </select>
+                            <button type="button" onClick={() => setShowAddSpecies(!showAddSpecies)}>
+                                {showAddSpecies ? 'Cancel' : 'Add New Species'}
+                            </button>
+                        </div>
 
-                        <button type="button" onClick={() => setShowAddSpecies(!showAddSpecies)}>
-                            {showAddSpecies ? 'Cancel' : 'Add New Species'}
-                        </button>
+                        <div className="animal-management-field">
+                            <label htmlFor="enclosure_ID">Assigned Enclosure ID:</label>
+                            <input
+                                id="enclosure_ID"
+                                name="enclosure_ID"
+                                type="number"
+                                value={formData.enclosure_ID}
+                                readOnly
+                                placeholder="Automatically assigned"
+                            />
+                        </div>
 
-                        <label htmlFor="enclosure_ID">Assigned Enclosure ID:</label>
-                        <input
-                            id="enclosure_ID"
-                            name="enclosure_ID"
-                            type="number"
-                            value={formData.enclosure_ID}
-                            readOnly
-                            placeholder="Automatically assigned"
-                        />
+                        <div className="animal-management-field">
+                            <label htmlFor="age">Age:</label>
+                            <input
+                                id="age"
+                                name="age"
+                                type="number"
+                                min="0"
+                                value={formData.age}
+                                onChange={handleChange}
+                            />
+                        </div>
 
-                        <label htmlFor="age">Age:</label>
-                        <input
-                            id="age"
-                            name="age"
-                            type="number"
-                            min="0"
-                            value={formData.age}
-                            onChange={handleChange}
-                        />
+                        <div className="animal-management-field">
+                            <label htmlFor="gender">Gender:</label>
+                            <select
+                                id="gender"
+                                name="gender"
+                                value={formData.gender}
+                                onChange={handleChange}
+                                required
+                            >
+                                <option value="">Select Gender</option>
+                                <option value="M">M</option>
+                                <option value="F">F</option>
+                            </select>
+                        </div>
 
-                        <label htmlFor="gender">Gender:</label>
-                        <select
-                            id="gender"
-                            name="gender"
-                            value={formData.gender}
-                            onChange={handleChange}
-                            required
-                        >
-                            <option value="">Select Gender</option>
-                            <option value="M">M</option>
-                            <option value="F">F</option>
-                        </select>
+                        <div className="animal-management-field">
+                            <label htmlFor="weight">Weight:</label>
+                            <input
+                                id="weight"
+                                name="weight"
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={formData.weight}
+                                onChange={handleChange}
+                            />
+                        </div>
 
-                        <label htmlFor="weight">Weight:</label>
-                        <input
-                            id="weight"
-                            name="weight"
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={formData.weight}
-                            onChange={handleChange}
-                        />
+                        <div className="animal-management-field">
+                            <label htmlFor="weight_unit">Weight Unit:</label>
+                            <select
+                                id="weight_unit"
+                                name="weight_unit"
+                                value={formData.weight_unit}
+                                onChange={handleChange}
+                                required
+                            >
+                                <option value="lbs">Pounds (lbs)</option>
+                                <option value="oz">Ounces (oz)</option>
+                                <option value="kg">Kilograms (kg)</option>
+                                <option value="g">Grams (g)</option>
+                            </select>
+                        </div>
 
-                        <label htmlFor="weight_unit">Weight Unit:</label>
-                        <select
-                            id="weight_unit"
-                            name="weight_unit"
-                            value={formData.weight_unit}
-                            onChange={handleChange}
-                            required
-                        >
-                            <option value="lbs">Pounds (lbs)</option>
-                            <option value="oz">Ounces (oz)</option>
-                            <option value="kg">Kilograms (kg)</option>
-                            <option value="g">Grams (g)</option>
-                        </select>
+                        <div className="animal-management-field">
+                            <label htmlFor="arrival_date">Arrival Date:</label>
+                            <input
+                                id="arrival_date"
+                                name="arrival_date"
+                                type="date"
+                                value={formData.arrival_date}
+                                onChange={handleChange}
+                            />
+                        </div>
 
-                        <label htmlFor="arrival_date">Arrival Date:</label>
-                        <input
-                            id="arrival_date"
-                            name="arrival_date"
-                            type="date"
-                            value={formData.arrival_date}
-                            onChange={handleChange}
-                        />
+                        <div className="animal-management-field">
+                            <label htmlFor="breeding_status">Breeding Status:</label>
+                            <select
+                                id="breeding_status"
+                                name="breeding_status"
+                                value={formData.breeding_status}
+                                onChange={handleChange}
+                                required
+                            >
+                                <option value="Breeding">Breeding</option>
+                                <option value="Not Breeding">Not Breeding</option>
+                            </select>
+                        </div>
 
-                        <label htmlFor="breeding_status">Breeding Status:</label>
-                        <select
-                            id="breeding_status"
-                            name="breeding_status"
-                            value={formData.breeding_status}
-                            onChange={handleChange}
-                            required
-                        >
-                            <option value="Breeding">Breeding</option>
-                            <option value="Not Breeding">Not Breeding</option>
-                        </select>
-
-                        <label htmlFor="animal_image">Animal Photo:</label>
-                        <input
-                            id="animal_image"
-                            type="file"
-                            accept="image/jpeg,image/png,image/webp"
-                            onChange={handleImageChange}
-                        />
-                        <small>Accepted formats: JPG, PNG, or WEBP. Maximum size: 5 MB.</small>
-                        {(imagePreview || currentImageUrl) && (
-                            <div style={{ margin: '12px 0' }}>
-                                <p>{imagePreview ? 'New image preview:' : 'Current animal photo:'}</p>
-                                <img
-                                    src={imagePreview || (currentImageUrl.startsWith('http://') || currentImageUrl.startsWith('https://') ? currentImageUrl : `${API_URL}${currentImageUrl.startsWith('/') ? '' : '/'}${currentImageUrl}`)}
-                                    alt="Animal preview"
-                                    style={{ width: '180px', height: '140px', objectFit: 'cover', borderRadius: '8px' }}
-                                />
-                            </div>
-                        )}
+                        <div className="animal-management-field">
+                            <label htmlFor="animal_image">Animal Photo:</label>
+                            <input
+                                id="animal_image"
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp"
+                                onChange={handleImageChange}
+                            />
+                            <small>Accepted formats: JPG, PNG, or WEBP. Maximum size: 5 MB.</small>
+                            {(imagePreview || currentImageUrl) && (
+                                <div style={{ margin: '12px 0' }}>
+                                    <p>{imagePreview ? 'New image preview:' : 'Current animal photo:'}</p>
+                                    <img
+                                        src={imagePreview || (currentImageUrl.startsWith('http://') || currentImageUrl.startsWith('https://') ? currentImageUrl : `${API_URL}${currentImageUrl.startsWith('/') ? '' : '/'}${currentImageUrl}`)}
+                                        alt="Animal preview"
+                                        style={{ width: '180px', height: '140px', objectFit: 'cover', borderRadius: '8px' }}
+                                    />
+                                </div>
+                            )}
+                        </div>
 
                         <button type="submit">
                             {isEditing ? 'Update Animal Record' : 'Save Animal'}
