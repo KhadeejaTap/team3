@@ -612,14 +612,14 @@ function Home({ role, userEmail, userDept }) {
 								) : ordersError ? (
 									<p className="account-error-text">{ordersError}</p>
 								) : orders.length === 0 ? (
-									<p>No purchase history yet.</p>
+									<p>No purchases.</p>
 								) : (
 									<div className="recent-orders-list">
 										{orders.filter((order) => {
 											const orderDate = new Date(order.transaction_date);
-											const oneYearAgo = new Date();
-											oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-											return orderDate >= oneYearAgo;
+											const oneMonthAgo = new Date();
+											oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+											return orderDate >= oneMonthAgo;
 										}).map((order) => (
 											<div key={order.transaction_ID} className="recent-order-item">
 												<div className="recent-order-header">
