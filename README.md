@@ -40,7 +40,7 @@ npm run preview
   - `jim.cruise@zoo.com` / `jim123` (HR Assistant)
 
 ### Department 2: Animal Operations
-- **Department Head**: `dwayne.efron@zoo.com` / `dwayne123` (Animal Operations Manager)
+- **Department Head**: `tlopez721@gmail.com` / `tawney123` (Animal Operations Manager)
 - **Employees**:
   - `morgan.lawrence@zoo.com` / `morgan123` (Veterinarian)
   - `ariana.winslet@zoo.com` / `ariana123` (Keeper)
