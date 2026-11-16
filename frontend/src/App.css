@@ -900,6 +900,126 @@ main form {
   margin: 20px auto;
 }
 
+.animal-management {
+  max-width: 820px;
+  margin: 12px auto;
+  background: #f2f2f0;
+  border: 1px solid #d9d9d7;
+  border-radius: 12px;
+  padding: 16px 18px;
+  box-sizing: border-box;
+}
+
+.animal-management > div:first-child {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.animal-management > div:first-child button {
+  border-radius: 999px;
+  background: #edf4ee;
+  color: #1d3328;
+  border: 1px solid #cfe0d0;
+  padding: 8px 14px;
+}
+
+.animal-management > hr {
+  border: none;
+  border-top: 1px solid #d4d9d3;
+  margin: 12px 0 18px;
+}
+
+.animal-management form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 32px;
+  max-width: 700px;
+  margin: 12px auto 0;
+  padding: 10px 12px 8px;
+  text-align: left;
+}
+
+.animal-management-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 12px 0 16px;
+}
+
+.animal-management-actions button {
+  padding: 8px 14px;
+}
+
+.animal-management form > h2,
+.animal-management form > h1 {
+  grid-column: 1 / -1;
+  margin-bottom: 0;
+}
+
+.animal-management form > label,
+.animal-management form > p,
+.animal-management form > button {
+  grid-column: auto;
+}
+
+.animal-management-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.animal-management-field small {
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.animal-management form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #243b2e;
+  margin: 0;
+}
+
+.animal-management form input,
+.animal-management form select,
+.animal-management form textarea {
+  box-sizing: border-box;
+  width: 100%;
+  background: #f8f8f7;
+  border: 1px solid #c8c8c5;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 0.95rem;
+}
+
+.animal-management form textarea {
+  min-height: 110px;
+}
+
+.animal-management form button {
+  justify-self: start;
+  font-size: 0.95rem;
+  padding: 8px 14px;
+  min-height: 40px;
+}
+
+.animal-management form > button[type="submit"] {
+  grid-column: 1 / -1;
+}
+
+.animal-management > h1 {
+  margin: 0 0 6px;
+  font-size: clamp(1.2rem, 2vw, 1.9rem);
+  line-height: 1.1;
+}
+
 .counter {
   font-size: 16px;
   padding: 5px 10px;

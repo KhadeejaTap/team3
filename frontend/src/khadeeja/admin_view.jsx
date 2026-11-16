@@ -55,26 +55,80 @@ function AdminView({ isDirector, isFinHR }) {
 	const [paycheckError, setPaycheckError] = useState('');
 	const [loadingPaychecks, setLoadingPaychecks] = useState(false);
 
+	const fetchPaychecks = async (employee) => {
+		const params = new URLSearchParams({
+			startDate: paycheckStartDate,
+			endDate: paycheckEndDate
+		});
+		const response = await apiFetch(
+			`/api/paychecks/${employee.employee_ID}?${params.toString()}`
+		);
+		const data = await response.json().catch(() => []);
+		if (!response.ok) {
+			throw new Error(data.error || 'Could not load paycheck records.');
+		}
+		return data;
+	};
+
 	const handlePrintPaychecks = async (event, employee) => {
 		event.preventDefault();
 		setLoadingPaychecks(true);
 		setPaycheckError('');
 
 		try {
-			const params = new URLSearchParams({
-				startDate: paycheckStartDate,
-				endDate: paycheckEndDate
-			});
-			const response = await apiFetch(
-				`/api/paychecks/${employee.employee_ID}?${params.toString()}`
-			);
-			const data = await response.json().catch(() => []);
-			if (!response.ok) {
-				throw new Error(data.error || 'Could not load paycheck records.');
-			}
+			const data = await fetchPaychecks(employee);
 			setPaycheckEmployee(employee);
 			setPaycheckRows(data);
 			setTimeout(() => window.print(), 0);
+		} catch (err) {
+			setPaycheckError(err.message);
+		} finally {
+			setLoadingPaychecks(false);
+		}
+	};
+
+	const handleExportPaychecks = async (employee) => {
+		setLoadingPaychecks(true);
+		setPaycheckError('');
+
+		try {
+			const data = await fetchPaychecks(employee);
+			const escapeCell = (value) => {
+				let cell = value == null ? '' : String(value);
+				if (typeof value === 'string' && /^[\t\r ]*[=+\-@]/.test(cell)) {
+					cell = `'${cell}`;
+				}
+				return `"${cell.replace(/"/g, '""')}"`;
+			};
+			const csvRows = [
+				['Employee ID', 'Employee', 'Paycheck ID', 'Pay Period Start', 'Pay Period End', 'Gross Pay', 'Federal Tax', 'FICA Tax', 'Benefits Deduction', 'Net Pay'],
+				...data.map((paycheck) => [
+					employee.employee_ID,
+					employee.name,
+					paycheck.paycheck_ID,
+					paycheck.pay_period_start,
+					paycheck.pay_period_end,
+					paycheck.gross_pay,
+					paycheck.federal_tax,
+					paycheck.fica_tax,
+					paycheck.benefits_deduction,
+					paycheck.net_pay
+				])
+			];
+			const csvContent = csvRows
+				.map((row) => row.map(escapeCell).join(','))
+				.join('\r\n');
+			const blob = new Blob(['\uFEFF', csvContent], {
+				type: 'text/csv;charset=utf-8;'
+			});
+			const url = URL.createObjectURL(blob);
+			const link = document.createElement('a');
+			link.href = url;
+			link.download = `employee-${employee.employee_ID}-paychecks-${paycheckStartDate}-to-${paycheckEndDate}.csv`;
+			document.body.appendChild(link);
+			link.click();
+			document.body.removeChild(link);
+			window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 		} catch (err) {
 			setPaycheckError(err.message);
 		} finally {
@@ -654,6 +708,14 @@ function AdminView({ isDirector, isFinHR }) {
 																</label>
 																<button type="submit" disabled={loadingPaychecks}>
 																	{loadingPaychecks ? 'Loading...' : 'Print'}
+																</button>
+																<br />
+																<button
+																	type="button"
+																	disabled={loadingPaychecks}
+																	onClick={() => handleExportPaychecks(item)}
+																>
+																	{loadingPaychecks ? 'Loading...' : 'Export Paychecks as CSV'}
 																</button>
 																{paycheckError && <p role="alert">{paycheckError}</p>}
 															</form>
