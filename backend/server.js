@@ -12,6 +12,7 @@ const handleEnclosures = require('./routes/enclosures');
 const handleDonations = require('./routes/donations');
 const handleAnimals = require('./routes/animals');
 const handleProducts = require('./routes/products');
+const handleAttractions = require('./routes/attractions');
 const handleTickets = require('./routes/tickets');
 const { generateDailyPaychecks } = require('./jobs/paycheckJob');
 const { autoDispatchAlerts } = require('./mailer');
@@ -55,6 +56,7 @@ const routeHandlers = [
 	handleEnclosures,
 	handleDonations,
 	handleProducts,
+	handleAttractions,
 	handleTickets
 ];
 
