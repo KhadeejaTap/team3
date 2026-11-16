@@ -158,6 +158,35 @@ function AttractionManagement() {
         setMessage('');
     }
 
+    async function deleteAttraction(attractionId) {
+        const attraction = attractions.find((item) => item.attr_ID === attractionId);
+        const confirmed = window.confirm(
+            `Delete "${attraction?.name || 'this attraction'}"? This cannot be undone.`
+        );
+        if (!confirmed) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`${API_URL}/api/attractions/${attractionId}`, {
+                method: 'DELETE'
+            });
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.error || 'Could not delete attraction.');
+            }
+
+            setMessage(result.message || 'Attraction deleted successfully.');
+            if (editingAttractionId === attractionId) {
+                cancelEdit();
+            }
+            await loadAttractions();
+        } catch (error) {
+            setMessage(`Error: ${error.message}`);
+        }
+    }
+
     const sortedAttractions = [...attractions].sort((a, b) => {
         if (sortOrder === 'name-ascending' || sortOrder === 'name-descending') {
             const result = (a.name || '').localeCompare(b.name || '', undefined, {
@@ -388,6 +417,13 @@ function AttractionManagement() {
                                                     disabled={editingAttractionId === attraction.attr_ID}
                                                 >
                                                     Edit
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => deleteAttraction(attraction.attr_ID)}
+                                                    style={{ marginLeft: '8px' }}
+                                                >
+                                                    Delete
                                                 </button>
                                             </td>
                                         </tr>
