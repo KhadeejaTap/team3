@@ -130,20 +130,20 @@ function SpeciesReport({ userEmail }) {
 					<option value="Near Threatened">Near Threatened</option>
 					<option value="Least Concern">Least Concern</option>
 				</select>
-				&nbsp;&nbsp;
 
-				<label htmlFor="sort-select">Sort By: </label>
-				<select
-					id="sort-select"
-					value={sortBy}
-					onChange={(e) => setSortBy(e.target.value)}
-				>
-					<option value="population_desc">Population (High to Low)</option>
-					<option value="population_asc">Rarest First (Low to High)</option>
-					<option value="avg_age">Average Age (High to Low)</option>
-					<option value="name">Species Name (A to Z)</option>
-				</select>
-				&nbsp;&nbsp;
+				<div className="species-report-sort-control">
+					<label htmlFor="sort-select">Sort By: </label>
+					<select
+						id="sort-select"
+						value={sortBy}
+						onChange={(e) => setSortBy(e.target.value)}
+					>
+						<option value="population_desc">Population (High to Low)</option>
+						<option value="population_asc">Rarest First (Low to High)</option>
+						<option value="avg_age">Average Age (High to Low)</option>
+						<option value="name">Species Name (A to Z)</option>
+					</select>
+				</div>
 
 				<button type="submit" disabled={loading}>
 					{loading ? 'Loading...' : 'Generate Report'}

@@ -964,6 +964,20 @@ main form {
   grid-column: auto;
 }
 
+.animal-management .species-report-sort-control {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 32px;
+  align-items: center;
+}
+
+.animal-management .species-report-sort-control label {
+  display: inline;
+  margin: 0;
+  white-space: nowrap;
+}
+
 .animal-management-field {
   display: flex;
   min-width: 0;
