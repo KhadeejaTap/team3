@@ -22,10 +22,18 @@ const COST_CATEGORIES = ['Feeding', 'Maintenance', 'Cleaning', 'Utilities', 'Lan
 const CHART_COLORS = ['#3976a8', '#e5a13b', '#55a477', '#9875bd', '#d46d70'];
 
 const styles = {
-  page: { maxWidth: 1200, margin: '0 auto', padding: '24px 16px' },
+  page: {
+    maxWidth: 820,
+    margin: '12px auto',
+    padding: '16px 18px',
+    background: '#f2f2f0',
+    border: '1px solid #d9d9d7',
+    borderRadius: 12,
+    boxSizing: 'border-box'
+  },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 20 },
   card: {
-    border: '1px solid #d7dce2',
+    border: '1px solid #d9d9d7',
     borderRadius: 10,
     padding: 20,
     background: '#fff',
@@ -36,12 +44,12 @@ const styles = {
     marginRight: 0
   },
   field: { display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 },
-  input: { width: '100%', boxSizing: 'border-box', padding: 10, border: '1px solid #b9c0c8', borderRadius: 6, font: 'inherit' },
-  button: { padding: '9px 14px', border: '1px solid #263746', borderRadius: 6, background: '#263746', color: '#fff', cursor: 'pointer', font: 'inherit' },
-  secondaryButton: { padding: '8px 12px', border: '1px solid #7b8792', borderRadius: 6, background: '#fff', color: '#263746', cursor: 'pointer', font: 'inherit' },
-  muted: { color: '#5b6570', fontSize: 14 },
+  input: { width: '100%', boxSizing: 'border-box', padding: 10, border: '1px solid #cbd5c8', borderRadius: 6, font: 'inherit', background: '#f8f8f7' },
+  button: { padding: '9px 14px', border: '1px solid transparent', borderRadius: 6, background: '#2d5a37', color: '#fff', cursor: 'pointer', font: 'inherit' },
+  secondaryButton: { padding: '8px 12px', border: '1px solid #cfe0d0', borderRadius: 6, background: '#edf4ee', color: '#1d3328', cursor: 'pointer', font: 'inherit' },
+  muted: { color: '#555', fontSize: 14 },
   warning: { color: '#9b2c20', fontWeight: 700 },
-  success: { color: '#23613a', fontWeight: 700 }
+  success: { color: '#2e7d32', fontWeight: 700 }
 };
 
 function EnclosureManagement() {
@@ -182,7 +190,7 @@ function EnclosureManagement() {
         chartProgress += percentage;
         return `${CHART_COLORS[index]} ${start}% ${chartProgress}%`;
       }).join(', ')})`
-    : '#e6e9ed';
+    : '#e6e8e4';
 
   function exportCostReport() {
     const headers = ['Enclosure', 'Total', ...COST_CATEGORIES];
@@ -345,7 +353,7 @@ function EnclosureManagement() {
                   marginTop: 24,
                   marginBottom: 24,
                   padding: 20,
-                  border: '1px solid #d7dce2',
+                  border: '1px solid #d9d9d7',
                   borderRadius: 10
                 }}>
                   <h3>Expense Breakdown by Category</h3>
@@ -370,7 +378,7 @@ function EnclosureManagement() {
                         minWidth: 230,
                         borderRadius: '50%',
                         background: pieChartBackground,
-                        border: '1px solid #d7dce2'
+                        border: '1px solid #d9d9d7'
                       }}
                     />
 
@@ -411,7 +419,7 @@ function EnclosureManagement() {
                             }} />
                             <div>
                               <strong>{category}</strong>
-                              <span style={{ marginLeft: 8, fontSize: 14, color: '#5b6570' }}>
+                              <span style={{ marginLeft: 8, fontSize: 14, color: '#555' }}>
                                 ${amount.toLocaleString(undefined, {
                                   minimumFractionDigits: 2,
                                   maximumFractionDigits: 2
@@ -429,7 +437,7 @@ function EnclosureManagement() {
                   marginTop: 24,
                   marginBottom: 24,
                   padding: 20,
-                  border: '1px solid #d7dce2',
+                  border: '1px solid #d9d9d7',
                   borderRadius: 10
                 }}>
                   <h3>Itemized Expense Details</h3>
@@ -455,7 +463,7 @@ function EnclosureManagement() {
                       <details
                         key={category}
                         style={{
-                          border: '1px solid #e0e4e8',
+                          border: '1px solid #d9d9d7',
                           borderRadius: 8,
                           padding: 14,
                           marginTop: 12
@@ -496,7 +504,7 @@ function EnclosureManagement() {
                                   {['Date', 'Enclosure', 'Description', 'Amount'].map(label => (
                                     <th key={label} style={{
                                       padding: 9,
-                                      borderBottom: '2px solid #d7dce2',
+                                      borderBottom: '2px solid #d9d9d7',
                                       whiteSpace: 'nowrap'
                                     }}>{label}</th>
                                   ))}
@@ -505,18 +513,18 @@ function EnclosureManagement() {
                               <tbody>
                                 {categoryRecords.map((record, recordIndex) => (
                                   <tr key={record.cost_ID || `${category}-${record.enclosure_ID}-${recordIndex}`}>
-                                    <td style={{ padding: 9, borderBottom: '1px solid #e6e9ed', whiteSpace: 'nowrap' }}>
+                                    <td style={{ padding: 9, borderBottom: '1px solid #e6e8e4', whiteSpace: 'nowrap' }}>
                                       {getDateOnly(record.cost_date) || 'Not recorded'}
                                     </td>
-                                    <td style={{ padding: 9, borderBottom: '1px solid #e6e9ed' }}>
+                                    <td style={{ padding: 9, borderBottom: '1px solid #e6e8e4' }}>
                                       {record.enclosure_name || enclosures.find(item =>
                                         String(item.enclosure_ID) === String(record.enclosure_ID)
                                       )?.name || 'Unknown enclosure'}
                                     </td>
-                                    <td style={{ padding: 9, borderBottom: '1px solid #e6e9ed' }}>
+                                    <td style={{ padding: 9, borderBottom: '1px solid #e6e8e4' }}>
                                       {record.description || 'No description provided'}
                                     </td>
-                                    <td style={{ padding: 9, borderBottom: '1px solid #e6e9ed', whiteSpace: 'nowrap', fontWeight: 700 }}>
+                                    <td style={{ padding: 9, borderBottom: '1px solid #e6e8e4', whiteSpace: 'nowrap', fontWeight: 700 }}>
                                       ${(Number(record.amount) || 0).toLocaleString(undefined, {
                                         minimumFractionDigits: 2,
                                         maximumFractionDigits: 2
@@ -527,10 +535,10 @@ function EnclosureManagement() {
                               </tbody>
                               <tfoot>
                                 <tr>
-                                  <th colSpan={3} style={{ padding: 9, borderTop: '2px solid #d7dce2', textAlign: 'right' }}>
+                                  <th colSpan={3} style={{ padding: 9, borderTop: '2px solid #d9d9d7', textAlign: 'right' }}>
                                     Category total
                                   </th>
-                                  <th style={{ padding: 9, borderTop: '2px solid #d7dce2', whiteSpace: 'nowrap' }}>
+                                  <th style={{ padding: 9, borderTop: '2px solid #d9d9d7', whiteSpace: 'nowrap' }}>
                                     ${categoryTotal.toLocaleString(undefined, {
                                       minimumFractionDigits: 2,
                                       maximumFractionDigits: 2
@@ -551,27 +559,27 @@ function EnclosureManagement() {
                     <thead>
                       <tr>
                         {['Enclosure', 'Total', ...COST_CATEGORIES].map(label => (
-                          <th key={label} style={{ padding: 9, borderBottom: '2px solid #d7dce2', whiteSpace: 'nowrap' }}>{label}</th>
+                          <th key={label} style={{ padding: 9, borderBottom: '2px solid #d9d9d7', whiteSpace: 'nowrap' }}>{label}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {costReportRows.filter(row => row.total > 0).map(row => (
                         <tr key={row.enclosure_ID}>
-                          <td style={{ padding: 9, borderBottom: '1px solid #e6e9ed' }}>{row.name}</td>
-                          <td style={{ padding: 9, borderBottom: '1px solid #e6e9ed', fontWeight: 700 }}>${row.total.toFixed(2)}</td>
+                          <td style={{ padding: 9, borderBottom: '1px solid #e6e8e4' }}>{row.name}</td>
+                          <td style={{ padding: 9, borderBottom: '1px solid #e6e8e4', fontWeight: 700 }}>${row.total.toFixed(2)}</td>
                           {COST_CATEGORIES.map(category => (
-                            <td key={category} style={{ padding: 9, borderBottom: '1px solid #e6e9ed' }}>${row.categoryTotals[category].toFixed(2)}</td>
+                            <td key={category} style={{ padding: 9, borderBottom: '1px solid #e6e8e4' }}>${row.categoryTotals[category].toFixed(2)}</td>
                           ))}
                         </tr>
                       ))}
                     </tbody>
                     <tfoot>
                       <tr>
-                        <th style={{ padding: 9, borderTop: '2px solid #d7dce2' }}>All Enclosures</th>
-                        <th style={{ padding: 9, borderTop: '2px solid #d7dce2' }}>${costReportRows.reduce((sum, row) => sum + row.total, 0).toFixed(2)}</th>
+                        <th style={{ padding: 9, borderTop: '2px solid #d9d9d7' }}>All Enclosures</th>
+                        <th style={{ padding: 9, borderTop: '2px solid #d9d9d7' }}>${costReportRows.reduce((sum, row) => sum + row.total, 0).toFixed(2)}</th>
                         {COST_CATEGORIES.map(category => (
-                          <th key={category} style={{ padding: 9, borderTop: '2px solid #d7dce2' }}>
+                          <th key={category} style={{ padding: 9, borderTop: '2px solid #d9d9d7' }}>
                             ${costReportRows.reduce((sum, row) => sum + row.categoryTotals[category], 0).toFixed(2)}
                           </th>
                         ))}
@@ -599,8 +607,8 @@ function EnclosureManagement() {
               <article key={enclosure.enclosure_ID} style={{
                 ...styles.card,
                 border: String(enclosure.enclosure_ID) === String(selectedID)
-                  ? '2px solid #263746'
-                  : '1px solid #d7dce2'
+                  ? '2px solid #2d5a37'
+                  : '1px solid #d9d9d7'
               }}>
                 <h3>{enclosure.name}</h3>
                 <p style={styles.muted}>{enclosure.location || 'Location not listed'} · {enclosure.indoor_outdoor || 'Type not listed'}</p>
@@ -686,16 +694,16 @@ function EnclosureManagement() {
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                   <thead><tr>
-                    {['Date', 'Type', 'Description', 'Status', 'Notes'].map(label => <th key={label} style={{ padding: 8, borderBottom: '1px solid #d7dce2' }}>{label}</th>)}
+                    {['Date', 'Type', 'Description', 'Status', 'Notes'].map(label => <th key={label} style={{ padding: 8, borderBottom: '1px solid #d9d9d7' }}>{label}</th>)}
                   </tr></thead>
                   <tbody>
                     {maintenance.map(record => (
                       <tr key={record.maintenance_ID}>
-                        <td style={{ padding: 8, borderBottom: '1px solid #e6e9ed' }}>{String(record.maintenance_date).slice(0, 10)}</td>
-                        <td style={{ padding: 8, borderBottom: '1px solid #e6e9ed' }}>{record.maintenance_type}</td>
-                        <td style={{ padding: 8, borderBottom: '1px solid #e6e9ed' }}>{record.description}</td>
-                        <td style={{ padding: 8, borderBottom: '1px solid #e6e9ed' }}>{record.status}</td>
-                        <td style={{ padding: 8, borderBottom: '1px solid #e6e9ed' }}>{record.notes || '—'}</td>
+                        <td style={{ padding: 8, borderBottom: '1px solid #e6e8e4' }}>{String(record.maintenance_date).slice(0, 10)}</td>
+                        <td style={{ padding: 8, borderBottom: '1px solid #e6e8e4' }}>{record.maintenance_type}</td>
+                        <td style={{ padding: 8, borderBottom: '1px solid #e6e8e4' }}>{record.description}</td>
+                        <td style={{ padding: 8, borderBottom: '1px solid #e6e8e4' }}>{record.status}</td>
+                        <td style={{ padding: 8, borderBottom: '1px solid #e6e8e4' }}>{record.notes || '—'}</td>
                       </tr>
                     ))}
                   </tbody>
