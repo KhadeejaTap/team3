@@ -1,4 +1,4 @@
-const path = require('path');
+/*const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const http = require('http');
@@ -4310,4 +4310,4 @@ server.listen(PORT, () => {
   setInterval(() => {
     autoDispatchAlerts(pool).catch(err => console.error('[AUTO-ALERT ERROR]', err.message));
   }, 60000);
-});
+}); */
